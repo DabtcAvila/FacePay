@@ -69,12 +69,12 @@ export default function WebAuthnDemo({
       const startResult = await WebAuthnService.startRegistration(userId, userName)
       
       if (!startResult.success) {
-        throw startResult.error
+        throw new Error('Registration start failed')
       }
 
       // Step 2: Create credential
       const credential = await navigator.credentials.create({
-        publicKey: startResult.options
+        publicKey: startResult.options as PublicKeyCredentialCreationOptions
       })
 
       if (!credential) {
@@ -85,7 +85,7 @@ export default function WebAuthnDemo({
       const completeResult = await WebAuthnService.completeRegistration(credential, userId)
       
       if (!completeResult.success) {
-        throw completeResult.error
+        throw new Error('Registration completion failed')
       }
 
       setStep('success')
@@ -119,12 +119,12 @@ export default function WebAuthnDemo({
       const startResult = await WebAuthnService.startAuthentication(userId)
       
       if (!startResult.success) {
-        throw startResult.error
+        throw new Error('Authentication start failed')
       }
 
       // Step 2: Get credential
       const credential = await navigator.credentials.get({
-        publicKey: startResult.options
+        publicKey: startResult.options as PublicKeyCredentialRequestOptions
       })
 
       if (!credential) {
@@ -135,7 +135,7 @@ export default function WebAuthnDemo({
       const completeResult = await WebAuthnService.completeAuthentication(credential, userId)
       
       if (!completeResult.success) {
-        throw completeResult.error
+        throw new Error('Authentication completion failed')
       }
 
       setStep('success')

@@ -88,7 +88,22 @@ export default function FaceIDDemo({
     }
   }, [enableWebAuthnFallback]);
 
-  // Initialize camera with iOS optimizations
+  // Check current camera permission status
+  const checkCameraPermission = useCallback(async (): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> => {
+    try {
+      if (!navigator.permissions) {
+        return 'unknown';
+      }
+      
+      const result = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      return result.state;
+    } catch (err) {
+      console.log('Permission query not supported:', err);
+      return 'unknown';
+    }
+  }, []);
+
+  // Initialize camera with enhanced permission handling
   const initializeCamera = useCallback(async () => {
     try {
       setCameraStatus('requesting');
@@ -99,6 +114,17 @@ export default function FaceIDDemo({
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setCameraStatus('not-supported');
         setError('Camera is not supported on this browser.');
+        return;
+      }
+
+      // Check current permission status first
+      const permissionStatus = await checkCameraPermission();
+      console.log('Camera permission status:', permissionStatus);
+
+      // If permission is denied, show error immediately
+      if (permissionStatus === 'denied') {
+        setCameraStatus('denied');
+        setError('Camera access denied. Please allow camera permissions and try again.');
         return;
       }
 
@@ -115,7 +141,13 @@ export default function FaceIDDemo({
         audio: false
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Request camera access with timeout
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia(constraints),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Camera request timeout')), 15000)
+        )
+      ]);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -130,6 +162,7 @@ export default function FaceIDDemo({
           await playPromise;
         }
         
+        // Set status to active immediately after successful getUserMedia
         setCameraStatus('active');
         setAuthMethod('camera');
         
@@ -137,6 +170,11 @@ export default function FaceIDDemo({
         videoRef.current.onloadedmetadata = () => {
           startFaceDetection();
         };
+        
+        // If video loads immediately, start detection
+        if (videoRef.current.readyState >= 2) {
+          startFaceDetection();
+        }
       }
     } catch (err) {
       console.error('Camera error:', err);
@@ -153,6 +191,9 @@ export default function FaceIDDemo({
         } else if (err.name === 'OverconstrainedError') {
           setCameraStatus('error');
           setError('Camera constraints cannot be satisfied. Please try a different device.');
+        } else if (err.message === 'Camera request timeout') {
+          setCameraStatus('error');
+          setError('Camera permission request timed out. Please refresh and try again.');
         } else {
           setCameraStatus('error');
           setError(`Camera error: ${err.message}`);
@@ -166,7 +207,7 @@ export default function FaceIDDemo({
         }
       }
     }
-  }, [enableWebAuthnFallback, webauthnCapabilities]);
+  }, [enableWebAuthnFallback, webauthnCapabilities, checkCameraPermission]);
 
   // WebAuthn biometric authentication
   const initiateWebAuthn = useCallback(async () => {
@@ -182,12 +223,11 @@ export default function FaceIDDemo({
       const authResult = await WebAuthnService.startAuthentication(userId);
       
       if (authResult.success && authResult.options) {
-        const credential = await navigator.credentials.create({
+        const credential = await navigator.credentials.get({
           publicKey: {
             ...authResult.options,
-            timeout: 60000,
-            userVerification: 'required'
-          }
+            timeout: 60000
+          } as PublicKeyCredentialRequestOptions
         });
 
         if (credential) {
@@ -211,11 +251,11 @@ export default function FaceIDDemo({
             ...regResult.options,
             timeout: 60000,
             authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-              residentKey: 'preferred'
+              authenticatorAttachment: 'platform' as AuthenticatorAttachment,
+              userVerification: 'required' as UserVerificationRequirement,
+              residentKey: 'preferred' as ResidentKeyRequirement
             }
-          }
+          } as PublicKeyCredentialCreationOptions
         });
 
         if (credential) {
@@ -323,6 +363,48 @@ export default function FaceIDDemo({
     }
   }, []);
 
+  // Listen for permission changes
+  useEffect(() => {
+    let permissionStatus: PermissionStatus | null = null;
+    
+    const setupPermissionListener = async () => {
+      try {
+        if (navigator.permissions) {
+          permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          
+          const handlePermissionChange = () => {
+            console.log('Camera permission changed to:', permissionStatus?.state);
+            
+            // If permission was granted and we're in requesting state, restart camera
+            if (permissionStatus?.state === 'granted' && cameraStatus === 'requesting' && authMethod === 'camera') {
+              console.log('Permission granted, restarting camera...');
+              initializeCamera();
+            }
+            // If permission was denied, update status
+            else if (permissionStatus?.state === 'denied' && authMethod === 'camera') {
+              setCameraStatus('denied');
+              setError('Camera access denied. Please allow camera permissions and try again.');
+            }
+          };
+          
+          permissionStatus.addEventListener('change', handlePermissionChange);
+        }
+      } catch (err) {
+        console.log('Could not set up permission listener:', err);
+      }
+    };
+
+    if (authMethod === 'camera') {
+      setupPermissionListener();
+    }
+
+    return () => {
+      if (permissionStatus) {
+        permissionStatus.removeEventListener('change', () => {});
+      }
+    };
+  }, [authMethod, cameraStatus, initializeCamera]);
+
   // Initialize based on device capabilities
   useEffect(() => {
     checkCapabilities();
@@ -336,13 +418,13 @@ export default function FaceIDDemo({
     }
   }, [scanStage, isWebAuthnInProgress, authMethod, initiateWebAuthn]);
 
-  // Auto-retry logic for failed attempts
+  // Auto-retry logic for failed attempts (only once)
   useEffect(() => {
-    if (cameraStatus === 'error' && retryCount < 3 && authMethod === 'camera') {
+    if (cameraStatus === 'error' && retryCount === 1 && authMethod === 'camera') {
       const retryTimeout = setTimeout(() => {
-        console.log(`Auto-retry attempt ${retryCount + 1}`);
+        console.log('Auto-retry attempt after initial failure');
         initializeCamera();
-      }, 3000);
+      }, 2000);
       
       return () => clearTimeout(retryTimeout);
     }
@@ -372,9 +454,18 @@ export default function FaceIDDemo({
   const retry = () => {
     setError('');
     setRetryCount(0);
+    setScanStage('detecting');
+    setFaceDetected(false);
+    setScanProgress(0);
+    setFaceBox(null);
+    
+    // Clean up any existing stream before retry
+    cleanup();
+    
     if (authMethod === 'camera') {
       initializeCamera();
     } else {
+      setScanStage('webauthn');
       initiateWebAuthn();
     }
   };
@@ -434,32 +525,52 @@ export default function FaceIDDemo({
               </div>
             ))}
             
-            {/* Scanning progress bar */}
+            {/* Enhanced scanning progress bar */}
             {scanStage === 'scanning' && (
               <div className="absolute bottom-2 left-2 right-2">
-                <div className="bg-black/50 rounded-full p-1">
+                <div className="bg-black/60 rounded-full p-1.5 backdrop-blur-sm">
                   <motion.div
-                    className="h-1 bg-blue-500 rounded-full"
-                    style={{ width: `${scanProgress}%` }}
+                    className="h-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full relative overflow-hidden"
                     initial={{ width: 0 }}
                     animate={{ width: `${scanProgress}%` }}
-                  />
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                  >
+                    <motion.div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                      animate={{ x: [-100, 200] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                    />
+                  </motion.div>
+                </div>
+                <div className="text-center mt-1">
+                  <span className="text-xs text-white font-medium">
+                    {Math.round(scanProgress)}%
+                  </span>
                 </div>
               </div>
             )}
           </motion.div>
         )}
 
-        {/* Scanning animation overlay */}
+        {/* Enhanced scanning animation overlay */}
         {scanStage === 'scanning' && (
-          <motion.div
-            className="absolute inset-0 pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.3, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            <div className="w-full h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent" />
-          </motion.div>
+          <>
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.3, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <div className="w-full h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent" />
+            </motion.div>
+            
+            {/* Scanning line animation */}
+            <motion.div
+              className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent pointer-events-none"
+              animate={{ y: [0, (videoRef.current?.offsetHeight || 400) - 2] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+            />
+          </>
         )}
       </div>
       
@@ -470,67 +581,206 @@ export default function FaceIDDemo({
 
   const renderStatus = () => (
     <div className="text-center space-y-4">
-      <div className="flex items-center justify-center space-x-2">
+      <div className="flex items-center justify-center space-x-3">
         {scanStage === 'complete' ? (
-          <CheckCircle className="w-6 h-6 text-green-500" />
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+          >
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </motion.div>
         ) : scanStage === 'scanning' ? (
           <motion.div
-            className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"
+            className="w-7 h-7 border-3 border-blue-500 border-t-transparent rounded-full"
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           />
+        ) : scanStage === 'webauthn' ? (
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            {deviceInfo?.hasFaceID ? (
+              <Eye className="w-7 h-7 text-blue-500" />
+            ) : deviceInfo?.hasTouchID ? (
+              <Fingerprint className="w-7 h-7 text-blue-500" />
+            ) : (
+              <Shield className="w-7 h-7 text-blue-500" />
+            )}
+          </motion.div>
         ) : (
-          <Camera className="w-6 h-6 text-yellow-500" />
+          <Camera className="w-7 h-7 text-yellow-500" />
         )}
         
-        <motion.p 
-          className="text-lg font-medium"
+        <motion.div 
+          className="text-center"
           animate={{
             color: scanStage === 'complete' ? '#10B981' : 
-                   scanStage === 'scanning' ? '#3B82F6' : '#F59E0B'
+                   (scanStage === 'scanning' || scanStage === 'webauthn') ? '#3B82F6' : '#F59E0B'
           }}
         >
-          {scanStage === 'detecting' && 'Position your face in the frame'}
-          {scanStage === 'scanning' && `Scanning face... ${scanProgress}%`}
-          {scanStage === 'complete' && 'Face verification complete!'}
-        </motion.p>
+          <p className="text-lg font-semibold">
+            {scanStage === 'detecting' && 'Position your face in the frame'}
+            {scanStage === 'scanning' && 'Analyzing your face...'}
+            {scanStage === 'webauthn' && (
+              deviceInfo?.hasFaceID ? 'Use Face ID to authenticate' :
+              deviceInfo?.hasTouchID ? 'Use Touch ID to authenticate' :
+              'Use biometric authentication'
+            )}
+            {scanStage === 'complete' && 'Authentication successful!'}
+          </p>
+          {scanStage === 'scanning' && (
+            <p className="text-sm text-gray-600 mt-1">
+              {scanProgress}% complete
+            </p>
+          )}
+        </motion.div>
       </div>
       
       {scanStage === 'detecting' && (
-        <p className="text-sm text-gray-600">
-          Make sure your face is clearly visible and well-lit
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600">
+            Make sure your face is clearly visible and well-lit
+          </p>
+          {deviceInfo?.isIOS && (
+            <p className="text-xs text-blue-600">
+              For better security, consider using Face ID instead
+            </p>
+          )}
+        </div>
+      )}
+      
+      {scanStage === 'webauthn' && isWebAuthnInProgress && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-600">
+            {deviceInfo?.hasFaceID ? 
+              'Look at your device to authenticate with Face ID' :
+            deviceInfo?.hasTouchID ? 
+              'Place your finger on the Touch ID sensor' :
+              'Follow the prompts on your device to authenticate'
+            }
+          </p>
+        </div>
+      )}
+      
+      {/* Method switching buttons */}
+      {authMethod && scanStage !== 'complete' && !isWebAuthnInProgress && (
+        <div className="flex justify-center space-x-3 mt-4">
+          {authMethod === 'webauthn' && (
+            <Button 
+              onClick={switchToCamera} 
+              variant="outline" 
+              size="sm"
+              disabled={cameraStatus === 'not-supported'}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Use Camera
+            </Button>
+          )}
+          {authMethod === 'camera' && webauthnCapabilities?.isPlatformAuthenticatorAvailable && (
+            <Button 
+              onClick={switchToWebAuthn} 
+              variant="outline" 
+              size="sm"
+            >
+              {deviceInfo?.hasFaceID ? (
+                <><Eye className="w-4 h-4 mr-2" />Use Face ID</>
+              ) : deviceInfo?.hasTouchID ? (
+                <><Fingerprint className="w-4 h-4 mr-2" />Use Touch ID</>
+              ) : (
+                <><Shield className="w-4 h-4 mr-2" />Use Biometrics</>
+              )}
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
 
-  const renderError = () => (
-    <div className="text-center space-y-6">
-      <div className="flex items-center justify-center space-x-2 text-red-500">
-        <AlertCircle className="w-8 h-8" />
-        <h3 className="text-xl font-semibold">Camera Error</h3>
-      </div>
-      
-      <p className="text-gray-600">{error}</p>
-      
-      <div className="space-y-3">
-        {cameraStatus === 'denied' && (
-          <div className="text-sm text-gray-500 space-y-2">
-            <p>To use FaceID:</p>
-            <ol className="text-left list-decimal list-inside space-y-1">
-              <li>Click the camera icon in your browser's address bar</li>
-              <li>Select "Allow" for camera access</li>
-              <li>Refresh the page and try again</li>
-            </ol>
-          </div>
-        )}
+  const renderError = () => {
+    const isNetworkError = error.includes('network') || error.includes('connection');
+    const isPermissionError = cameraStatus === 'denied';
+    const isUnsupportedError = cameraStatus === 'not-supported';
+    
+    return (
+      <div className="text-center space-y-6">
+        <div className="flex items-center justify-center space-x-3 text-red-500">
+          {isNetworkError ? (
+            <WifiOff className="w-8 h-8" />
+          ) : (
+            <AlertCircle className="w-8 h-8" />
+          )}
+          <h3 className="text-xl font-semibold">
+            {isNetworkError ? 'Connection Error' :
+             isPermissionError ? 'Permission Required' :
+             isUnsupportedError ? 'Not Supported' : 'Authentication Error'}
+          </h3>
+        </div>
         
-        <Button onClick={initializeCamera} variant="outline">
-          Try Again
-        </Button>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-700 font-medium">{error}</p>
+        </div>
+        
+        <div className="space-y-4">
+          {isPermissionError && (
+            <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
+              <p className="font-medium mb-2">To enable camera access:</p>
+              <ol className="text-left list-decimal list-inside space-y-1">
+                {deviceInfo?.isIOS ? (
+                  <>
+                    <li>Go to Settings → Safari → Camera</li>
+                    <li>Select "Allow" or "Ask"</li>
+                    <li>Refresh this page and try again</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Click the camera icon in your browser's address bar</li>
+                    <li>Select "Allow" for camera access</li>
+                    <li>Refresh the page and try again</li>
+                  </>
+                )}
+              </ol>
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {!isUnsupportedError && (
+              <Button onClick={retry} variant="outline" className="flex items-center">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Try Again
+                {retryCount > 0 && retryCount < 3 && (
+                  <span className="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">
+                    Attempt {retryCount + 1}
+                  </span>
+                )}
+              </Button>
+            )}
+            
+            {/* Offer alternative authentication method */}
+            {webauthnCapabilities?.isPlatformAuthenticatorAvailable && authMethod === 'camera' && (
+              <Button onClick={switchToWebAuthn} className="flex items-center">
+                {deviceInfo?.hasFaceID ? (
+                  <><Eye className="w-4 h-4 mr-2" />Try Face ID</>
+                ) : deviceInfo?.hasTouchID ? (
+                  <><Fingerprint className="w-4 h-4 mr-2" />Try Touch ID</>
+                ) : (
+                  <><Shield className="w-4 h-4 mr-2" />Try Biometrics</>
+                )}
+              </Button>
+            )}
+            
+            {authMethod === 'webauthn' && cameraStatus !== 'not-supported' && (
+              <Button onClick={switchToCamera} variant="outline" className="flex items-center">
+                <Camera className="w-4 h-4 mr-2" />
+                Try Camera
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderRequestingPermission = () => (
     <div className="text-center space-y-6">
@@ -541,8 +791,92 @@ export default function FaceIDDemo({
       />
       
       <div>
-        <h3 className="text-xl font-semibold mb-2">Requesting Camera Access</h3>
-        <p className="text-gray-600">Please allow camera access to continue</p>
+        <h3 className="text-xl font-semibold mb-2">
+          {authMethod === 'webauthn' ? 'Initializing Biometric Authentication' : 'Requesting Camera Access'}
+        </h3>
+        <p className="text-gray-600">
+          {authMethod === 'webauthn' ? 
+            'Please wait while we set up secure authentication...' :
+            'Please allow camera access to continue'
+          }
+        </p>
+        {deviceInfo?.isIOS && authMethod === 'camera' && (
+          <p className="text-sm text-blue-600 mt-2">
+            You may see a permission prompt from Safari
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderWebAuthnInterface = () => (
+    <div className="text-center space-y-8">
+      <div className="relative">
+        {/* Biometric icon with pulsing animation */}
+        <motion.div
+          className="w-32 h-32 mx-auto bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg"
+          animate={{ 
+            scale: isWebAuthnInProgress ? [1, 1.05, 1] : 1,
+            boxShadow: isWebAuthnInProgress ? 
+              ['0 10px 25px rgba(59, 130, 246, 0.3)', '0 15px 35px rgba(59, 130, 246, 0.4)', '0 10px 25px rgba(59, 130, 246, 0.3)'] : 
+              '0 10px 25px rgba(59, 130, 246, 0.3)'
+          }}
+          transition={{ duration: 2, repeat: isWebAuthnInProgress ? Infinity : 0 }}
+        >
+          {deviceInfo?.hasFaceID ? (
+            <Eye className="w-16 h-16 text-white" />
+          ) : deviceInfo?.hasTouchID ? (
+            <Fingerprint className="w-16 h-16 text-white" />
+          ) : (
+            <Shield className="w-16 h-16 text-white" />
+          )}
+        </motion.div>
+        
+        {/* Loading spinner overlay */}
+        {isWebAuthnInProgress && (
+          <motion.div
+            className="absolute inset-0 border-4 border-transparent border-t-white rounded-full"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          />
+        )}
+      </div>
+      
+      <div className="space-y-4">
+        <h3 className="text-2xl font-bold text-gray-900">
+          {deviceInfo?.hasFaceID ? 'Authenticate with Face ID' :
+           deviceInfo?.hasTouchID ? 'Authenticate with Touch ID' :
+           'Authenticate with Biometrics'}
+        </h3>
+        
+        <div className="space-y-2">
+          <p className="text-gray-600">
+            {deviceInfo?.hasFaceID ? 
+              'Look at your device to verify your identity' :
+            deviceInfo?.hasTouchID ? 
+              'Place your finger on the Touch ID sensor' :
+              'Use your device\'s biometric authentication'
+            }
+          </p>
+          
+          {isWebAuthnInProgress && (
+            <p className="text-blue-600 font-medium">
+              Follow the prompts on your device...
+            </p>
+          )}
+        </div>
+        
+        {/* Security badges */}
+        <div className="flex justify-center space-x-4 pt-4">
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <Shield className="w-4 h-4" />
+            <span>Secure</span>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <Smartphone className="w-4 h-4" />
+            <span>Device Protected</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -550,38 +884,101 @@ export default function FaceIDDemo({
   return (
     <div className="w-full max-w-2xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">FaceID Demo</h2>
+        <div className="flex items-center space-x-3">
+          <h2 className="text-2xl font-bold text-gray-900">
+            {authMethod === 'webauthn' ? 
+              (deviceInfo?.hasFaceID ? 'Face ID Authentication' :
+               deviceInfo?.hasTouchID ? 'Touch ID Authentication' :
+               'Biometric Authentication') :
+              'Face Recognition'
+            }
+          </h2>
+          
+          {/* Device indicator */}
+          {deviceInfo && (
+            <div className="flex items-center space-x-1 text-sm text-gray-500">
+              <Smartphone className="w-4 h-4" />
+              {deviceInfo.isIOS ? 'iOS' : 'Web'}
+            </div>
+          )}
+        </div>
+        
         <Button onClick={handleCancel} variant="ghost" size="sm">
           <X className="w-5 h-5" />
         </Button>
       </div>
       
       <div className="space-y-8">
-        {cameraStatus === 'requesting' && renderRequestingPermission()}
-        {(cameraStatus === 'error' || cameraStatus === 'denied') && renderError()}
-        {cameraStatus === 'active' && (
+        {/* Loading states */}
+        {(cameraStatus === 'requesting' || (authMethod === 'webauthn' && !webauthnCapabilities)) && renderRequestingPermission()}
+        
+        {/* Error states */}
+        {((cameraStatus === 'error' || cameraStatus === 'denied' || cameraStatus === 'not-supported') && authMethod === 'camera') || 
+         (error && authMethod === 'webauthn') ? renderError() : null}
+        
+        {/* Camera interface */}
+        {cameraStatus === 'active' && authMethod === 'camera' && (
           <>
             {renderCameraView()}
             {renderStatus()}
           </>
         )}
+        
+        {/* WebAuthn interface */}
+        {authMethod === 'webauthn' && scanStage === 'webauthn' && !error && renderWebAuthnInterface()}
+        
+        {/* Status for WebAuthn complete */}
+        {authMethod === 'webauthn' && scanStage !== 'webauthn' && renderStatus()}
       </div>
       
+      {/* Success message */}
       <AnimatePresence>
         {scanStage === 'complete' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center"
+            className="mt-6 p-6 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl text-center shadow-sm"
           >
-            <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-            <p className="text-green-700 font-medium">
-              Face verification successful! You can now proceed with secure payments.
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 10, delay: 0.2 }}
+            >
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            </motion.div>
+            
+            <h3 className="text-lg font-semibold text-green-800 mb-2">
+              {authMethod === 'webauthn' ? 
+                (deviceInfo?.hasFaceID ? 'Face ID verification successful!' :
+                 deviceInfo?.hasTouchID ? 'Touch ID verification successful!' :
+                 'Biometric verification successful!') :
+                'Face recognition successful!'
+              }
+            </h3>
+            
+            <p className="text-green-700">
+              You can now proceed with secure payments.
             </p>
+            
+            {/* Security confirmation */}
+            <div className="flex justify-center items-center space-x-2 mt-3 text-sm text-green-600">
+              <Shield className="w-4 h-4" />
+              <span>Identity verified securely</span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Network status indicator */}
+      {typeof navigator !== 'undefined' && !navigator.onLine && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <div className="flex items-center justify-center space-x-2 text-yellow-700">
+            <WifiOff className="w-4 h-4" />
+            <span className="text-sm">Offline - Some features may be limited</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

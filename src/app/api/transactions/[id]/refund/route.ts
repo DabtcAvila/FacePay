@@ -35,14 +35,14 @@ export async function POST(
       return createErrorResponse('Transaction not found', 404)
     }
 
-    // Only completed transactions can be refunded
-    if (transaction.status !== 'completed') {
-      return createErrorResponse('Only completed transactions can be refunded', 400)
-    }
-
     // Check if already refunded
     if (transaction.status === 'refunded') {
       return createErrorResponse('Transaction already refunded', 400)
+    }
+
+    // Only completed transactions can be refunded
+    if (transaction.status !== 'completed') {
+      return createErrorResponse('Only completed transactions can be refunded', 400)
     }
 
     // Validate refund amount (default to full amount if not specified)

@@ -16,6 +16,17 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        inter: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        'plus-jakarta': ['var(--font-plus-jakarta)', 'system-ui', 'sans-serif'],
+      },
+      screens: {
+        'xs': '475px',
+        'mobile-landscape': {
+          'raw': '(max-height: 500px) and (orientation: landscape)'
+        },
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -69,6 +80,20 @@ module.exports = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "fade-in": "fadeIn 0.5s ease-in-out",
+        "slide-up": "slideUp 0.3s ease-out",
+        "pulse-glow": "pulseGlow 2s ease-in-out infinite",
+      },
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+        '128': '32rem',
+      },
+      fontSize: {
+        '2xs': '0.625rem',
+      },
+      backdropBlur: {
+        '4xl': '72px',
       },
     },
   },

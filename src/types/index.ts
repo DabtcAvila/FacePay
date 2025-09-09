@@ -44,6 +44,8 @@ export interface PaymentMethodDetails {
   stripePaymentMethodId?: string
   last4?: string
   brand?: string
+  expMonth?: number
+  expYear?: number
   
   // Crypto wallet details
   walletAddress?: string

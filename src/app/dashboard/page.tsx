@@ -73,7 +73,7 @@ export default function DashboardPage() {
         setStats({
           totalBalance,
           monthlySpending,
-          totalTransactions: user?._count?.transactions || 0,
+          totalTransactions: recentTransactions.length || 0,
           activePaymentMethods: paymentMethodsData.data.length
         });
       }

@@ -69,7 +69,7 @@ export class WebAuthnService {
         isPlatformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         
         // Check for user verification support
-        if (window.PublicKeyCredential.isConditionalMediationAvailable) {
+        if (typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function') {
           isUserVerificationSupported = await PublicKeyCredential.isConditionalMediationAvailable()
         }
 

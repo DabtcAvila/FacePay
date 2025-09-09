@@ -100,8 +100,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         completedAt: new Date(),
         metadata: {
           ...transaction.metadata as object,
-          paymentIntentId: session.payment_intent,
-          customerId: session.customer,
+          paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null,
+          customerId: typeof session.customer === 'string' ? session.customer : (session.customer as any)?.id || null,
           paymentStatus: session.payment_status,
         },
       },

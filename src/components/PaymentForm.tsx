@@ -9,16 +9,26 @@ import FaceScanAnimation from './FaceScanAnimation';
 interface PaymentFormProps {
   amount: number;
   recipient?: string;
+  description?: string;
+  onSuccess?: (paymentData: any) => void;
+  onCancel?: () => void;
   onPaymentComplete?: (paymentData: any) => void;
 }
 
-export default function PaymentForm({ amount, recipient, onPaymentComplete }: PaymentFormProps) {
+export default function PaymentForm({ 
+  amount, 
+  recipient, 
+  description, 
+  onSuccess, 
+  onCancel, 
+  onPaymentComplete 
+}: PaymentFormProps) {
   const [paymentStep, setPaymentStep] = useState<'details' | 'verification' | 'processing' | 'complete'>('details');
   const [isScanning, setIsScanning] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'face' | 'card'>('face');
   const [formData, setFormData] = useState({
     amount: amount,
-    description: '',
+    description: description || '',
     paymentMethod: 'face'
   });
 
@@ -29,12 +39,14 @@ export default function PaymentForm({ amount, recipient, onPaymentComplete }: Pa
     // Simulate payment processing
     setTimeout(() => {
       setPaymentStep('complete');
-      onPaymentComplete?.({
+      const paymentData = {
         amount: formData.amount,
         method: 'biometric',
         timestamp: new Date(),
         recipient
-      });
+      };
+      onPaymentComplete?.(paymentData);
+      onSuccess?.(paymentData);
     }, 2000);
   };
 
@@ -226,6 +238,17 @@ export default function PaymentForm({ amount, recipient, onPaymentComplete }: Pa
               <Lock className="w-4 h-4 mr-2" />
               Proceed to Payment
             </Button>
+            
+            {onCancel && (
+              <Button 
+                type="button"
+                onClick={onCancel}
+                variant="outline"
+                className="w-full mt-3 text-gray-600 hover:text-gray-800"
+              >
+                Cancel Payment
+              </Button>
+            )}
           </motion.form>
         )}
 
@@ -259,6 +282,19 @@ export default function PaymentForm({ amount, recipient, onPaymentComplete }: Pa
                 </p>
               </div>
             </div>
+            
+            {onCancel && (
+              <Button 
+                onClick={() => {
+                  setIsScanning(false);
+                  onCancel();
+                }}
+                variant="outline"
+                className="w-full text-gray-600 hover:text-gray-800"
+              >
+                Cancel Verification
+              </Button>
+            )}
           </motion.div>
         )}
 

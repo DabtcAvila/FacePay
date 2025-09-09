@@ -19,6 +19,7 @@ export default function LandingPage() {
   const [webAuthnCapabilities, setWebAuthnCapabilities] = useState<WebAuthnCapabilities | null>(null);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [biometricReady, setBiometricReady] = useState(false);
+  const [demoError, setDemoError] = useState<string>('');
 
   // Check device capabilities on load
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function LandingPage() {
   }, []);
 
   const handleDemoClick = () => {
+    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     // Choose the best available demo mode based on capabilities
     if (biometricReady) {
@@ -49,11 +51,25 @@ export default function LandingPage() {
   };
 
   const handleFaceIDDemo = () => {
+    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     setDemoMode('faceid');
   };
 
+  const handleFaceIDError = (error: string) => {
+    console.error('FaceID Demo error:', error);
+    setDemoError(error);
+    // Optionally switch to scan mode as fallback after a delay
+    if (error.includes('camera') || error.includes('permission')) {
+      setTimeout(() => {
+        setDemoMode('scan');
+        setIsScanning(true);
+      }, 3000);
+    }
+  };
+
   const handleWebAuthnDemo = () => {
+    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     setDemoMode('webauthn');
   };
@@ -66,9 +82,18 @@ export default function LandingPage() {
   };
 
   const handleBiometricSuccess = () => {
+    setDemoError(''); // Clear any errors on success
     setTimeout(() => {
       setDemoMode('payment');
     }, 1000);
+  };
+
+  // Reset states when closing modal
+  const closeModal = () => {
+    setShowDemo(false);
+    setDemoError('');
+    setIsScanning(false);
+    setMobileMenuOpen(false);
   };
 
   const features = [
@@ -181,7 +206,7 @@ export default function LandingPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            onClick={() => setShowDemo(false)}
+            onClick={closeModal}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -190,16 +215,28 @@ export default function LandingPage() {
               className="bg-white rounded-2xl p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">
-                  {demoMode === 'webauthn' ? 'Biometric Authentication' :
-                   demoMode === 'faceid' ? 'FaceID Camera Demo' :
-                   demoMode === 'register' ? 'Create Account' :
-                   'FacePay Demo'}
-                </h3>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold">
+                    {demoMode === 'webauthn' ? 'Biometric Authentication' :
+                     demoMode === 'faceid' ? 'Face Recognition Demo' :
+                     demoMode === 'register' ? 'Create Account' :
+                     'FacePay Demo'}
+                  </h3>
+                  
+                  {/* Demo instructions */}
+                  <p className="text-sm text-gray-600 mt-1">
+                    {demoMode === 'webauthn' ? 'Use your device\'s biometric authentication' :
+                     demoMode === 'faceid' ? 'Test our face recognition technology with your camera' :
+                     demoMode === 'scan' ? 'Experience our face scanning animation' :
+                     demoMode === 'register' ? 'Create your FacePay account' :
+                     'Try our payment demo'}
+                  </p>
+                </div>
+                
                 <button
-                  onClick={() => setShowDemo(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 ml-4 flex-shrink-0"
                 >
                   ✕
                 </button>
@@ -216,10 +253,51 @@ export default function LandingPage() {
               )}
 
               {demoMode === 'faceid' && (
-                <FaceIDDemo 
-                  onScanComplete={handleBiometricSuccess}
-                  onCancel={() => setShowDemo(false)}
-                />
+                <>
+                  <FaceIDDemo 
+                    onScanComplete={handleBiometricSuccess}
+                    onCancel={closeModal}
+                    userId={`demo-user-${Date.now()}`}
+                    userName="demo@facepay.com"
+                    enableWebAuthnFallback={true}
+                  />
+                  
+                  {/* Error display with fallback options */}
+                  {demoError && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-700 text-sm mb-3">{demoError}</p>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2 justify-center">
+                          <Button 
+                            onClick={() => {
+                              setDemoError('');
+                              setDemoMode('scan');
+                              setIsScanning(true);
+                            }}
+                            variant="outline" 
+                            size="sm"
+                          >
+                            Try Animation Demo
+                          </Button>
+                          {biometricReady && (
+                            <Button 
+                              onClick={() => {
+                                setDemoError('');
+                                setDemoMode('webauthn');
+                              }}
+                              size="sm"
+                            >
+                              Try Biometric Auth
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 text-center mt-2">
+                          The animation demo shows our interface design without requiring camera access
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {demoMode === 'scan' && (
@@ -233,6 +311,32 @@ export default function LandingPage() {
                   <p className="text-gray-600">
                     Experience lightning-fast biometric authentication
                   </p>
+                  
+                  {/* Fallback options in animation demo */}
+                  <div className="flex gap-2 justify-center mt-4">
+                    {biometricReady && (
+                      <Button 
+                        onClick={() => {
+                          setDemoError('');
+                          setDemoMode('webauthn');
+                        }}
+                        variant="outline" 
+                        size="sm"
+                      >
+                        Try Real Biometrics
+                      </Button>
+                    )}
+                    <Button 
+                      onClick={() => {
+                        setDemoError('');
+                        setDemoMode('faceid');
+                      }}
+                      variant="outline" 
+                      size="sm"
+                    >
+                      Try Camera Demo
+                    </Button>
+                  </div>
                 </div>
               )}
 
@@ -240,12 +344,12 @@ export default function LandingPage() {
                 <PaymentForm 
                   amount={25.99}
                   recipient="Demo Store"
-                  onPaymentComplete={() => setShowDemo(false)}
+                  onPaymentComplete={closeModal}
                 />
               )}
 
               {demoMode === 'register' && (
-                <RegistrationFlow onRegistrationComplete={() => setShowDemo(false)} />
+                <RegistrationFlow onRegistrationComplete={closeModal} />
               )}
             </motion.div>
           </motion.div>
@@ -290,7 +394,7 @@ export default function LandingPage() {
                   )}
                   <span className="font-medium">
                     {biometricReady 
-                      ? `${webAuthnCapabilities?.deviceInfo.isMobile ? 'Mobile' : 'Desktop'} Biometric Authentication Ready`
+                      ? `${webAuthnCapabilities?.deviceInfo?.isMobile ? 'Mobile' : 'Desktop'} Biometric Authentication Ready`
                       : 'Biometric Authentication Not Available'
                     }
                   </span>
@@ -312,7 +416,7 @@ export default function LandingPage() {
                             <span>Touch ID</span>
                           </div>
                         )}
-                        {webAuthnCapabilities.deviceInfo.isMobile && (
+                        {webAuthnCapabilities.deviceInfo?.isMobile && (
                           <div className="flex items-center space-x-1">
                             <Smartphone className="w-4 h-4" />
                             <span>Mobile Biometrics</span>
@@ -450,7 +554,7 @@ export default function LandingPage() {
                     <div className="p-2 bg-gray-50 rounded-lg">
                       <div className="text-xs text-gray-600 mb-1">Platform</div>
                       <div className="text-sm font-semibold">
-                        {webAuthnCapabilities.deviceInfo.isMobile ? 'Mobile' : 'Desktop'}
+                        {webAuthnCapabilities.deviceInfo?.isMobile ? 'Mobile' : 'Desktop'}
                       </div>
                     </div>
                     <div className="p-2 bg-gray-50 rounded-lg">
