@@ -11,28 +11,152 @@ import {
   Zap,
   CheckCircle,
   ArrowRight,
-  Users,
-  Globe,
-  Lock,
-  TrendingUp,
   Star,
   Play,
   Sparkles,
-  Wallet,
-  QrCode,
   Camera,
-  Square,
   BrainCircuit,
-  Cpu,
-  Database,
-  Activity
+  Activity,
+  Globe,
+  Lock
 } from 'lucide-react';
-import FaceIDDemo from '@/components/FaceIDDemo';
-import WebAuthnDemo from '@/components/WebAuthnDemo';
-import PaymentForm from '@/components/PaymentForm';
-import { Button } from '@/components/ui/button';
 
-type DemoMode = 'landing' | 'face-id' | 'touch-id' | 'payment' | 'success';
+type DemoMode = 'landing' | 'face-id' | 'simple-face-id' | 'biometric' | 'success';
+
+// Simple Button Component
+const SimpleButton = ({ 
+  children, 
+  onClick, 
+  className = '', 
+  variant = 'primary' 
+}: { 
+  children: React.ReactNode; 
+  onClick?: () => void; 
+  className?: string; 
+  variant?: 'primary' | 'secondary' | 'outline';
+}) => {
+  const baseStyles = "inline-flex items-center justify-center px-6 py-3 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
+  const variants = {
+    primary: "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500",
+    secondary: "bg-gray-600 hover:bg-gray-700 text-white focus:ring-gray-500",
+    outline: "border-2 border-white/30 text-white hover:bg-white/20 focus:ring-white"
+  };
+  
+  return (
+    <button 
+      onClick={onClick}
+      className={`${baseStyles} ${variants[variant]} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+// Simple Face ID Demo Component
+const SimpleFaceIDComponent = ({ onComplete, onCancel }: { onComplete: () => void; onCancel: () => void }) => {
+  const [step, setStep] = useState<'init' | 'scanning' | 'complete'>('init');
+
+  useEffect(() => {
+    if (step === 'init') {
+      setTimeout(() => setStep('scanning'), 1000);
+    } else if (step === 'scanning') {
+      setTimeout(() => {
+        setStep('complete');
+        setTimeout(onComplete, 1500);
+      }, 3000);
+    }
+  }, [step, onComplete]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+      <div className="relative mb-8">
+        <div className="w-48 h-48 border-4 border-blue-400 rounded-full flex items-center justify-center">
+          {step === 'init' && (
+            <Eye className="w-20 h-20 text-blue-400" />
+          )}
+          {step === 'scanning' && (
+            <div className="relative">
+              <Eye className="w-20 h-20 text-blue-400" />
+              <div className="absolute inset-0 border-4 border-blue-400 rounded-full animate-ping"></div>
+            </div>
+          )}
+          {step === 'complete' && (
+            <CheckCircle className="w-20 h-20 text-green-400" />
+          )}
+        </div>
+      </div>
+      
+      <h3 className="text-2xl font-bold text-white mb-4">
+        {step === 'init' && 'Initializing Face ID...'}
+        {step === 'scanning' && 'Scanning Face...'}
+        {step === 'complete' && 'Face ID Successful!'}
+      </h3>
+      
+      <p className="text-blue-200 mb-8 max-w-md">
+        {step === 'init' && 'Please look at the camera when ready.'}
+        {step === 'scanning' && 'Keep your face in the center of the frame.'}
+        {step === 'complete' && 'Authentication completed successfully.'}
+      </p>
+      
+      <SimpleButton onClick={onCancel} variant="outline">
+        Cancel Demo
+      </SimpleButton>
+    </div>
+  );
+};
+
+// Simple Biometric Demo Component
+const SimpleBiometricComponent = ({ onComplete, onCancel }: { onComplete: () => void; onCancel: () => void }) => {
+  const [step, setStep] = useState<'init' | 'scanning' | 'complete'>('init');
+
+  useEffect(() => {
+    if (step === 'init') {
+      setTimeout(() => setStep('scanning'), 1000);
+    } else if (step === 'scanning') {
+      setTimeout(() => {
+        setStep('complete');
+        setTimeout(onComplete, 1500);
+      }, 2500);
+    }
+  }, [step, onComplete]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+      <div className="relative mb-8">
+        <div className="w-48 h-48 border-4 border-purple-400 rounded-full flex items-center justify-center">
+          {step === 'init' && (
+            <Fingerprint className="w-20 h-20 text-purple-400" />
+          )}
+          {step === 'scanning' && (
+            <div className="relative">
+              <Fingerprint className="w-20 h-20 text-purple-400" />
+              <div className="absolute inset-0 border-4 border-purple-400 rounded-full animate-pulse"></div>
+            </div>
+          )}
+          {step === 'complete' && (
+            <CheckCircle className="w-20 h-20 text-green-400" />
+          )}
+        </div>
+      </div>
+      
+      <h3 className="text-2xl font-bold text-white mb-4">
+        {step === 'init' && 'Preparing Biometric Scan...'}
+        {step === 'scanning' && 'Scanning Biometrics...'}
+        {step === 'complete' && 'Biometric Authentication Successful!'}
+      </h3>
+      
+      <p className="text-purple-200 mb-8 max-w-md">
+        {step === 'init' && 'Please use your device\'s biometric sensor.'}
+        {step === 'scanning' && 'Authenticating using device biometrics.'}
+        {step === 'complete' && 'Authentication completed successfully.'}
+      </p>
+      
+      <SimpleButton onClick={onCancel} variant="outline">
+        Cancel Demo
+      </SimpleButton>
+    </div>
+  );
+};
 
 export default function DemoPage() {
   const [currentDemo, setCurrentDemo] = useState<DemoMode>('landing');
@@ -42,49 +166,6 @@ export default function DemoPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.6, ease: "easeOut" }
-    }
-  };
-
-  const floatingVariants = {
-    animate: {
-      y: [-10, 10, -10],
-      transition: {
-        duration: 4,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }
-    }
-  };
-
-  const pulseVariants = {
-    animate: {
-      scale: [1, 1.05, 1],
-      transition: {
-        duration: 2,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }
-    }
-  };
 
   const handleDemoStart = (mode: DemoMode) => {
     setIsLoading(true);
@@ -110,181 +191,94 @@ export default function DemoPage() {
     );
   }
 
+  // Face ID Demo Screen
   if (currentDemo === 'face-id') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
         <div className="container mx-auto max-w-4xl">
-          <Button 
+          <SimpleButton 
             onClick={handleBackToLanding}
-            variant="ghost"
-            className="mb-4 text-white hover:bg-white/20"
+            variant="outline"
+            className="mb-4"
           >
             ← Back to Demo
-          </Button>
+          </SimpleButton>
           
-          {/* Enhanced demo container with better error handling */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
             <div className="mb-6 text-center">
               <h2 className="text-3xl font-bold text-white mb-2">Face ID Demo</h2>
-              <p className="text-blue-200">Experience secure biometric authentication</p>
+              <p className="text-blue-200">Experience secure facial recognition authentication</p>
             </div>
             
-            <FaceIDDemo 
-              onScanComplete={handleDemoComplete}
+            <SimpleFaceIDComponent 
+              onComplete={handleDemoComplete}
               onCancel={handleBackToLanding}
-              userId="demo-user"
-              userName="Demo User"
-              enableWebAuthnFallback={true}
             />
-            
-            {/* Alternative authentication methods */}
-            <div className="mt-8 border-t border-white/20 pt-6">
-              <h3 className="text-lg font-semibold text-white mb-4 text-center">Alternative Methods</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  onClick={() => setCurrentDemo('touch-id')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <Fingerprint className="w-5 h-5 mr-2" />
-                  Try Touch ID / Biometrics
-                </Button>
-                <Button 
-                  onClick={() => setCurrentDemo('payment')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <CreditCard className="w-5 h-5 mr-2" />
-                  Skip to Payment Demo
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  if (currentDemo === 'touch-id') {
+  // Simple Face ID Demo Screen
+  if (currentDemo === 'simple-face-id') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 p-4">
         <div className="container mx-auto max-w-4xl">
-          <Button 
+          <SimpleButton 
             onClick={handleBackToLanding}
-            variant="ghost"
-            className="mb-4 text-white hover:bg-white/20"
+            variant="outline"
+            className="mb-4"
           >
             ← Back to Demo
-          </Button>
+          </SimpleButton>
           
-          {/* Enhanced biometric demo container */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
+            <div className="mb-6 text-center">
+              <h2 className="text-3xl font-bold text-white mb-2">Advanced Face ID with AI</h2>
+              <p className="text-green-200">Experience AI-powered facial recognition technology</p>
+            </div>
+            
+            <SimpleFaceIDComponent 
+              onComplete={handleDemoComplete}
+              onCancel={handleBackToLanding}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Biometric Demo Screen
+  if (currentDemo === 'biometric') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 p-4">
+        <div className="container mx-auto max-w-4xl">
+          <SimpleButton 
+            onClick={handleBackToLanding}
+            variant="outline"
+            className="mb-4"
+          >
+            ← Back to Demo
+          </SimpleButton>
+          
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
             <div className="mb-6 text-center">
               <h2 className="text-3xl font-bold text-white mb-2">Biometric Authentication Demo</h2>
               <p className="text-purple-200">Use your device's built-in security features</p>
             </div>
             
-            <WebAuthnDemo
-              onSuccess={handleDemoComplete}
-              onError={(error) => {
-                console.error('Demo error:', error);
-                // Show user-friendly error handling
-              }}
-              userId="demo-user"
-              userName="Demo User"
-              mode="demo"
-            />
-            
-            {/* Alternative methods */}
-            <div className="mt-8 border-t border-white/20 pt-6">
-              <h3 className="text-lg font-semibold text-white mb-4 text-center">Other Options</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  onClick={() => setCurrentDemo('face-id')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <Eye className="w-5 h-5 mr-2" />
-                  Try Face ID / Camera
-                </Button>
-                <Button 
-                  onClick={() => setCurrentDemo('payment')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <CreditCard className="w-5 h-5 mr-2" />
-                  Skip to Payment Demo
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (currentDemo === 'payment') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
-        <div className="container mx-auto max-w-4xl">
-          <Button 
-            onClick={handleBackToLanding}
-            variant="ghost"
-            className="mb-4 text-white hover:bg-white/20"
-          >
-            ← Back to Demo
-          </Button>
-          
-          {/* Enhanced payment demo container */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-2xl">
-            <div className="mb-6 text-center">
-              <h2 className="text-3xl font-bold text-white mb-2">Secure Payment Demo</h2>
-              <p className="text-green-200">Experience lightning-fast biometric payments</p>
-              
-              {/* Demo disclaimer */}
-              <div className="mt-4 bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3">
-                <div className="flex items-center justify-center space-x-2 text-yellow-200">
-                  <Shield className="w-4 h-4" />
-                  <span className="text-sm font-medium">Demo Mode - No real payments will be processed</span>
-                </div>
-              </div>
-            </div>
-            
-            <PaymentForm
-              amount={99.99}
-              onSuccess={handleDemoComplete}
+            <SimpleBiometricComponent
+              onComplete={handleDemoComplete}
               onCancel={handleBackToLanding}
-              description="Demo Purchase - FacePay Experience"
             />
-            
-            {/* Go back to authentication demos */}
-            <div className="mt-8 border-t border-white/20 pt-6">
-              <h3 className="text-lg font-semibold text-white mb-4 text-center">Try Authentication First</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  onClick={() => setCurrentDemo('face-id')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <Eye className="w-5 h-5 mr-2" />
-                  Face ID Demo
-                </Button>
-                <Button 
-                  onClick={() => setCurrentDemo('touch-id')}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex items-center justify-center py-3"
-                >
-                  <Fingerprint className="w-5 h-5 mr-2" />
-                  Biometric Demo
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  // Success Screen
   if (currentDemo === 'success') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900 flex items-center justify-center p-4">
@@ -327,14 +321,11 @@ export default function DemoPage() {
             transition={{ delay: 0.9 }}
             className="space-y-4"
           >
-            <Button
-              onClick={handleBackToLanding}
-              className="btn-primary text-lg px-8 py-4"
-            >
+            <SimpleButton onClick={handleBackToLanding}>
               Try Another Demo
-            </Button>
+            </SimpleButton>
             
-            <div className="flex items-center justify-center space-x-2 text-green-200">
+            <div className="flex items-center justify-center space-x-2 text-green-200 mt-4">
               <Shield className="w-5 h-5" />
               <span>Secured by FacePay Technology</span>
             </div>
@@ -344,25 +335,30 @@ export default function DemoPage() {
     );
   }
 
+  // Main Landing Page
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 text-white overflow-hidden">
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
-          variants={floatingVariants}
-          animate="animate"
+          animate={{ 
+            y: [-10, 10, -10],
+            transition: { duration: 4, repeat: Infinity, ease: "easeInOut" }
+          }}
           className="absolute top-20 left-10 w-32 h-32 bg-blue-500/10 rounded-full blur-xl"
         />
         <motion.div
-          variants={floatingVariants}
-          animate="animate"
-          custom={1}
+          animate={{ 
+            y: [-15, 15, -15],
+            transition: { duration: 5, repeat: Infinity, ease: "easeInOut" }
+          }}
           className="absolute top-40 right-20 w-48 h-48 bg-purple-500/10 rounded-full blur-xl"
         />
         <motion.div
-          variants={floatingVariants}
-          animate="animate"
-          custom={2}
+          animate={{ 
+            y: [-12, 12, -12],
+            transition: { duration: 4.5, repeat: Infinity, ease: "easeInOut" }
+          }}
           className="absolute bottom-20 left-1/3 w-40 h-40 bg-indigo-500/10 rounded-full blur-xl"
         />
       </div>
@@ -370,12 +366,17 @@ export default function DemoPage() {
       {/* Hero Section */}
       <motion.section 
         className="relative min-h-screen flex items-center justify-center px-4"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
       >
         <div className="container mx-auto max-w-7xl text-center">
-          <motion.div variants={itemVariants} className="mb-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="mb-8"
+          >
             <motion.div
               className="inline-flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-6 py-3 mb-6"
               whileHover={{ scale: 1.05 }}
@@ -400,77 +401,81 @@ export default function DemoPage() {
 
           {/* Demo Action Buttons */}
           <motion.div 
-            variants={itemVariants}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-4xl mx-auto"
           >
             <motion.div
-              className="card-glass p-8 rounded-2xl hover-lift cursor-pointer"
+              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-white/20"
+              onClick={() => handleDemoStart('simple-face-id')}
+              whileHover={{ y: -5, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <BrainCircuit className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold mb-2">Advanced Face ID</h3>
+              <p className="text-gray-300 mb-4">Experience AI-powered face detection with real-time analysis</p>
+              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-blue-300">
+                <Camera className="w-4 h-4" />
+                <span>AI-Powered Detection</span>
+              </div>
+              <SimpleButton className="w-full">
+                <Play className="w-4 h-4 mr-2" />
+                Try Advanced Face ID
+              </SimpleButton>
+            </motion.div>
+            
+            <motion.div
+              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-white/20"
               onClick={() => handleDemoStart('face-id')}
               whileHover={{ y: -5, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Eye className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold mb-2">Face ID Demo</h3>
-              <p className="text-gray-300 mb-4">Experience advanced facial recognition with automatic fallback to device biometrics</p>
-              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-blue-300">
+              <Eye className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold mb-2">Simple Face ID</h3>
+              <p className="text-gray-300 mb-4">Experience basic facial recognition with automatic fallback</p>
+              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-purple-300">
                 <Camera className="w-4 h-4" />
-                <span>Camera + Biometric Support</span>
+                <span>Camera Recognition</span>
               </div>
-              <Button className="btn-primary w-full">
+              <SimpleButton className="w-full">
                 <Play className="w-4 h-4 mr-2" />
-                Try Face ID
-              </Button>
+                Try Simple Face ID
+              </SimpleButton>
             </motion.div>
 
             <motion.div
-              className="card-glass p-8 rounded-2xl hover-lift cursor-pointer"
-              onClick={() => handleDemoStart('touch-id')}
+              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-white/20"
+              onClick={() => handleDemoStart('biometric')}
               whileHover={{ y: -5, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Fingerprint className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+              <Fingerprint className="w-16 h-16 text-green-400 mx-auto mb-4" />
               <h3 className="text-2xl font-bold mb-2">Biometric Demo</h3>
               <p className="text-gray-300 mb-4">Use Touch ID, Face ID, or Windows Hello for secure authentication</p>
-              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-purple-300">
+              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
                 <Shield className="w-4 h-4" />
                 <span>Platform Biometrics</span>
               </div>
-              <Button className="btn-primary w-full">
+              <SimpleButton className="w-full">
                 <Play className="w-4 h-4 mr-2" />
                 Try Biometrics
-              </Button>
-            </motion.div>
-
-            <motion.div
-              className="card-glass p-8 rounded-2xl hover-lift cursor-pointer"
-              onClick={() => handleDemoStart('payment')}
-              whileHover={{ y: -5, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <CreditCard className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold mb-2">Payment Demo</h3>
-              <p className="text-gray-300 mb-4">Experience the complete secure payment flow with biometric confirmation</p>
-              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
-                <Zap className="w-4 h-4" />
-                <span>Demo Mode - Safe</span>
-              </div>
-              <Button className="btn-primary w-full">
-                <Play className="w-4 h-4 mr-2" />
-                Try Payment
-              </Button>
+              </SimpleButton>
             </motion.div>
           </motion.div>
 
           {/* Stats Section */}
           <motion.div 
-            variants={itemVariants}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.8 }}
             className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
           >
             <div className="text-center">
               <motion.div 
                 className="text-4xl font-bold text-blue-400 mb-2"
-                variants={pulseVariants}
-                animate="animate"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               >
                 0.3s
               </motion.div>
@@ -479,8 +484,8 @@ export default function DemoPage() {
             <div className="text-center">
               <motion.div 
                 className="text-4xl font-bold text-purple-400 mb-2"
-                variants={pulseVariants}
-                animate="animate"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
               >
                 99.9%
               </motion.div>
@@ -489,8 +494,8 @@ export default function DemoPage() {
             <div className="text-center">
               <motion.div 
                 className="text-4xl font-bold text-green-400 mb-2"
-                variants={pulseVariants}
-                animate="animate"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 1 }}
               >
                 256-bit
               </motion.div>
@@ -499,331 +504,34 @@ export default function DemoPage() {
             <div className="text-center">
               <motion.div 
                 className="text-4xl font-bold text-yellow-400 mb-2"
-                variants={pulseVariants}
-                animate="animate"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
               >
                 1M+
               </motion.div>
               <p className="text-gray-300">Users Secured</p>
             </div>
           </motion.div>
-        </div>
 
-        {/* Scroll Indicator */}
-        <motion.div
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center">
-            <div className="w-1 h-3 bg-white/50 rounded-full mt-2"></div>
-          </div>
-        </motion.div>
-      </motion.section>
-
-      {/* Features Section */}
-      <section className="py-20 px-4 relative">
-        <div className="container mx-auto max-w-7xl">
+          {/* Quick Access */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.8 }}
+            className="mt-16 max-w-2xl mx-auto"
           >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Revolutionary Features
-            </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Discover the cutting-edge technology that makes FacePay the most secure and convenient payment solution
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[
-              {
-                icon: BrainCircuit,
-                title: "AI-Powered Recognition",
-                description: "Advanced machine learning algorithms ensure accurate biometric identification",
-                color: "text-blue-400"
-              },
-              {
-                icon: Shield,
-                title: "Military-Grade Security",
-                description: "End-to-end encryption with zero-knowledge architecture",
-                color: "text-purple-400"
-              },
-              {
-                icon: Zap,
-                title: "Lightning Fast",
-                description: "Complete transactions in under 300 milliseconds",
-                color: "text-yellow-400"
-              },
-              {
-                icon: Smartphone,
-                title: "Cross-Platform",
-                description: "Works seamlessly across all devices and operating systems",
-                color: "text-green-400"
-              },
-              {
-                icon: Database,
-                title: "Secure Storage",
-                description: "Biometric data never leaves your device",
-                color: "text-red-400"
-              },
-              {
-                icon: Activity,
-                title: "Real-Time Monitoring",
-                description: "Advanced fraud detection and prevention systems",
-                color: "text-indigo-400"
-              }
-            ].map((feature, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ y: -10, scale: 1.02 }}
-                className="card-glass p-8 rounded-2xl"
-              >
-                <feature.icon className={`w-12 h-12 ${feature.color} mb-4`} />
-                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                <p className="text-gray-300">{feature.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Security Metrics */}
-      <section className="py-20 px-4 bg-black/20 backdrop-blur-sm">
-        <div className="container mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">
-              Security Metrics
-            </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Trust backed by numbers. See why FacePay is the most secure payment platform.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              {
-                metric: "99.97%",
-                label: "Uptime Guarantee",
-                description: "Always available when you need it"
-              },
-              {
-                metric: "0.001%",
-                label: "False Positive Rate",
-                description: "Virtually no authentication errors"
-              },
-              {
-                metric: "AES-256",
-                label: "Encryption Standard",
-                description: "Bank-level security protection"
-              },
-              {
-                metric: "< 1ms",
-                label: "Fraud Detection",
-                description: "Instant threat identification"
-              }
-            ].map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, scale: 0.8 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="text-center card-glass p-8 rounded-2xl"
-              >
-                <motion.div
-                  className="text-4xl font-bold text-blue-400 mb-2"
-                  variants={pulseVariants}
-                  animate="animate"
-                >
-                  {stat.metric}
-                </motion.div>
-                <h3 className="text-xl font-semibold mb-2">{stat.label}</h3>
-                <p className="text-gray-400">{stat.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">
-              What Users Say
-            </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Join millions of satisfied users who trust FacePay for their daily transactions
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                name: "Sarah Chen",
-                role: "Tech Executive",
-                quote: "FacePay has revolutionized how I make payments. The speed and security are unmatched.",
-                rating: 5,
-                avatar: "👩‍💼"
-              },
-              {
-                name: "Marcus Rodriguez",
-                role: "Small Business Owner",
-                quote: "My customers love the convenience. Sales have increased 30% since implementing FacePay.",
-                rating: 5,
-                avatar: "👨‍💼"
-              },
-              {
-                name: "Dr. Emily Watson",
-                role: "Security Researcher",
-                quote: "From a security perspective, FacePay's architecture is flawless. Truly next-generation.",
-                rating: 5,
-                avatar: "👩‍🔬"
-              }
-            ].map((testimonial, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ y: -5 }}
-                className="card-glass p-8 rounded-2xl"
-              >
-                <div className="flex items-center mb-4">
-                  <div className="text-4xl mr-4">{testimonial.avatar}</div>
-                  <div>
-                    <h3 className="text-xl font-bold">{testimonial.name}</h3>
-                    <p className="text-gray-400">{testimonial.role}</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 mb-4 italic">"{testimonial.quote}"</p>
-                <div className="flex space-x-1">
-                  {Array.from({ length: testimonial.rating }).map((_, i) => (
-                    <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                  ))}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases */}
-      <section className="py-20 px-4 bg-gradient-to-r from-purple-900/30 to-blue-900/30 backdrop-blur-sm">
-        <div className="container mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">
-              Use Cases
-            </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              FacePay works everywhere you need secure, fast payments
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
-              {
-                icon: CreditCard,
-                title: "E-commerce",
-                description: "Seamless online shopping experiences"
-              },
-              {
-                icon: Smartphone,
-                title: "Mobile Apps",
-                description: "In-app purchases made simple"
-              },
-              {
-                icon: QrCode,
-                title: "Point of Sale",
-                description: "Fast retail transactions"
-              },
-              {
-                icon: Globe,
-                title: "International",
-                description: "Global payment processing"
-              }
-            ].map((useCase, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ scale: 1.05 }}
-                className="text-center card-glass p-8 rounded-2xl"
-              >
-                <useCase.icon className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-                <h3 className="text-xl font-bold mb-3">{useCase.title}</h3>
-                <p className="text-gray-300">{useCase.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Call to Action */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-4xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-4xl md:text-6xl font-bold mb-6">
-              Ready to Experience the Future?
-            </h2>
-            <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto">
-              Join the payment revolution. Start using FacePay today and discover 
-              why it's the preferred choice for secure, fast transactions.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Button 
-                className="btn-primary text-lg px-8 py-4"
-                onClick={() => handleDemoStart('face-id')}
-              >
-                <Play className="w-5 h-5 mr-2" />
-                Start Demo
-              </Button>
-              <Button 
-                className="btn-secondary text-lg px-8 py-4"
-                onClick={() => window.open('/dashboard', '_blank')}
-              >
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <SimpleButton onClick={() => window.open('/dashboard', '_blank')}>
                 <ArrowRight className="w-5 h-5 mr-2" />
                 Go to Dashboard
-              </Button>
+              </SimpleButton>
+              <SimpleButton variant="outline" onClick={() => window.open('/', '_blank')}>
+                <Globe className="w-5 h-5 mr-2" />
+                Main Website
+              </SimpleButton>
             </div>
 
-            <div className="flex justify-center items-center space-x-8 text-sm text-gray-400">
+            <div className="flex justify-center items-center space-x-8 text-sm text-gray-400 mt-8">
               <div className="flex items-center space-x-2">
                 <Shield className="w-4 h-4" />
                 <span>Enterprise Ready</span>
@@ -839,7 +547,18 @@ export default function DemoPage() {
             </div>
           </motion.div>
         </div>
-      </section>
+
+        {/* Scroll Indicator */}
+        <motion.div
+          className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center">
+            <div className="w-1 h-3 bg-white/50 rounded-full mt-2"></div>
+          </div>
+        </motion.div>
+      </motion.section>
 
       {/* Loading Overlay */}
       <AnimatePresence>
@@ -860,11 +579,10 @@ export default function DemoPage() {
               <p className="text-white text-lg font-semibold mb-2">Preparing Demo...</p>
               <p className="text-blue-200 text-sm">Setting up secure authentication environment</p>
               
-              {/* Tips during loading */}
               <div className="mt-6 p-4 bg-blue-500/20 rounded-lg border border-blue-400/30">
                 <div className="flex items-center space-x-2 text-blue-200 text-sm">
                   <Shield className="w-4 h-4" />
-                  <span>Tip: Allow camera and biometric permissions for the full experience</span>
+                  <span>Tip: Allow camera permissions for the full experience</span>
                 </div>
               </div>
             </motion.div>

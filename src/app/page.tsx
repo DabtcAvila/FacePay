@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Zap, Globe, Camera, ArrowRight, Play, Star, CheckCircle, Menu, X, Smartphone, Fingerprint, Eye, AlertTriangle } from 'lucide-react';
+import { Shield, Zap, Globe, Camera, ArrowRight, Play, CheckCircle, Menu, X, Smartphone, Fingerprint, Eye, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FaceScanAnimation from '@/components/FaceScanAnimation';
 import PaymentForm from '@/components/PaymentForm';
@@ -251,6 +251,7 @@ export default function LandingPage() {
                 />
               )}
 
+
               {demoMode === 'scan' && (
                 <div className="text-center space-y-6">
                   <h4 className="text-xl font-semibold text-gray-900">Try Face Recognition</h4>
@@ -285,7 +286,7 @@ export default function LandingPage() {
                       variant="outline" 
                       size="sm"
                     >
-                      Try Camera Demo
+                      Camera Demo
                     </Button>
                   </div>
                 </div>
@@ -400,7 +401,7 @@ export default function LandingPage() {
                     className="text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 w-full sm:w-auto"
                   >
                     <Camera className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    FaceID Camera Demo
+                    Camera Demo
                   </Button>
                 </>
               ) : (

@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
             deviceType: true,
             counter: true,
             createdAt: true,
-            updatedAt: true,
           },
           orderBy: {
             createdAt: 'desc'
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest) {
       backedUp: cred.backedUp || false,
       counter: cred.counter,
       createdAt: cred.createdAt,
-      lastUsed: cred.updatedAt,
+      lastUsed: cred.createdAt,
       // Add user-friendly names based on device type
       friendlyName: getFriendlyCredentialName(cred.deviceType, cred.backedUp),
     }))

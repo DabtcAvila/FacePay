@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
-import { encryptData, decryptData } from '@/lib/encryption'
+import { faceVerificationService } from '@/services/faceVerification'
 import { z } from 'zod'
 
-const storeFaceDataSchema = z.object({
-  faceData: z.string().min(1, 'Face data is required'),
+const enrollFaceSchema = z.object({
+  imageData: z.string().min(1, 'Image data is required'),
   replaceExisting: z.boolean().optional().default(false),
 })
 
 const verifyFaceSchema = z.object({
-  faceData: z.string().min(1, 'Face data is required'),
-  threshold: z.number().min(0).max(1).optional().default(0.8),
+  imageData: z.string().min(1, 'Image data is required'),
+  threshold: z.number().min(0).max(1).optional().default(0.85),
+  embeddingId: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -20,97 +21,73 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error
 
     const body = await request.json()
-    const { faceData, replaceExisting } = storeFaceDataSchema.parse(body)
+    const { imageData, replaceExisting } = enrollFaceSchema.parse(body)
 
-    // If replacing existing data, deactivate current face data
-    if (replaceExisting) {
-      await prisma.biometricData.updateMany({
-        where: {
-          userId: auth.user.userId,
-          type: 'face',
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-        }
-      })
+    // Enroll face using the verification service
+    const result = await faceVerificationService.enrollFace(
+      auth.user.userId,
+      imageData,
+      replaceExisting
+    )
+
+    if (!result.success) {
+      return createErrorResponse(result.message, 400)
     }
 
-    // Encrypt the face data
-    const encryptedFaceData = encryptData(faceData)
-    const encryptedDataString = JSON.stringify(encryptedFaceData)
-
-    // Store the encrypted face data
-    const biometricRecord = await prisma.biometricData.create({
-      data: {
-        userId: auth.user.userId,
-        type: 'face',
-        data: encryptedDataString,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        isActive: true,
-      }
-    })
-
-    return createSuccessResponse(biometricRecord, 'Face data stored successfully')
+    return createSuccessResponse({
+      embeddingId: result.embeddingId,
+      quality: result.quality,
+      metadata: result.metadata,
+    }, result.message)
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return createErrorResponse(error.errors[0].message, 400)
     }
     
-    console.error('Store face data error:', error)
+    console.error('Face enrollment error:', error)
     return createErrorResponse('Internal server error', 500)
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAuth(request)
-    if (auth.error) return auth.error
-
     const body = await request.json()
-    const { faceData, threshold } = verifyFaceSchema.parse(body)
+    const { imageData, threshold, embeddingId } = verifyFaceSchema.parse(body)
 
-    // Get user's active face data
-    const userFaceData = await prisma.biometricData.findFirst({
-      where: {
-        userId: auth.user.userId,
-        type: 'face',
-        isActive: true,
-      }
+    // Get request metadata for security logging
+    const ipAddress = request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown'
+    const userAgent = request.headers.get('user-agent') || 'unknown'
+
+    // Configure service with custom threshold if provided
+    const serviceConfig = threshold !== 0.85 ? { confidenceThreshold: threshold } : undefined
+    const service = serviceConfig ? 
+      (await import('@/services/faceVerification')).createFaceVerificationService(serviceConfig) :
+      faceVerificationService
+
+    // Verify face using the verification service
+    const result = await service.verifyFace(imageData, embeddingId, {
+      ipAddress,
+      userAgent,
     })
-
-    if (!userFaceData) {
-      return createErrorResponse('No face data found for user', 404)
-    }
-
-    // Decrypt stored face data
-    const encryptedData = JSON.parse(userFaceData.data)
-    const storedFaceData = decryptData(encryptedData)
-
-    // In a real implementation, you would use a face recognition library
-    // to compare the face data. For now, we'll simulate this.
-    const similarity = simulateFaceComparison(faceData, storedFaceData)
-    const verified = similarity >= threshold
 
     return createSuccessResponse({
-      verified,
-      confidence: similarity,
-      threshold,
-      userId: verified ? auth.user.userId : undefined,
-    })
+      verified: result.success,
+      confidence: result.confidence,
+      userId: result.userId,
+      attemptId: result.attemptId,
+      riskScore: result.riskScore,
+      metadata: result.metadata,
+    }, result.message)
 
   } catch (error) {
     if (error instanceof z.ZodError) {
       return createErrorResponse(error.errors[0].message, 400)
     }
     
-    console.error('Verify face data error:', error)
+    console.error('Face verification error:', error)
     return createErrorResponse('Internal server error', 500)
   }
 }
@@ -181,10 +158,3 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// Simulate face comparison - in production, use a proper face recognition library
-function simulateFaceComparison(faceData1: string, faceData2: string): number {
-  // Simple similarity check based on string comparison
-  // In reality, this would use proper face recognition algorithms
-  const similarity = faceData1 === faceData2 ? 1.0 : 0.3 + Math.random() * 0.4
-  return Math.min(similarity, 1.0)
-}

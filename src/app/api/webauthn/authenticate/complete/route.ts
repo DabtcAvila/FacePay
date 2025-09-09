@@ -75,6 +75,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Final validation that we have a challenge
+    if (!expectedChallenge) {
+      return createErrorResponse('Unable to determine expected challenge for verification', 400)
+    }
+
     // Verify the WebAuthn authentication response
     const verification = await verifyAuthenticationResponse({
       response: credential as any,

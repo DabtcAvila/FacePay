@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { WebAuthnService, type WebAuthnCapabilities, type WebAuthnError } from '@/services/webauthn'
+import RealFaceID from '@/components/RealFaceID'
 
 interface TestLog {
   timestamp: Date
@@ -19,7 +20,8 @@ export default function WebAuthnTestPage() {
   const [demoMode, setDemoMode] = useState(false)
   const [userId, setUserId] = useState('test-user-' + Date.now())
   const [userName, setUserName] = useState('test@facepay.com')
-  const [activeTab, setActiveTab] = useState<'test' | 'capabilities' | 'logs'>('test')
+  const [activeTab, setActiveTab] = useState<'test' | 'face-id' | 'capabilities' | 'logs'>('test')
+  const [faceIdTestResult, setFaceIdTestResult] = useState<{ method: string; confidence?: number; timestamp: Date } | null>(null)
 
   useEffect(() => {
     initializeTestSuite()
@@ -283,7 +285,17 @@ export default function WebAuthnTestPage() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Test Controls
+              WebAuthn Tests
+            </button>
+            <button
+              onClick={() => setActiveTab('face-id')}
+              className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'face-id'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Real Face ID Tests
             </button>
             <button
               onClick={() => setActiveTab('capabilities')}
@@ -420,6 +432,111 @@ export default function WebAuthnTestPage() {
                         'Run Full Test Suite'
                       )}
                     </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'face-id' && (
+              <>
+                {/* Real Face ID Test */}
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">Real Face ID Testing</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center space-x-2 text-blue-800">
+                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                        <span className="font-medium">Simple Face Detection Test</span>
+                      </div>
+                      <p className="text-blue-700 text-sm mt-1">
+                        Test lightweight computer vision face detection with performance metrics
+                      </p>
+                    </div>
+                    
+                    {faceIdTestResult && (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <h4 className="font-medium text-green-800 mb-2">Last Test Result</h4>
+                        <div className="text-sm text-green-700 space-y-1">
+                          <p><strong>Method:</strong> {faceIdTestResult.method}</p>
+                          {faceIdTestResult.confidence && (
+                            <p><strong>Confidence:</strong> {(faceIdTestResult.confidence * 100).toFixed(1)}%</p>
+                          )}
+                          <p><strong>Time:</strong> {faceIdTestResult.timestamp.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Face ID Component */}
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">Live Face ID Test</h3>
+                  
+                  <RealFaceID 
+                    onScanComplete={(method, confidence) => {
+                      const result = {
+                        method,
+                        confidence,
+                        timestamp: new Date()
+                      };
+                      setFaceIdTestResult(result);
+                      addLog('success', `Face ID test completed using ${method}`, result);
+                    }}
+                    onCancel={() => {
+                      addLog('info', 'Face ID test cancelled by user');
+                    }}
+                    userId={userId}
+                    userName={userName}
+                    enableWebAuthnFallback={true}
+                    confidenceThreshold={0.7}
+                    maxDetectionTime={15000}
+                    enablePerformanceMetrics={true}
+                  />
+                </div>
+
+                {/* Test Performance Summary */}
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-semibold mb-4">Performance Testing Features</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Real-time simple face detection
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Skin color detection algorithms
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Basic feature detection
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Confidence threshold testing
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Performance metrics collection
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Fallback detection algorithms
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Real-time video processing
+                      </div>
+                      <div className="flex items-center text-sm text-gray-700">
+                        <span className="text-green-500 mr-2">✓</span>
+                        Error handling and recovery
+                      </div>
+                    </div>
                   </div>
                 </div>
               </>
@@ -605,6 +722,13 @@ export default function WebAuthnTestPage() {
                 </div>
                 
                 <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Face ID Test</span>
+                  <span className={`text-sm font-medium ${faceIdTestResult ? 'text-green-600' : 'text-gray-500'}`}>
+                    {faceIdTestResult ? 'Tested' : 'Not Tested'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-700">Test Mode</span>
                   <span className={`text-sm font-medium ${demoMode ? 'text-blue-600' : 'text-green-600'}`}>
                     {demoMode ? 'Demo Mode' : 'Live Mode'}
@@ -639,6 +763,18 @@ export default function WebAuthnTestPage() {
                 </div>
                 <div className="flex items-center text-sm text-gray-700">
                   <span className="text-green-500 mr-2">✓</span>
+                  Real Face ID with Simple Detection
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Computer vision face detection
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Performance metrics collection
+                </div>
+                <div className="flex items-center text-sm text-gray-700">
+                  <span className="text-green-500 mr-2">✓</span>
                   Detailed debug logging and error handling
                 </div>
                 <div className="flex items-center text-sm text-gray-700">
@@ -665,10 +801,12 @@ export default function WebAuthnTestPage() {
               <h4 className="font-medium text-gray-900 mb-3">Technical Notes</h4>
               <div className="text-sm text-gray-600 space-y-2">
                 <p>• This test suite provides comprehensive WebAuthn functionality testing</p>
-                <p>• All tests are logged with detailed debugging information</p>
+                <p>• Real Face ID uses simple computer vision with skin color detection</p>
+                <p>• All tests are logged with detailed debugging information and performance metrics</p>
                 <p>• Demo mode simulates authentication flow for development</p>
                 <p>• Real biometric data is only processed on supported devices</p>
-                <p>• Tests cover registration, authentication, and error scenarios</p>
+                <p>• Face ID includes fallback detection algorithms for reliability</p>
+                <p>• Tests cover registration, authentication, face detection, and error scenarios</p>
               </div>
             </div>
           </div>
