@@ -1,0 +1,205 @@
+{
+  "title": "Advanced Orchestration Patterns",
+  "source": "Research compilation - Claude Code Development 2025",
+  "best_practices": [
+    {
+      "name": "Orchestrator-Worker Pattern",
+      "description": "Meta-agent that analyzes requirements and generates specialized sub-agents with 90.2% performance improvements",
+      "implementation": "Create orchestrator agent on main branch, spawn worker agents on separate branches, use task queue (Redis) for distribution",
+      "benefits": ["90.2% performance improvement", "Isolated context windows", "Parallel execution", "No interference"],
+      "considerations": ["Requires multi-branch setup", "Need task queue system", "Complex coordination"]
+    },
+    {
+      "name": "Git Worktrees for Parallel Development",
+      "description": "Multiple Claude instances working on separate branches without conflicts",
+      "implementation": "git worktree add <path> <branch> for each agent workspace",
+      "benefits": ["10x productivity improvements", "True parallel development", "No context contamination", "Clean isolation"],
+      "considerations": ["Disk space requirements", "Branch management complexity"]
+    },
+    {
+      "name": "Test-Driven Development Sequential",
+      "description": "Anthropic's favorite workflow for verifiable changes",
+      "implementation": "Write tests first (red phase), implement to pass (green phase), refactor with coverage maintained",
+      "benefits": ["Systematic development", "High reliability", "Clear verification", "Reduced bugs"],
+      "considerations": ["Slower initial development", "Requires discipline"]
+    },
+    {
+      "name": "3 Amigo Agents Pattern",
+      "description": "Product Manager, UX Designer, and Claude Code working collaboratively",
+      "implementation": "PM Agent creates PRDs, UX Agent creates prototypes, Claude implements complete solutions",
+      "benefits": ["Complete workflow coverage", "Better requirements", "Improved UX", "Faster iteration"],
+      "considerations": ["Complex coordination", "Higher token usage"]
+    },
+    {
+      "name": "Circuit Breaker for Code Generation",
+      "description": "Prevents cascade failures when API is overloaded",
+      "implementation": "Monitor failure rates, open circuit after threshold, retry with exponential backoff",
+      "benefits": ["System resilience", "Graceful degradation", "Resource protection", "Better reliability"],
+      "considerations": ["Implementation complexity", "Monitoring required"]
+    },
+    {
+      "name": "Context Chunking Strategy",
+      "description": "Divide large tasks into manageable context windows",
+      "implementation": "Break tasks at natural boundaries, use /clear strategically, maintain state in CLAUDE.md",
+      "benefits": ["60-80% token reduction", "Better performance", "Avoid context limits", "Cleaner execution"],
+      "considerations": ["State management complexity", "Need clear boundaries"]
+    },
+    {
+      "name": "Checkpoint Pattern",
+      "description": "Create knowledge checkpoints before major refactoring",
+      "implementation": "Update CLAUDE.md with architectural decisions before big changes",
+      "benefits": ["Knowledge preservation", "Easy rollback", "Clear history", "Team alignment"],
+      "considerations": ["Manual process", "Requires discipline"]
+    }
+  ],
+  "patterns": [
+    {
+      "name": "Multi-Agent Orchestration",
+      "problem": "Single agent bottlenecks and limited parallel execution",
+      "solution": "Deploy specialized agents on separate git branches with central orchestrator",
+      "implementation": "Main branch orchestrator, agent/* branches for workers, task queue for distribution, branch sync protocol",
+      "when_to_use": ["Complex multi-component projects", "Parallelizable tasks", "Large teams", "Enterprise systems"],
+      "when_not_to_use": ["Simple scripts", "Small projects", "Single-file changes"]
+    },
+    {
+      "name": "Event-Driven Hooks",
+      "problem": "Need for reactive workflows based on Claude's actions",
+      "solution": "Implement hooks at key lifecycle points",
+      "implementation": "PreToolUse for validation, PostToolUse for formatting, notification hooks for external integration",
+      "when_to_use": ["CI/CD integration", "Validation requirements", "External system sync", "Audit trails"],
+      "when_not_to_use": ["Simple tasks", "Standalone scripts"]
+    },
+    {
+      "name": "Hierarchical Context Loading",
+      "problem": "Context window limitations and token waste",
+      "solution": "Load context progressively based on task needs",
+      "implementation": "CLAUDE.md (always loaded), architecture docs (high-level), component docs (on-demand), API specs (as needed)",
+      "when_to_use": ["Large codebases", "Complex projects", "Token optimization needed"],
+      "when_not_to_use": ["Small projects", "Simple tasks"]
+    },
+    {
+      "name": "Stream-JSON Chaining",
+      "problem": "Information loss between agents",
+      "solution": "Real-time information flow without intermediate storage",
+      "implementation": "Agents communicate via shared filesystem, JSON streaming for real-time updates",
+      "when_to_use": ["Multi-agent workflows", "Real-time processing", "Large data flows"],
+      "when_not_to_use": ["Simple tasks", "Single agent scenarios"]
+    }
+  ],
+  "protocols": [
+    {
+      "name": "Branch Synchronization Protocol",
+      "purpose": "Coordinate work across multiple agent branches",
+      "steps": [
+        "Step 1: Orchestrator assigns task to agent branch",
+        "Step 2: Agent switches to its branch and pulls from main",
+        "Step 3: Agent executes task in isolation",
+        "Step 4: Agent commits results to its branch",
+        "Step 5: Orchestrator merges agent branch to main",
+        "Step 6: Validate and integrate results"
+      ],
+      "tools": ["git", "branch_sync.sh", "task queue system"],
+      "metrics": ["merge success rate", "conflict frequency", "task completion time"]
+    },
+    {
+      "name": "Progressive Context Loading",
+      "purpose": "Optimize token usage while maintaining context",
+      "steps": [
+        "Step 1: Load core context (CLAUDE.md)",
+        "Step 2: Analyze task requirements",
+        "Step 3: Load relevant architecture docs",
+        "Step 4: Pull specific component documentation",
+        "Step 5: Load API specs if needed",
+        "Step 6: Use /clear between logical task boundaries"
+      ],
+      "tools": ["@docs notation", "/clear command", "context analyzer"],
+      "metrics": ["tokens used", "context relevance", "task success rate"]
+    },
+    {
+      "name": "Multi-Agent Task Distribution",
+      "purpose": "Efficiently distribute tasks across specialized agents",
+      "steps": [
+        "Step 1: Analyze incoming task complexity",
+        "Step 2: Determine parallelizable components",
+        "Step 3: Match tasks to agent specializations",
+        "Step 4: Create task definitions with clear interfaces",
+        "Step 5: Distribute via task queue",
+        "Step 6: Monitor progress and dependencies",
+        "Step 7: Aggregate results from all agents"
+      ],
+      "tools": ["task queue (Redis)", "orchestrator controller", "agent status monitor"],
+      "metrics": ["parallel execution ratio", "agent utilization", "task throughput"]
+    }
+  ],
+  "tools_and_technologies": [
+    {
+      "name": "Redis",
+      "purpose": "Task queue and inter-agent communication",
+      "when_to_use": "Multi-agent orchestration with high throughput needs",
+      "alternatives": ["RabbitMQ", "Apache Kafka", "AWS SQS"]
+    },
+    {
+      "name": "Git Worktrees",
+      "purpose": "Parallel development without branch switching",
+      "when_to_use": "Multiple agents working simultaneously",
+      "alternatives": ["Multiple clones", "Docker containers"]
+    },
+    {
+      "name": "Apache Airflow",
+      "purpose": "Complex workflow orchestration",
+      "when_to_use": "Enterprise-scale AI/ML pipelines",
+      "alternatives": ["Prefect", "Temporal", "Dagster"]
+    },
+    {
+      "name": "MCP Servers",
+      "purpose": "Extend Claude capabilities with custom tools",
+      "when_to_use": "Need specialized integrations",
+      "alternatives": ["Custom hooks", "API integrations"]
+    },
+    {
+      "name": "Nx Monorepo",
+      "purpose": "Manage large-scale monorepo projects",
+      "when_to_use": "Complex multi-package projects",
+      "alternatives": ["Lerna", "Rush", "Bazel"]
+    }
+  ],
+  "key_metrics": [
+    {
+      "name": "Parallel Execution Ratio",
+      "description": "Percentage of tasks executed in parallel",
+      "formula": "(parallel_tasks / total_tasks) * 100",
+      "target_range": "60-80%"
+    },
+    {
+      "name": "Token Efficiency",
+      "description": "Ratio of useful tokens to total tokens used",
+      "formula": "(task_tokens / total_tokens) * 100",
+      "target_range": "70-85%"
+    },
+    {
+      "name": "Agent Utilization",
+      "description": "Percentage of time agents are actively working",
+      "formula": "(active_time / total_time) * 100",
+      "target_range": "75-90%"
+    },
+    {
+      "name": "Task Throughput",
+      "description": "Tasks completed per hour",
+      "formula": "completed_tasks / hours",
+      "target_range": "10-50 tasks/hour depending on complexity"
+    },
+    {
+      "name": "Context Window Usage",
+      "description": "Percentage of context window utilized",
+      "formula": "(used_tokens / max_tokens) * 100",
+      "target_range": "60-80% (avoid last 20%)"
+    }
+  ],
+  "performance_improvements": {
+    "multi_agent_systems": "90.2% improvement over single agent",
+    "parallel_execution": "10x speed for parallelizable tasks",
+    "token_reduction": "60-80% through intelligent filtering",
+    "productivity_gains": "2.8-4.4x speed improvements",
+    "enterprise_adoption": "40-60% time savings reported"
+  }
+}

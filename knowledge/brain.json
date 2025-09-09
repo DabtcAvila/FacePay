@@ -1,0 +1,167 @@
+{
+  "version": "1.0.0",
+  "last_updated": "2025-09-06T02:44:18.589Z",
+  "capabilities": {
+    "orchestration": {
+      "level": "basic",
+      "knowledge": [
+        {
+          "concept": "Orchestrator-Worker Pattern",
+          "details": "Meta-agent that analyzes requirements and generates specialized sub-agents with 90.2% performance improvements",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.588Z"
+        },
+        {
+          "concept": "Multi-Agent Orchestration",
+          "details": "Main branch orchestrator, agent/* branches for workers, task queue for distribution, branch sync protocol",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        }
+      ]
+    },
+    "automation": {
+      "level": "basic",
+      "knowledge": [
+        {
+          "concept": "Multi-Agent Task Distribution",
+          "details": [
+            "Step 1: Analyze incoming task complexity",
+            "Step 2: Determine parallelizable components",
+            "Step 3: Match tasks to agent specializations",
+            "Step 4: Create task definitions with clear interfaces",
+            "Step 5: Distribute via task queue",
+            "Step 6: Monitor progress and dependencies",
+            "Step 7: Aggregate results from all agents"
+          ],
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        }
+      ]
+    },
+    "system_design": {
+      "level": "intermediate",
+      "knowledge": [
+        {
+          "concept": "3 Amigo Agents Pattern",
+          "details": "Product Manager, UX Designer, and Claude Code working collaboratively",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Checkpoint Pattern",
+          "details": "Create knowledge checkpoints before major refactoring",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Event-Driven Hooks",
+          "details": "PreToolUse for validation, PostToolUse for formatting, notification hooks for external integration",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Hierarchical Context Loading",
+          "details": "CLAUDE.md (always loaded), architecture docs (high-level), component docs (on-demand), API specs (as needed)",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Stream-JSON Chaining",
+          "details": "Agents communicate via shared filesystem, JSON streaming for real-time updates",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        }
+      ]
+    },
+    "best_practices": {
+      "level": "basic",
+      "knowledge": [
+        {
+          "concept": "Git Worktrees for Parallel Development",
+          "details": "Multiple Claude instances working on separate branches without conflicts",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Test-Driven Development Sequential",
+          "details": "Anthropic's favorite workflow for verifiable changes",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Circuit Breaker for Code Generation",
+          "details": "Prevents cascade failures when API is overloaded",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Context Chunking Strategy",
+          "details": "Divide large tasks into manageable context windows",
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        }
+      ]
+    },
+    "protocols": {
+      "level": "basic",
+      "knowledge": [
+        {
+          "concept": "Branch Synchronization Protocol",
+          "details": [
+            "Step 1: Orchestrator assigns task to agent branch",
+            "Step 2: Agent switches to its branch and pulls from main",
+            "Step 3: Agent executes task in isolation",
+            "Step 4: Agent commits results to its branch",
+            "Step 5: Orchestrator merges agent branch to main",
+            "Step 6: Validate and integrate results"
+          ],
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        },
+        {
+          "concept": "Progressive Context Loading",
+          "details": [
+            "Step 1: Load core context (CLAUDE.md)",
+            "Step 2: Analyze task requirements",
+            "Step 3: Load relevant architecture docs",
+            "Step 4: Pull specific component documentation",
+            "Step 5: Load API specs if needed",
+            "Step 6: Use /clear between logical task boundaries"
+          ],
+          "source": "Research compilation - Claude Code Development 2025",
+          "integrated": "2025-09-06T02:44:18.589Z"
+        }
+      ]
+    }
+  },
+  "learning_goals": [
+    "Advanced orchestration patterns",
+    "Microservices architecture",
+    "Event-driven systems",
+    "Fault tolerance and resilience",
+    "Performance optimization",
+    "Security best practices",
+    "Monitoring and observability",
+    "CI/CD automation",
+    "Infrastructure as Code",
+    "Distributed systems"
+  ],
+  "knowledge_sources": [
+    {
+      "document": "Advanced Orchestration Patterns",
+      "integrated": "2025-09-06T02:44:18.589Z",
+      "items": 14
+    },
+    {
+      "document": "Advanced AI Orchestration Patterns",
+      "integrated": "2025-09-06T03:44:32.514Z",
+      "items": 2
+    }
+  ],
+  "improvement_metrics": {
+    "tasks_automated": 0,
+    "efficiency_score": 0,
+    "knowledge_items": 16,
+    "protocols_implemented": 0
+  }
+}

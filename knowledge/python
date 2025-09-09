@@ -1,0 +1,280 @@
+# Investigación: La Gramática de Python y las Gramáticas Sensibles al Contexto
+
+**Estudiante:** David Fernando Avila Díaz  
+**Clave Única:** 197851  
+**Materia:** COM-11113 Análisis de Algoritmos y Complejidad Computacional  
+**Fecha:** Septiembre 2025  
+
+## 🎯 Objetivo de la Investigación
+
+Analizar la gramática del lenguaje Python para determinar si es sensible al contexto, identificando las características específicas que la clasifican en la jerarquía de Chomsky y comprendiendo las implicaciones para el análisis sintáctico.
+
+---
+
+## 📚 Marco Teórico
+
+### Jerarquía de Chomsky - Repaso
+
+1. **Tipo 0 - Gramáticas Irrestrictas:** Reconocidas por máquinas de Turing
+2. **Tipo 1 - Gramáticas Sensibles al Contexto (CSG):** Reconocidas por autómatas linealmente acotados
+3. **Tipo 2 - Gramáticas Libres de Contexto (CFG):** Reconocidas por autómatas de pila
+4. **Tipo 3 - Gramáticas Regulares:** Reconocidas por autómatas finitos
+
+### Definición Formal de Gramática Sensible al Contexto
+
+Una gramática G = (V, Σ, P, S) es **sensible al contexto** si todas las reglas de producción en P tienen la forma:
+
+```
+αAβ → αγβ
+```
+
+Donde:
+- A ∈ V (símbolo no terminal)
+- α, β ∈ (V ∪ Σ)* (contexto izquierdo y derecho)
+- γ ∈ (V ∪ Σ)+ (cadena no vacía que reemplaza a A)
+
+**Característica clave:** El contexto (α y β) determina si A puede ser reemplazado por γ.
+
+---
+
+## 🐍 Análisis de la Gramática de Python
+
+### Características Sintácticas Principales
+
+#### 1. **Indentación Significativa**
+Python utiliza la indentación (espacios en blanco) para definir bloques de código:
+
+```python
+if condition:
+    statement1      # Nivel 1 de indentación
+    statement2      # Mismo nivel
+    if nested:
+        statement3  # Nivel 2 de indentación
+    statement4      # Vuelve al nivel 1
+statement5          # Nivel 0 (sin indentación)
+```
+
+#### 2. **Reglas de Indentación**
+- Cada nivel de anidamiento requiere mayor indentación
+- Todas las declaraciones en el mismo bloque deben tener la misma indentación
+- La indentación se ignora dentro de paréntesis, corchetes y llaves
+
+#### 3. **Tokens INDENT/DEDENT**
+El lexer de Python genera tokens especiales:
+- `INDENT`: Incremento en el nivel de indentación
+- `DEDENT`: Decremento en el nivel de indentación
+- `NEWLINE`: Nueva línea sin cambio de indentación
+
+---
+
+## 🔍 ¿Por qué Python NO es Libre de Contexto?
+
+### Análisis del Problema de Indentación
+
+#### **Ejemplo Problemático:**
+```python
+# Nivel 0
+if x > 0:
+    # Nivel 1
+    print("positivo")
+    if x > 10:
+        # Nivel 2
+        print("grande")
+        if x > 100:
+            # Nivel 3
+            print("muy grande")
+    # Debe volver exactamente al Nivel 1
+    print("fin")
+```
+
+#### **Por qué es Context-Sensitive:**
+
+1. **Memoria de Estados Previos:** Para validar que una línea tiene la indentación correcta, el parser debe "recordar" todos los niveles de indentación anteriores.
+
+2. **Dependencia del Contexto:** Una declaración como `print("fin")` solo es válida si su indentación coincide exactamente con un nivel previamente establecido.
+
+3. **Comparación con CFG:** En una gramática libre de contexto, las reglas de producción son de la forma `A → γ`, donde el reemplazo de A no depende del contexto circundante.
+
+### Implementación en el Lexer de Python
+
+El lexer mantiene:
+- **Una pila de niveles de indentación**
+- **Un contador de paréntesis/corchetes/llaves anidados**
+- **Estado para determinar cuándo generar INDENT/DEDENT**
+
+```python
+# Pseudo-algoritmo del lexer
+indentation_stack = [0]  # Comienza en nivel 0
+
+def process_line(line):
+    current_indent = count_leading_spaces(line)
+    
+    if current_indent > indentation_stack[-1]:
+        # Mayor indentación: generar INDENT
+        indentation_stack.append(current_indent)
+        emit_token("INDENT")
+    
+    elif current_indent < indentation_stack[-1]:
+        # Menor indentación: generar DEDENT(s)
+        while indentation_stack[-1] > current_indent:
+            indentation_stack.pop()
+            emit_token("DEDENT")
+        
+        if current_indent != indentation_stack[-1]:
+            raise IndentationError("Invalid indentation")
+    
+    # Mismo nivel: continuar normalmente
+```
+
+---
+
+## 📊 Comparación: CFG vs CSG en Python
+
+| Aspecto | Gramática Libre de Contexto | Gramática Sensible al Contexto |
+|---------|----------------------------|--------------------------------|
+| **Reglas de Producción** | A → γ | αAβ → αγβ |
+| **Dependencia del Contexto** | ❌ Ninguna | ✅ Contexto α y β |
+| **Indentación** | ❌ No puede manejar niveles arbitrarios | ✅ Maneja niveles anidados |
+| **Memoria Requerida** | Pila (para recursión) | Pila + estado adicional |
+| **Complejidad** | O(n³) con CYK | PSPACE-completo |
+
+---
+
+## 🛠️ Estrategias de Parsing en Python
+
+### 1. **Approach Híbrido (Implementación Real)**
+```
+Código fuente → Lexer (Con estado) → Parser CFG → AST
+```
+
+- **Lexer:** Maneja indentación (sensible al contexto)
+- **Parser:** Procesa tokens INDENT/DEDENT (libre de contexto)
+
+### 2. **Ventajas del Diseño Híbrido**
+- Separa preocupaciones: indentación vs. estructura sintáctica
+- Parser permanece relativamente simple (LL(1))
+- Lexer maneja la complejidad context-sensitive
+
+### 3. **Desventajas**
+- Lexer más complejo que un autómata finito simple
+- Dependencia entre lexer y parser (feedback loops)
+- Dificultad para herramientas de generación automática
+
+---
+
+## 🔬 Ejemplos Prácticos
+
+### Ejemplo 1: Validación de Indentación
+```python
+# Código VÁLIDO
+def function():
+    if True:
+        x = 1
+        y = 2
+    return x + y
+
+# Código INVÁLIDO
+def function():
+    if True:
+        x = 1
+      y = 2  # Error: indentación incorrecta
+    return x + y
+```
+
+### Ejemplo 2: Indentación Ignorada en Expresiones
+```python
+# VÁLIDO: Indentación ignorada dentro de paréntesis
+result = (a + b +
+          c + d +
+            e + f)
+
+# VÁLIDO: También en listas
+lista = [1, 2, 3,
+         4, 5, 6,
+           7, 8, 9]
+```
+
+### Ejemplo 3: Problema Context-Free Clásico
+El siguiente patrón no puede ser reconocido por una CFG:
+```python
+# Estructura: a^n b^n (indentación matching)
+if condition1:          # 1 nivel
+    if condition2:      # 2 niveles  
+        if condition3:  # 3 niveles
+            action()
+        # Debe volver exactamente a 2 niveles
+        action2()
+    # Debe volver exactamente a 1 nivel
+    action3()
+# Nivel 0
+```
+
+---
+
+## 🎯 Consecuencias Teóricas y Prácticas
+
+### Teóricas
+1. **Clasificación:** Python pertenece a las gramáticas Tipo 1 (CSG)
+2. **Complejidad:** El problema de parsing es PSPACE-completo
+3. **Limitaciones:** No se puede usar generadores CFG puros (yacc/bison básicos)
+
+### Prácticas
+1. **Herramientas Especializadas:** Se requieren parsers con capacidades extendidas
+2. **Desarrollo de Compiladores:** Mayor complejidad en el diseño del lexer
+3. **Análisis Sintáctico:** Necesidad de mantener estado adicional
+
+---
+
+## 🔄 Otros Lenguajes con Características Similares
+
+### Lenguajes Sensibles al Contexto:
+- **Haskell:** Layout rules (indentación opcional)
+- **YAML:** Indentación para estructura
+- **Makefile:** Tabs obligatorios
+- **F#:** Indentación significativa opcional
+
+### Características Context-Sensitive Comunes:
+- Declaración antes de uso de variables
+- Matching de tipos en sistemas de tipos fuertes
+- Balanceo de construcciones anidadas con restricciones
+
+---
+
+## 📝 Conclusiones
+
+### Respuesta Principal
+**Python NO es un lenguaje libre de contexto.** Es un lenguaje que requiere una gramática sensible al contexto debido principalmente a su uso de indentación significativa.
+
+### Razones Fundamentales:
+1. **Indentación Anidada:** Requiere memoria de estados previos
+2. **Validación de Contexto:** La corrección sintáctica depende del contexto de indentación
+3. **Implementación Híbrida:** El lexer debe mantener estado (pila de indentación)
+
+### Implicaciones para el Análisis de Algoritmos:
+- **Complejidad Computacional:** PSPACE-completo vs P para CFG
+- **Diseño de Algoritmos:** Requiere estructuras de datos adicionales
+- **Análisis de Eficiencia:** Mayor complejidad espacial y temporal
+
+---
+
+## 🔗 Referencias
+
+1. **Documentación Oficial de Python:** Grammar specification (PEP 617)
+2. **Chomsky, N. (1959):** "On certain formal properties of grammars"
+3. **Sipser, M.:** "Introduction to the Theory of Computation"
+4. **Hopcroft & Ullman:** "Formal Languages and their Relation to Automata"
+5. **CPython Implementation:** Grammar/python.gram
+
+---
+
+## 💭 Reflexiones Personales
+
+Esta investigación me ayudó a comprender que:
+
+1. **La teoría importa:** La clasificación teórica tiene implicaciones prácticas reales
+2. **Diseño de lenguajes:** Las decisiones sintácticas afectan la complejidad de implementación  
+3. **Trade-offs:** Python eligió legibilidad sobre simplicidad de parsing
+4. **Implementación inteligente:** El diseño híbrido es una solución elegante a un problema complejo
+
+**Pregunta para continuar:** ¿Cómo podríamos diseñar un lenguaje con indentación significativa que sea context-free? ¿Valdría la pena el trade-off en legibilidad?
+

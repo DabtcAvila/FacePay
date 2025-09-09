@@ -1,0 +1,34 @@
+{
+  "name": "facepay-orchestrator",
+  "version": "1.0.0",
+  "description": "FacePay Orchestrator - Multi-Agent System for Facial Recognition Payments",
+  "main": "agents/orchestrator_controller.js",
+  "scripts": {
+    "start": "node agents/orchestrator_controller.js",
+    "dev": "node agents/orchestrator_controller.js",
+    "learn": "node learning/self_improvement.js",
+    "test": "echo 'No tests specified yet'",
+    "status": "echo 'Checking orchestrator status...' && node -e \"console.log('FacePay Orchestrator Ready')\"",
+    "create": "node -e \"const OrchestratorController = require('./agents/orchestrator_controller.js'); const controller = new OrchestratorController(); controller.initialize(); controller.createExampleTasks();\"",
+    "launch": "node -e \"const OrchestratorController = require('./agents/orchestrator_controller.js'); const controller = new OrchestratorController(); controller.initialize(); console.log('\\nAgent launch commands:'); Object.keys(controller.agentDefinitions || {}).forEach(agent => controller.launchAgent(agent));\"",
+    "clean": "echo 'Cleaning temporary files...' && rm -rf temp/* || true"
+  },
+  "keywords": [
+    "facepay",
+    "orchestrator", 
+    "facial-recognition",
+    "payments",
+    "multi-agent",
+    "claude",
+    "ai"
+  ],
+  "author": "Davicho",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

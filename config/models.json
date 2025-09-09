@@ -1,0 +1,47 @@
+{
+  "models": {
+    "orchestrator": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-1-20250805",
+      "name": "Claude Opus 4.1",
+      "role": "Main orchestrator controller",
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "features": [
+        "Advanced reasoning",
+        "Complex task planning",
+        "Multi-agent coordination",
+        "Strategic decision making"
+      ]
+    },
+    "agents": {
+      "provider": "anthropic",
+      "model": "claude-opus-4-1-20250805",
+      "name": "Claude Opus 4.1",
+      "role": "All agent instances",
+      "temperature": 0.7,
+      "max_tokens": 4096,
+      "features": [
+        "Advanced reasoning",
+        "Complex task planning",
+        "Deep analysis",
+        "Superior code generation"
+      ]
+    }
+  },
+  "configuration": {
+    "apply_globally": true,
+    "fallback_model": "claude-opus-4-1-20250805",
+    "retry_attempts": 3,
+    "timeout_seconds": 120
+  },
+  "agent_assignments": {
+    "data_processor": "agents",
+    "file_manager": "agents",
+    "monitor_agent": "agents",
+    "research_agent": "agents",
+    "all_future_agents": "agents"
+  },
+  "version": "1.0.0",
+  "updated": "2025-01-06"
+}
