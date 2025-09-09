@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String              @id @default(cuid())
+  email             String              @unique
+  name              String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  biometricData     BiometricData[]
+  paymentMethods    PaymentMethod[]
+  transactions      Transaction[]
+  webauthnCredentials WebauthnCredential[]
+  
+  @@map("users")
+}
+
+model BiometricData {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // 'face', 'fingerprint', 'voice'
+  data      String   // Encrypted biometric template
+  createdAt DateTime @default(now())
+  isActive  Boolean  @default(true)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("biometric_data")
+}
+
+model WebauthnCredential {
+  id           String   @id @default(cuid())
+  credentialId String   @unique
+  publicKey    String
+  counter      Int      @default(0)
+  userId       String
+  createdAt    DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("webauthn_credentials")
+}
+
+model PaymentMethod {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // 'card', 'bank', 'crypto'
+  provider  String   // 'stripe', 'ethereum', 'bitcoin'
+  details   Json     // Payment method specific details
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  
+  @@map("payment_methods")
+}
+
+model Transaction {
+  id              String    @id @default(cuid())
+  userId          String
+  amount          Float
+  currency        String    @default("USD")
+  status          String    @default("pending") // 'pending', 'completed', 'failed', 'refunded'
+  paymentMethodId String
+  description     String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+  
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  
+  @@map("transactions")
+}
