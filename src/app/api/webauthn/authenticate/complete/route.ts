@@ -128,20 +128,20 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(biometricValidation.reason || 'Biometric authentication validation failed', 401)
     }
 
-    // Log successful biometric validation
-    WebAuthnService.logBiometricAuthentication(webauthnCredential.user.id, {
-      verified: true,
-      credentialDeviceType: webauthnCredential.deviceType,
-      credentialBackedUp: webauthnCredential.backedUp,
-      userVerified: verification.authenticationInfo.userVerified
-    }, deviceInfo)
-
     // Analyze biometric authentication for response data
     const biometricAnalysis = WebAuthnService.analyzeBiometricAuthentication({
       credentialDeviceType: webauthnCredential.deviceType,
       credentialBackedUp: webauthnCredential.backedUp,
       userVerified: verification.authenticationInfo.userVerified
     }, deviceInfo)
+
+    // Log successful biometric validation
+    WebAuthnService.logBiometricAuthenticationResult(biometricAnalysis, webauthnCredential.user.id, {
+      verified: true,
+      credentialDeviceType: webauthnCredential.deviceType,
+      credentialBackedUp: webauthnCredential.backedUp,
+      userVerified: verification.authenticationInfo.userVerified
+    })
 
     // Update the credential counter to prevent replay attacks and clear challenge
     await prisma.$transaction([

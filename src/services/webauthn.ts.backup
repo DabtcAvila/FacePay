@@ -41,6 +41,7 @@ export class WebAuthnService {
     let isSupported = false
     let isPlatformAuthenticatorAvailable = false
     let biometricTypes: ('face' | 'fingerprint' | 'voice' | 'iris' | 'unknown')[] = []
+    let isUserVerificationSupported = false
 
     // Check if running in browser
     if (typeof window === 'undefined' || !navigator) {
@@ -77,17 +78,28 @@ export class WebAuthnService {
     try {
       if (window.PublicKeyCredential && window.navigator.credentials) {
         isSupported = true
+        
+        // Check platform authenticator availability
         isPlatformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         
+        // Check for user verification support
+        if (typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function') {
+          isUserVerificationSupported = await PublicKeyCredential.isConditionalMediationAvailable()
+        }
+
         // Infer biometric capabilities based on device
         if (isPlatformAuthenticatorAvailable) {
           if (isIOS) {
+            // iOS devices typically support Face ID and/or Touch ID
             biometricTypes = ['face', 'fingerprint']
           } else if (isAndroid) {
+            // Android devices typically support fingerprint and face unlock
             biometricTypes = ['fingerprint', 'face']
           } else if (isMacOS) {
+            // macOS typically supports Touch ID on newer devices
             biometricTypes = ['fingerprint']
           } else if (isWindows) {
+            // Windows Hello
             biometricTypes = ['fingerprint', 'face']
           } else {
             biometricTypes = ['unknown']
@@ -151,6 +163,22 @@ export class WebAuthnService {
           suggestedAction: 'Please ensure you\'re using a secure connection (HTTPS) and try again.'
         }
       
+      case 'InvalidStateError':
+        return {
+          code: 'INVALID_STATE',
+          message: 'Biometric authenticator is in an invalid state.',
+          isRecoverable: true,
+          suggestedAction: 'Please try again or restart your browser if the problem persists.'
+        }
+      
+      case 'UnknownError':
+        return {
+          code: 'UNKNOWN_ERROR',
+          message: 'An unknown error occurred during biometric authentication.',
+          isRecoverable: true,
+          suggestedAction: 'Please try again or contact support if the problem persists.'
+        }
+      
       default:
         return {
           code: 'UNKNOWN',
@@ -170,6 +198,7 @@ export class WebAuthnService {
       throw new Error('Biometric authentication is not available on this device');
     }
 
+    // Generate challenge for WebAuthn registration
     const challenge = new Uint8Array(32);
     crypto.getRandomValues(challenge);
     const userIdBytes = new TextEncoder().encode(options.userId);
@@ -193,8 +222,8 @@ export class WebAuthnService {
         timeout: 60000,
         attestation: 'direct' as AttestationConveyancePreference,
         authenticatorSelection: {
-          authenticatorAttachment: 'platform' as AuthenticatorAttachment,
-          userVerification: 'required' as UserVerificationRequirement,
+          authenticatorAttachment: 'platform',
+          userVerification: 'required',
           requireResidentKey: false
         }
       }
@@ -240,7 +269,7 @@ export class WebAuthnService {
         challenge,
         timeout: 60000,
         rpId: window.location.hostname,
-        userVerification: 'required' as UserVerificationRequirement,
+        userVerification: 'required',
         allowCredentials: []
       }
     };
@@ -267,44 +296,5 @@ export class WebAuthnService {
       const webAuthnError = this.handleWebAuthnError(err);
       throw new Error(webAuthnError.message);
     }
-  }
-
-  /**
-   * Validate biometric authentication result - simplified for compatibility
-   */
-  static validateBiometricAuthentication(authInfo: any, deviceInfo?: any): { isValid: boolean; reason?: string } {
-    if (!authInfo || !authInfo.userVerified) {
-      return {
-        isValid: false,
-        reason: 'User verification not performed - biometric authentication required'
-      }
-    }
-
-    return { isValid: true }
-  }
-
-  /**
-   * Analyze biometric authentication - simplified for compatibility
-   */
-  static analyzeBiometricAuthentication(authInfo: any, deviceInfo?: any): any {
-    return {
-      userVerified: authInfo?.userVerified || false,
-      userPresent: authInfo?.userPresent || false,
-      deviceType: deviceInfo?.isMobile ? 'mobile' : 'desktop',
-      platformInfo: deviceInfo || {}
-    }
-  }
-
-  /**
-   * Log biometric authentication result - simplified for compatibility
-   */
-  static logBiometricAuthenticationResult(analysis: any, userId: string, authResult: any): void {
-    console.log('[WebAuthn Service] Biometric authentication completed:', {
-      userId,
-      success: authResult?.verified || false,
-      userVerified: analysis?.userVerified || false,
-      deviceType: analysis?.deviceType || 'unknown',
-      timestamp: new Date().toISOString()
-    })
   }
 }

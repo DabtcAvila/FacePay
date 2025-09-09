@@ -89,12 +89,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Log successful biometric validation
-    WebAuthnService.logBiometricAuthentication(user.id, {
+    WebAuthnService.logBiometricAuthenticationResult({}, user.id, {
       verified: true,
       credentialDeviceType,
       credentialBackedUp,
       userVerified
-    }, deviceInfo)
+    })
 
     // Check if credential already exists
     const existingCredential = await prisma.webauthnCredential.findUnique({

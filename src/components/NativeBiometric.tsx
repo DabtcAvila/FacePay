@@ -118,15 +118,15 @@ export default function NativeBiometric({
 
   const handleRegistration = async () => {
     try {
-      // TODO: Update to use real biometric API endpoints
-      // Component temporarily disabled for real biometric implementation
-      throw new Error('Biometric registration temporarily disabled - use API endpoints instead');
-
-      // All functionality disabled for real biometric implementation
-      // The component is temporarily disabled to prevent simulation
-
+      const result = await WebAuthnService.register({
+        userId,
+        userName,
+        userDisplayName: userName
+      });
+      
+      console.log('Registration successful:', result);
       setStep('success');
-      // onSuccess?.(completeResult); // Disabled for real biometric implementation
+      onSuccess?.(result);
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {
         throw new Error('Biometric authentication was cancelled');
@@ -138,26 +138,17 @@ export default function NativeBiometric({
   const handleAuthentication = async () => {
     try {
       // For demo mode, we'll try to authenticate, but if no credential exists, we'll register
-      // TODO: Use real biometric API endpoint for authentication
       try {
-        throw new Error('Biometric authentication temporarily disabled - use API endpoints instead');
+        const result = await WebAuthnService.authenticate();
+        console.log('Authentication successful:', result);
+        setStep('success');
+        onSuccess?.(result);
       } catch (authError) {
         // If authentication fails (no credential), try registration
         console.log('No existing credential found, attempting registration...');
         await handleRegistration();
         return;
       }
-      
-      // Component functionality disabled - fallback to registration
-      console.log('Authentication disabled, attempting registration...');
-      await handleRegistration();
-      return;
-
-      // All functionality disabled for real biometric implementation
-      // The component is temporarily disabled to prevent simulation
-
-      setStep('success');
-      // onSuccess?.(completeResult); // Disabled for real biometric implementation
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {
         throw new Error('Biometric authentication was cancelled');

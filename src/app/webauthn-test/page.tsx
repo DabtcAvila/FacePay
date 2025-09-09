@@ -621,8 +621,8 @@ export default function WebAuthnTestPage() {
                       
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <span className="text-sm text-gray-700">User Verification</span>
-                        <span className={`text-sm font-medium ${capabilities.isUserVerificationSupported ? 'text-green-600' : 'text-red-600'}`}>
-                          {capabilities.isUserVerificationSupported ? '✓ Supported' : '✗ Not Supported'}
+                        <span className={`text-sm font-medium ${capabilities.isPlatformAuthenticatorAvailable ? 'text-green-600' : 'text-red-600'}`}>
+                          {capabilities.isPlatformAuthenticatorAvailable ? '✓ Supported' : '✗ Not Supported'}
                         </span>
                       </div>
                     </div>
@@ -683,7 +683,7 @@ export default function WebAuthnTestPage() {
                       <div className="pt-2">
                         <span className="text-sm text-gray-600">User Agent</span>
                         <p className="text-xs text-gray-500 mt-1 break-all">
-                          {capabilities.deviceInfo.userAgent}
+                          {typeof navigator !== 'undefined' ? navigator.userAgent : 'Server Side'}
                         </p>
                       </div>
                     </div>

@@ -355,7 +355,7 @@ export default function BiometricSettingsPage() {
                       <div>
                         <p className="text-gray-600">Verification</p>
                         <p className="font-medium">
-                          {capabilities.isUserVerificationSupported ? 'Supported' : 'Basic'}
+                          {capabilities.isPlatformAuthenticatorAvailable ? 'Supported' : 'Basic'}
                         </p>
                       </div>
                       <div>

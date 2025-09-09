@@ -65,33 +65,13 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // TODO: Use real biometric API endpoints
-      // Demo component temporarily disabled for real biometric implementation
-      throw new Error('WebAuthn demo temporarily disabled - use real API endpoints instead')
+      // Use real WebAuthnService.registerWithBiometric method
+      const result = await WebAuthnService.register({ userId, userName, userDisplayName: userName })
       
-      if (!startResult.success) {
-        throw new Error('Registration start failed')
-      }
-
-      // Step 2: Create credential
-      const credential = await navigator.credentials.create({
-        publicKey: startResult.options as PublicKeyCredentialCreationOptions
-      })
-
-      if (!credential) {
-        throw new Error('No credential created')
-      }
-
-      // Step 3: Verify registration
-      // const completeResult = await WebAuthnService.completeRegistration(credential, userId); // disabled
-      const completeResult = { success: true }; // placeholder for disabled functionality
-      
-      if (!completeResult.success) {
-        throw new Error('Registration completion failed')
-      }
+      // Result is direct data, not wrapped in success object
 
       setStep('success')
-      onSuccess?.(completeResult)
+      onSuccess?.(result)
     } catch (err) {
       const webAuthnError = WebAuthnService.handleWebAuthnError(err)
       setError(webAuthnError)
@@ -117,33 +97,13 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // TODO: Use real biometric API endpoints
-      // Demo component temporarily disabled for real biometric implementation
-      throw new Error('WebAuthn authentication demo temporarily disabled - use real API endpoints instead')
+      // Use real WebAuthnService.authenticateWithBiometric method
+      const result = await WebAuthnService.authenticate()
       
-      if (!startResult.success) {
-        throw new Error('Authentication start failed')
-      }
-
-      // Step 2: Get credential
-      const credential = await navigator.credentials.get({
-        publicKey: startResult.options as PublicKeyCredentialRequestOptions
-      })
-
-      if (!credential) {
-        throw new Error('No credential received')
-      }
-
-      // Step 3: Verify authentication
-      // const completeResult = await WebAuthnService.completeAuthentication(credential, userId); // disabled
-      const completeResult = { success: true }; // placeholder for disabled functionality
-      
-      if (!completeResult.success) {
-        throw new Error('Authentication completion failed')
-      }
+      // Result is direct data, not wrapped in success object
 
       setStep('success')
-      onSuccess?.(completeResult)
+      onSuccess?.(result)
     } catch (err) {
       const webAuthnError = WebAuthnService.handleWebAuthnError(err)
       setError(webAuthnError)
@@ -384,9 +344,9 @@ export default function WebAuthnDemo({
             <div className="mt-2 p-3 bg-gray-50 rounded text-xs space-y-1">
               <div><strong>WebAuthn Support:</strong> {capabilities.isSupported ? 'Yes' : 'No'}</div>
               <div><strong>Platform Authenticator:</strong> {capabilities.isPlatformAuthenticatorAvailable ? 'Available' : 'Not available'}</div>
-              <div><strong>User Verification:</strong> {capabilities.isUserVerificationSupported ? 'Supported' : 'Not supported'}</div>
+              <div><strong>User Verification:</strong> {capabilities.isPlatformAuthenticatorAvailable ? 'Supported' : 'Not supported'}</div>
               <div><strong>Device:</strong> {capabilities.deviceInfo.platform}</div>
-              <div><strong>Browser:</strong> {capabilities.deviceInfo.userAgent.substring(0, 50)}...</div>
+              <div><strong>Browser:</strong> {typeof navigator !== 'undefined' ? navigator.userAgent.substring(0, 50) : 'Server'}...</div>
             </div>
           )}
         </details>

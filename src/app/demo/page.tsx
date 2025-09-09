@@ -516,15 +516,15 @@ export default function DemoPage() {
               </div>
               
               <Shield className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold mb-2 text-green-100">Real Face ID / Touch ID</h3>
-              <p className="text-gray-300 mb-4">Use your device's ACTUAL biometric authentication system</p>
+              <h3 className="text-2xl font-bold mb-2 text-green-100">Real Face ID</h3>
+              <p className="text-gray-300 mb-4">Use your device's REAL Face ID, Touch ID, or Windows Hello</p>
               <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
                 <Shield className="w-4 h-4" />
                 <span>Real Device Biometrics</span>
               </div>
               <SimpleButton className="w-full bg-green-600 hover:bg-green-700">
                 <Shield className="w-4 h-4 mr-2" />
-                Use Real Biometrics
+                Use Real Face ID
               </SimpleButton>
             </motion.div>
           </motion.div>

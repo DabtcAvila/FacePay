@@ -31,68 +31,178 @@ export default function SimpleFaceIDDemo({
   const [error, setError] = useState<string>('');
   const [scanProgress, setScanProgress] = useState(0);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [permissionState, setPermissionState] = useState<'unknown' | 'granted' | 'denied' | 'prompt'>('unknown');
 
-  // Simple camera initialization - no complex permission checks
+  // Enhanced camera initialization with better error handling
   const startCamera = useCallback(async () => {
     try {
       setStatus('requesting');
       setError('');
       setIsDemoMode(false);
 
-      // Simple constraints that work on most devices
-      const constraints: MediaStreamConstraints = {
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
-        },
-        audio: false
-      };
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported on this device');
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Progressive constraints - try ideal first, then fallback
+      const constraints: MediaStreamConstraints[] = [
+        {
+          video: {
+            width: { ideal: 640, min: 320 },
+            height: { ideal: 480, min: 240 },
+            facingMode: 'user',
+            frameRate: { ideal: 30, min: 15 }
+          },
+          audio: false
+        },
+        {
+          video: {
+            width: { ideal: 320 },
+            height: { ideal: 240 },
+            facingMode: 'user'
+          },
+          audio: false
+        },
+        {
+          video: true,
+          audio: false
+        }
+      ];
+
+      let stream: MediaStream | null = null;
+      let lastError: Error | null = null;
+
+      // Try constraints in order of preference
+      for (const constraint of constraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraint);
+          break;
+        } catch (constraintError) {
+          lastError = constraintError as Error;
+          console.warn('Failed with constraint:', constraint, constraintError);
+        }
+      }
+
+      if (!stream) {
+        throw lastError || new Error('Failed to get camera stream');
+      }
 
       if (videoRef.current) {
+        // Clean up any existing stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+        }
+        
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         
-        // Simple play without complex promise handling
+        // Configure video element
         videoRef.current.playsInline = true;
         videoRef.current.muted = true;
+        videoRef.current.autoplay = true;
         
-        await videoRef.current.play();
+        // Wait for video to be ready
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+        }
+        
+        // Wait for video to actually start showing frames
+        await new Promise((resolve) => {
+          const checkVideo = () => {
+            if (videoRef.current && videoRef.current.videoWidth > 0) {
+              resolve(true);
+            } else {
+              setTimeout(checkVideo, 100);
+            }
+          };
+          checkVideo();
+        });
+        
         setStatus('active');
         
-        // Auto-start scanning after video loads
+        // Auto-start scanning after video is properly initialized
         setTimeout(() => {
-          startScanning();
-        }, 1000);
+          if (videoRef.current && streamRef.current) {
+            startScanning();
+          }
+        }, 1500);
       }
     } catch (err) {
       console.error('Camera error:', err);
       setStatus('error');
       
-      // Simple error messages
+      // Enhanced error handling with specific messages
       if (err instanceof Error) {
-        if (err.name === 'NotAllowedError') {
-          setError('Camera access denied. Please allow camera access and try again.');
-        } else if (err.name === 'NotFoundError') {
-          setError('No camera found. You can try the demo mode instead.');
-        } else {
-          setError('Camera not available. You can try the demo mode instead.');
+        switch (err.name) {
+          case 'NotAllowedError':
+            setError('Camera access denied. Please allow camera permissions in your browser settings and refresh the page.');
+            break;
+          case 'NotFoundError':
+            setError('No camera found on this device. Please connect a camera or use demo mode.');
+            break;
+          case 'NotReadableError':
+            setError('Camera is already in use by another application. Please close other apps using the camera.');
+            break;
+          case 'OverconstrainedError':
+            setError('Camera constraints not supported. Trying with basic settings...');
+            // Auto-retry with basic constraints
+            setTimeout(() => {
+              if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                  .then(stream => {
+                    if (videoRef.current) {
+                      videoRef.current.srcObject = stream;
+                      streamRef.current = stream;
+                      videoRef.current.play();
+                      setStatus('active');
+                      setError('');
+                      setTimeout(startScanning, 1000);
+                    }
+                  })
+                  .catch(() => {
+                    setError('Camera configuration failed. Please use demo mode.');
+                  });
+              }
+            }, 2000);
+            break;
+          case 'SecurityError':
+            setError('Camera access blocked by security settings. Please enable camera access for this site.');
+            break;
+          default:
+            setError(`Camera error: ${err.message}. You can try demo mode instead.`);
         }
+      } else {
+        setError('Unknown camera error occurred. Please try demo mode.');
       }
     }
   }, []);
 
-  // Simple scanning simulation
+  // Enhanced scanning simulation
   const startScanning = useCallback(() => {
+    if (status !== 'active' && status !== 'demo') {
+      console.warn('Cannot start scanning, invalid status:', status);
+      return;
+    }
+    
     setStatus('scanning');
     setScanProgress(0);
     
-    // Simple progress animation
+    // Realistic progress animation with variable speeds
     const progressInterval = setInterval(() => {
       setScanProgress(prev => {
-        const newProgress = prev + Math.random() * 5 + 2;
+        // Simulate real face detection with slower start, faster middle, slower end
+        let increment;
+        if (prev < 20) {
+          increment = Math.random() * 3 + 1; // Slow start
+        } else if (prev < 80) {
+          increment = Math.random() * 6 + 3; // Fast middle
+        } else {
+          increment = Math.random() * 2 + 0.5; // Slow finish
+        }
+        
+        const newProgress = Math.min(prev + increment, 100);
         
         if (newProgress >= 100) {
           clearInterval(progressInterval);
@@ -108,8 +218,8 @@ export default function SimpleFaceIDDemo({
         
         return newProgress;
       });
-    }, 100);
-  }, [onScanComplete, isDemoMode]);
+    }, 150); // Slightly slower for more realistic feel
+  }, [onScanComplete, isDemoMode, status]);
 
   // Demo mode - no camera required
   const startDemoMode = useCallback(() => {
@@ -123,12 +233,20 @@ export default function SimpleFaceIDDemo({
     }, 1000);
   }, [startScanning]);
 
-  // Cleanup camera stream
+  // Enhanced cleanup camera stream
   const cleanup = useCallback(() => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('Stopped camera track:', track.kind);
+      });
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setStatus('idle');
+    setScanProgress(0);
   }, []);
 
   const handleCancel = () => {
@@ -136,14 +254,45 @@ export default function SimpleFaceIDDemo({
     onCancel?.();
   };
 
+  // Check camera permissions on mount
+  React.useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        if ('permissions' in navigator) {
+          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          setPermissionState(permission.state);
+          
+          permission.addEventListener('change', () => {
+            setPermissionState(permission.state);
+          });
+        }
+      } catch (error) {
+        console.warn('Cannot check camera permissions:', error);
+      }
+    };
+    
+    checkPermissions();
+    
+    // Cleanup on unmount
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
   const retry = () => {
+    cleanup(); // Clean up first
     setError('');
     setScanProgress(0);
-    if (isDemoMode) {
-      startDemoMode();
-    } else {
-      startCamera();
-    }
+    setStatus('idle');
+    
+    // Small delay to ensure cleanup is complete
+    setTimeout(() => {
+      if (isDemoMode) {
+        startDemoMode();
+      } else {
+        startCamera();
+      }
+    }, 500);
   };
 
   // Render camera view
@@ -156,7 +305,19 @@ export default function SimpleFaceIDDemo({
             autoPlay
             playsInline
             muted
+            controls={false}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              console.error('Video element error:', e);
+              setError('Video playback failed. Please try demo mode.');
+              setStatus('error');
+            }}
+            onLoadedMetadata={() => {
+              console.log('Video metadata loaded');
+            }}
+            onCanPlay={() => {
+              console.log('Video can play');
+            }}
           />
         ) : (
           // Demo mode - show placeholder
@@ -274,11 +435,11 @@ export default function SimpleFaceIDDemo({
         <div className="text-center">
           <p className="text-lg font-semibold">
             {status === 'idle' && 'Ready to scan'}
-            {status === 'requesting' && 'Starting camera...'}
-            {status === 'active' && 'Position your face in the frame'}
-            {status === 'demo' && 'Demo mode - Position yourself'}
-            {status === 'scanning' && 'Scanning your face...'}
-            {status === 'complete' && 'Scan successful!'}
+            {status === 'requesting' && 'Initializing camera...'}
+            {status === 'active' && 'Look directly at the camera'}
+            {status === 'demo' && 'Demo mode - Face detection simulation'}
+            {status === 'scanning' && 'Analyzing facial features...'}
+            {status === 'complete' && 'Authentication successful!'}
           </p>
           {status === 'scanning' && (
             <p className="text-sm text-gray-600 mt-1">
@@ -290,7 +451,13 @@ export default function SimpleFaceIDDemo({
       
       {status === 'active' && (
         <p className="text-sm text-gray-600">
-          Keep your face visible and still. Scanning will start automatically.
+          Keep your face centered and visible. Detection will begin automatically.
+        </p>
+      )}
+      
+      {status === 'requesting' && (
+        <p className="text-sm text-gray-600">
+          Please allow camera access when prompted by your browser.
         </p>
       )}
     </div>
@@ -346,10 +513,24 @@ export default function SimpleFaceIDDemo({
             onClick={startCamera} 
             className="w-full flex items-center justify-center"
             size="lg"
+            disabled={permissionState === 'denied'}
           >
             <Play className="w-5 h-5 mr-2" />
-            Start Camera
+            {permissionState === 'denied' ? 'Camera Blocked' : 'Start Camera'}
           </Button>
+          
+          {permissionState === 'denied' && (
+            <p className="text-sm text-red-600 mt-2 text-center">
+              Camera access is blocked. Please enable it in your browser settings.
+            </p>
+          )}
+          
+          {permissionState === 'granted' && (
+            <p className="text-sm text-green-600 mt-2 text-center flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Camera access granted
+            </p>
+          )}
           
           <Button 
             onClick={startDemoMode} 
@@ -362,9 +543,14 @@ export default function SimpleFaceIDDemo({
           </Button>
         </div>
         
-        <p className="text-sm text-gray-500 mt-4">
-          Demo mode works without camera permissions
-        </p>
+        <div className="text-center mt-4">
+          <p className="text-sm text-gray-500 mb-2">
+            Demo mode works without camera permissions
+          </p>
+          <p className="text-xs text-gray-400">
+            Camera Demo uses your device's actual camera for testing
+          </p>
+        </div>
       </div>
     </div>
   );

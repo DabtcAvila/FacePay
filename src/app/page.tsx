@@ -10,17 +10,17 @@ import RegistrationFlow from '@/components/RegistrationFlow';
 import WebAuthnDemo from '@/components/WebAuthnDemo';
 import SimpleFaceIDDemo from '@/components/SimpleFaceIDDemo';
 import NativeBiometric from '@/components/NativeBiometric';
+import BiometricWithFallback from '@/components/BiometricWithFallback';
 import { WebAuthnService, type WebAuthnCapabilities } from '@/services/webauthn';
 
 export default function LandingPage() {
   const [showDemo, setShowDemo] = useState(false);
-  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid' | 'native'>('scan');
+  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid' | 'native' | 'biometric'>('scan');
   const [isScanning, setIsScanning] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [webAuthnCapabilities, setWebAuthnCapabilities] = useState<WebAuthnCapabilities | null>(null);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(true);
   const [biometricReady, setBiometricReady] = useState(false);
-  const [demoError, setDemoError] = useState<string>('');
 
   // Check device capabilities on load
   useEffect(() => {
@@ -40,14 +40,12 @@ export default function LandingPage() {
   }, []);
 
   const handleDemoClick = () => {
-    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     // Choose the best available demo mode based on capabilities
     if (biometricReady) {
-      setDemoMode('native');
+      setDemoMode('biometric'); // Use new fallback component
     } else {
-      setDemoMode('scan');
-      setIsScanning(true);
+      setDemoMode('biometric'); // Fallback component handles all cases
     }
   };
 
@@ -62,15 +60,13 @@ export default function LandingPage() {
   };
 
   const handleWebAuthnDemo = () => {
-    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     setDemoMode('webauthn');
   };
 
   const handleNativeBiometricDemo = () => {
-    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
-    setDemoMode('native');
+    setDemoMode('biometric'); // Use unified component
   };
 
   const handleScanComplete = () => {
@@ -81,7 +77,6 @@ export default function LandingPage() {
   };
 
   const handleBiometricSuccess = () => {
-    setDemoError(''); // Clear any errors on success
     setTimeout(() => {
       setDemoMode('payment');
     }, 1000);
@@ -90,7 +85,6 @@ export default function LandingPage() {
   // Reset states when closing modal
   const closeModal = () => {
     setShowDemo(false);
-    setDemoError('');
     setIsScanning(false);
     setMobileMenuOpen(false);
   };
@@ -217,7 +211,8 @@ export default function LandingPage() {
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold">
-                    {demoMode === 'native' ? 'Real Biometric Authentication' :
+                    {demoMode === 'biometric' ? 'Biometric Authentication with Smart Fallbacks' :
+                     demoMode === 'native' ? 'Real Biometric Authentication' :
                      demoMode === 'webauthn' ? 'WebAuthn Demo' :
                      demoMode === 'faceid' ? 'Face Recognition Demo' :
                      demoMode === 'register' ? 'Create Account' :
@@ -226,7 +221,8 @@ export default function LandingPage() {
                   
                   {/* Demo instructions */}
                   <p className="text-sm text-gray-600 mt-1">
-                    {demoMode === 'native' ? 'Use your device\'s REAL Face ID, Touch ID, or Windows Hello' :
+                    {demoMode === 'biometric' ? 'Smart authentication that automatically uses the best available method on your device' :
+                     demoMode === 'native' ? 'Use your device\'s REAL Face ID, Touch ID, or Windows Hello' :
                      demoMode === 'webauthn' ? 'WebAuthn authentication demo' :
                      demoMode === 'faceid' ? 'Test our face recognition technology with your camera' :
                      demoMode === 'scan' ? 'Experience our face scanning animation' :
@@ -242,6 +238,22 @@ export default function LandingPage() {
                   ✕
                 </button>
               </div>
+
+              {demoMode === 'biometric' && (
+                <BiometricWithFallback 
+                  userId={`demo-user-${Date.now()}`}
+                  userName="demo@facepay.com"
+                  mode="authentication"
+                  title="Smart Biometric Authentication"
+                  subtitle="Automatically selects the best authentication method"
+                  onSuccess={(result) => {
+                    console.log('Biometric success:', result)
+                    handleBiometricSuccess()
+                  }}
+                  onError={(error) => console.error('Biometric error:', error)}
+                  onCancel={closeModal}
+                />
+              )}
 
               {demoMode === 'native' && (
                 <NativeBiometric 
@@ -289,8 +301,7 @@ export default function LandingPage() {
                     {biometricReady && (
                       <Button 
                         onClick={() => {
-                          setDemoError('');
-                          setDemoMode('native');
+                            setDemoMode('native');
                         }}
                         variant="outline" 
                         size="sm"
@@ -300,7 +311,6 @@ export default function LandingPage() {
                     )}
                     <Button 
                       onClick={() => {
-                        setDemoError('');
                         setDemoMode('faceid');
                       }}
                       variant="outline" 
@@ -412,7 +422,7 @@ export default function LandingPage() {
                     className="bg-blue-600 hover:bg-blue-700 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 payment-flow-glow w-full sm:w-auto"
                   >
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Use Real {webAuthnCapabilities?.biometricTypes.includes('face') ? 'Face ID' : webAuthnCapabilities?.biometricTypes.includes('fingerprint') ? 'Touch ID' : 'Biometrics'}
+                    Smart Biometric Auth
                   </Button>
                   
                   <Button
@@ -430,8 +440,8 @@ export default function LandingPage() {
                     onClick={handleDemoClick}
                     className="bg-blue-600 hover:bg-blue-700 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 payment-flow-glow w-full sm:w-auto"
                   >
-                    <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Try Demo Mode
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                    Smart Biometric Auth
                   </Button>
                   
                   <Button
@@ -621,21 +631,12 @@ export default function LandingPage() {
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
               <Button
-                onClick={biometricReady ? handleNativeBiometricDemo : handleDemoClick}
+                onClick={handleDemoClick}
                 variant="outline"
                 className="border-white text-white hover:bg-white hover:text-blue-600 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3"
               >
-                {biometricReady ? (
-                  <>
-                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Real {webAuthnCapabilities?.biometricTypes.includes('face') ? 'Face ID' : webAuthnCapabilities?.biometricTypes.includes('fingerprint') ? 'Touch ID' : 'Biometrics'}
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Watch Demo
-                  </>
-                )}
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                Try Smart Authentication
               </Button>
             </div>
           </motion.div>

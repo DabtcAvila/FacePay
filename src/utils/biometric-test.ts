@@ -9,21 +9,21 @@ export async function testBiometricCapabilities() {
     console.log('🔍 Testing biometric capabilities...')
     
     // Check biometric support
-    const capabilities = await WebAuthnService.checkBiometricSupport()
+    const capabilities = await WebAuthnService.checkBrowserCapabilities()
     
     console.log('📊 Biometric Capabilities Report:')
     console.log('═'.repeat(50))
     console.log(`✓ WebAuthn Supported: ${capabilities.isSupported}`)
     console.log(`✓ Platform Authenticator Available: ${capabilities.isPlatformAuthenticatorAvailable}`)
-    console.log(`✓ User Verification Supported: ${capabilities.isUserVerificationSupported}`)
+    console.log(`✓ User Verification Supported: ${capabilities.isPlatformAuthenticatorAvailable}`)
     console.log(`✓ Biometric Types: ${capabilities.biometricTypes.join(', ')}`)
     
     console.log('\n🔧 Specific Biometric Support:')
-    console.log(`  • Face ID (iOS): ${capabilities.specificBiometrics.faceID}`)
-    console.log(`  • Touch ID (iOS/macOS): ${capabilities.specificBiometrics.touchID}`)
-    console.log(`  • Windows Hello: ${capabilities.specificBiometrics.windowsHello}`)
-    console.log(`  • Android Fingerprint: ${capabilities.specificBiometrics.androidFingerprint}`)
-    console.log(`  • Android Face: ${capabilities.specificBiometrics.androidFace}`)
+    console.log(`  • Face ID (iOS): ${capabilities.biometricAvailability.faceID}`)
+    console.log(`  • Touch ID (iOS/macOS): ${capabilities.biometricAvailability.touchID}`)
+    console.log(`  • Windows Hello: ${capabilities.biometricAvailability.windowsHello}`)
+    console.log(`  • Android Fingerprint: ${capabilities.biometricAvailability.androidFingerprint}`)
+    console.log(`  • Android Face: ${capabilities.biometricAvailability.androidFace}`)
     
     console.log('\n📱 Device Information:')
     console.log(`  • Platform: ${capabilities.deviceInfo.platform}`)
@@ -63,13 +63,15 @@ export async function testBiometricRegistration(userId: string = 'test-user', us
   try {
     console.log('\n🔐 Testing biometric registration...')
     
-    const credential = await WebAuthnService.registerWithBiometric(userId, userName)
+    const result = await WebAuthnService.register({ userId, userName, userDisplayName: userName })
+    
+    // Result is direct data, not wrapped in success object
     
     console.log('✅ Registration successful!')
-    console.log(`   • Credential ID: ${credential.id.substring(0, 20)}...`)
-    console.log(`   • Authenticator: ${credential.authenticatorAttachment || 'unknown'}`)
+    console.log(`   • Credential ID: ${result.credential?.id.substring(0, 20)}...`)
+    console.log(`   • Authenticator: ${result.credential?.authenticatorAttachment || 'unknown'}`)
     
-    return credential
+    return result.credential
     
   } catch (error: any) {
     console.error('❌ Registration failed:', error.message || error)
@@ -85,13 +87,15 @@ export async function testBiometricAuthentication() {
   try {
     console.log('\n🔓 Testing biometric authentication...')
     
-    const credential = await WebAuthnService.authenticateWithBiometric()
+    const result = await WebAuthnService.authenticate()
+    
+    // Result is direct data, not wrapped in success object
     
     console.log('✅ Authentication successful!')
-    console.log(`   • Credential ID: ${credential.id.substring(0, 20)}...`)
-    console.log(`   • Authenticator: ${credential.authenticatorAttachment || 'unknown'}`)
+    console.log(`   • Credential ID: ${result.credential?.id.substring(0, 20)}...`)
+    console.log(`   • Authenticator: ${result.credential?.authenticatorAttachment || 'unknown'}`)
     
-    return credential
+    return result.credential
     
   } catch (error: any) {
     console.error('❌ Authentication failed:', error.message || error)

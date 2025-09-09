@@ -109,9 +109,8 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
           deviceInfo: {
             isSupported: true,
             isPlatformAuthenticatorAvailable: true,
-            isUserVerificationSupported: true,
             biometricTypes: ['face', 'fingerprint'],
-            specificBiometrics: {
+            biometricAvailability: {
               faceID: true,
               touchID: false,
               windowsHello: false,
@@ -120,7 +119,6 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             },
             deviceInfo: {
               platform: 'iOS',
-              userAgent: 'demo',
               isMobile: true,
               isIOS: true,
               isAndroid: false,
