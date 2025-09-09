@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(for branch in mobile_app backend_api webauthn_passkeys wallet_bridge payments_orchestrator qa_ci_cd growth_ops)",
+      "Bash(do git checkout -b agent/$branch)",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "/Users/davicho"
+    ]
+  }
+}

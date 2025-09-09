@@ -1,0 +1,48 @@
+{
+  "orchestrator_config": {
+    "autonomy_level": "high",
+    "working_directory": "/Users/davicho/MASTER proyectos/FacePay",
+    "permissions_granted": {
+      "full_bash_access": true,
+      "file_operations": "all within FacePay directory",
+      "git_management": "all operations",
+      "agent_management": "full control",
+      "web_access": "unlimited",
+      "task_automation": "enabled"
+    },
+    "security_boundaries": {
+      "restricted_paths": [
+        "/.ssh",
+        "/.env",
+        "/.env.production",
+        "/**/*.key",
+        "/**/*.pem"
+      ],
+      "dangerous_commands_blocked": [
+        "rm -rf /",
+        "rm -rf ~",
+        "rm -rf /Users"
+      ]
+    },
+    "capabilities": {
+      "modify_agent_permissions": true,
+      "create_agents": true,
+      "manage_git_branches": true,
+      "execute_builds": true,
+      "run_tests": true,
+      "manage_dependencies": true,
+      "configure_systems": true
+    },
+    "auto_approve_operations": [
+      "file_operations",
+      "git_operations",
+      "npm_operations",
+      "docker_operations",
+      "testing_operations",
+      "agent_management",
+      "permission_updates"
+    ]
+  },
+  "version": "1.0.0",
+  "updated": "2025-01-09"
+}
