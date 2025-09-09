@@ -1,0 +1,86 @@
+{
+  "branch_strategy": {
+    "main": {
+      "owner": "orchestrator",
+      "description": "Production-ready code, managed by orchestrator",
+      "protection": {
+        "require_pull_request": true,
+        "require_reviews": 2,
+        "dismiss_stale_reviews": true,
+        "require_tests_pass": true
+      }
+    },
+    "agent_branches": {
+      "agent/design_ux": {
+        "owner": "design_ux",
+        "description": "UI/UX design and styling work",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/frontend_web": {
+        "owner": "frontend_web", 
+        "description": "Web frontend development",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/mobile_app": {
+        "owner": "mobile_app",
+        "description": "Mobile app development",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/backend_api": {
+        "owner": "backend_api",
+        "description": "Backend API development",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/webauthn_passkeys": {
+        "owner": "webauthn_passkeys",
+        "description": "Authentication and security features",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/wallet_bridge": {
+        "owner": "wallet_bridge",
+        "description": "Web3 wallet integrations",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/payments_orchestrator": {
+        "owner": "payments_orchestrator",
+        "description": "Payment processing features",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/qa_ci_cd": {
+        "owner": "qa_ci_cd",
+        "description": "Testing and deployment pipelines",
+        "merge_into": "main",
+        "auto_sync": true
+      },
+      "agent/growth_ops": {
+        "owner": "growth_ops",
+        "description": "Analytics and growth features",
+        "merge_into": "main",
+        "auto_sync": true
+      }
+    },
+    "workflow": {
+      "parallel_development": true,
+      "auto_merge_strategy": "rebase",
+      "conflict_resolution": "orchestrator_decides",
+      "sync_frequency": "on_commit",
+      "pr_automation": true
+    }
+  },
+  "rules": [
+    "Each agent works exclusively on their designated branch",
+    "Orchestrator manages merges from agent branches to main",
+    "Agents must pull latest main before starting new work",
+    "No direct commits to main except by orchestrator",
+    "All agent work requires PR to main",
+    "Orchestrator resolves conflicts between agent branches"
+  ],
+  "version": "1.0.0"
+}
