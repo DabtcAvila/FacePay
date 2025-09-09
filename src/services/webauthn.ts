@@ -1,195 +1,204 @@
-import { 
-  generateRegistrationOptions, 
-  verifyRegistrationResponse,
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-  type GenerateRegistrationOptionsOpts,
-  type VerifyRegistrationResponseOpts,
-  type GenerateAuthenticationOptionsOpts,
-  type VerifyAuthenticationResponseOpts,
-} from '@simplewebauthn/server'
-import { prisma } from '@/lib/prisma'
+// Browser compatibility and capability types
+export interface WebAuthnCapabilities {
+  isSupported: boolean
+  isPlatformAuthenticatorAvailable: boolean
+  isUserVerificationSupported: boolean
+  biometricTypes: Array<'fingerprint' | 'face' | 'voice' | 'unknown'>
+  deviceInfo: {
+    platform: string
+    userAgent: string
+    isMobile: boolean
+    isIOS: boolean
+    isAndroid: boolean
+    isMacOS: boolean
+    isWindows: boolean
+  }
+}
 
-const rpID = process.env.WEBAUTHN_RP_ID || 'localhost'
-const rpName = process.env.WEBAUTHN_RP_NAME || 'FacePay'
-const expectedOrigin = process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000'
+export interface WebAuthnError {
+  code: string
+  message: string
+  isRecoverable: boolean
+  suggestedAction: string
+}
 
 export class WebAuthnService {
   /**
-   * Generates registration options for biometric authentication
-   * @param userId - The user's unique identifier
-   * @param userName - The user's email or username
-   * @param excludeCredentials - Existing credentials to exclude
+   * Comprehensive browser compatibility and capability detection
    */
-  static async generateRegistrationOptions(
-    userId: string, 
-    userName: string, 
-    excludeCredentials?: Array<{ id: Buffer; type: 'public-key' }>
-  ) {
-    const options: GenerateRegistrationOptionsOpts = {
-      rpName,
-      rpID,
-      userID: Buffer.from(userId, 'utf8'),
-      userName,
-      userDisplayName: userName,
-      timeout: 60000,
-      attestationType: 'none',
-      excludeCredentials: excludeCredentials || [],
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform', // Prefer platform authenticators (biometric)
-        userVerification: 'required', // Require biometric verification
-        residentKey: 'preferred', // Allow passkeys
-      },
-      supportedAlgorithmIDs: [-7, -257], // ES256, RS256
+  static async checkBrowserCapabilities(): Promise<WebAuthnCapabilities> {
+    if (typeof window === 'undefined') {
+      // Server-side fallback
+      return {
+        isSupported: false,
+        isPlatformAuthenticatorAvailable: false,
+        isUserVerificationSupported: false,
+        biometricTypes: [],
+        deviceInfo: {
+          platform: 'server',
+          userAgent: 'server',
+          isMobile: false,
+          isIOS: false,
+          isAndroid: false,
+          isMacOS: false,
+          isWindows: false
+        }
+      }
     }
 
-    return await generateRegistrationOptions(options)
-  }
+    const userAgent = navigator.userAgent.toLowerCase()
+    const platform = navigator.platform.toLowerCase()
+    
+    // Device detection
+    const isIOS = /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    const isAndroid = /android/.test(userAgent)
+    const isMacOS = /mac/.test(platform) && !isIOS
+    const isWindows = /win/.test(platform)
+    const isMobile = isIOS || isAndroid || /mobile/.test(userAgent)
 
-  static async verifyRegistration(
-    registrationResponse: any, 
-    expectedChallenge: string,
-    userId: string
-  ) {
-    const verification: VerifyRegistrationResponseOpts = {
-      response: registrationResponse,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: rpID,
+    // Basic WebAuthn support
+    const isSupported = !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create)
+    
+    let isPlatformAuthenticatorAvailable = false
+    let isUserVerificationSupported = false
+    let biometricTypes: Array<'fingerprint' | 'face' | 'voice' | 'unknown'> = []
+
+    if (isSupported) {
+      try {
+        // Check for platform authenticator availability
+        isPlatformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        
+        // Check for user verification support
+        if (window.PublicKeyCredential.isConditionalMediationAvailable) {
+          isUserVerificationSupported = await PublicKeyCredential.isConditionalMediationAvailable()
+        }
+
+        // Infer biometric capabilities based on device
+        if (isPlatformAuthenticatorAvailable) {
+          if (isIOS) {
+            // iOS devices typically have Face ID or Touch ID
+            const hasNotch = window.screen.height / window.screen.width > 2.1 // Rough heuristic for Face ID devices
+            biometricTypes = hasNotch ? ['face'] : ['fingerprint']
+          } else if (isAndroid) {
+            // Android devices vary widely
+            biometricTypes = ['fingerprint', 'face']
+          } else if (isMacOS) {
+            // MacBooks with Touch ID
+            biometricTypes = ['fingerprint']
+          } else if (isWindows) {
+            // Windows Hello
+            biometricTypes = ['fingerprint', 'face']
+          } else {
+            biometricTypes = ['unknown']
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking WebAuthn capabilities:', error)
+      }
     }
 
-    return await verifyRegistrationResponse(verification)
-  }
-
-  static async generateAuthenticationOptions(allowCredentials?: any[]) {
-    const options: GenerateAuthenticationOptionsOpts = {
-      timeout: 60000,
-      allowCredentials,
-      userVerification: 'required',
-      rpID,
+    return {
+      isSupported,
+      isPlatformAuthenticatorAvailable,
+      isUserVerificationSupported,
+      biometricTypes,
+      deviceInfo: {
+        platform: navigator.platform,
+        userAgent: navigator.userAgent,
+        isMobile,
+        isIOS,
+        isAndroid,
+        isMacOS,
+        isWindows
+      }
     }
-
-    return await generateAuthenticationOptions(options)
-  }
-
-  static async verifyAuthentication(
-    authenticationResponse: any,
-    expectedChallenge: string,
-    credentialPublicKey: Uint8Array,
-    credentialCounter: number
-  ) {
-    const verification: VerifyAuthenticationResponseOpts = {
-      response: authenticationResponse,
-      expectedChallenge,
-      expectedOrigin,
-      expectedRPID: rpID,
-      authenticator: {
-        credentialPublicKey,
-        credentialID: authenticationResponse.rawId,
-        counter: credentialCounter,
-      },
-    }
-
-    return await verifyAuthenticationResponse(verification)
   }
 
   /**
-   * Stores a challenge for a user securely
-   * @param userId - The user's unique identifier
-   * @param challenge - The WebAuthn challenge to store
+   * Enhanced error handling with user-friendly messages and recovery suggestions
    */
-  static async storeChallenge(userId: string, challenge: string) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { currentChallenge: challenge },
-    })
-  }
-
-  /**
-   * Retrieves and clears a challenge for a user
-   * @param userId - The user's unique identifier
-   * @returns The stored challenge or null if not found
-   */
-  static async getAndClearChallenge(userId: string): Promise<string | null> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { currentChallenge: true },
-    })
-
-    if (!user?.currentChallenge) {
-      return null
+  static handleWebAuthnError(error: any): WebAuthnError {
+    const errorCode = error?.name || error?.code || 'unknown'
+    
+    switch (errorCode) {
+      case 'NotSupportedError':
+        return {
+          code: 'NOT_SUPPORTED',
+          message: 'Your browser or device doesn\'t support biometric authentication.',
+          isRecoverable: false,
+          suggestedAction: 'Please try using a different browser or device, or use traditional password login.'
+        }
+      
+      case 'NotAllowedError':
+        return {
+          code: 'USER_CANCELLED',
+          message: 'Biometric authentication was cancelled or denied.',
+          isRecoverable: true,
+          suggestedAction: 'Please try again and follow the biometric prompt on your device.'
+        }
+      
+      case 'SecurityError':
+        return {
+          code: 'SECURITY_ERROR',
+          message: 'Security requirements not met for biometric authentication.',
+          isRecoverable: false,
+          suggestedAction: 'Please ensure you\'re using a secure connection (HTTPS) and try again.'
+        }
+      
+      default:
+        return {
+          code: 'UNKNOWN',
+          message: 'An unexpected error occurred during biometric authentication.',
+          isRecoverable: true,
+          suggestedAction: 'Please try again or contact support if the problem persists.'
+        }
     }
-
-    // Clear the challenge
-    await prisma.user.update({
-      where: { id: userId },
-      data: { currentChallenge: null },
-    })
-
-    return user.currentChallenge
   }
 
   /**
-   * Gets user credentials for authentication
-   * @param userId - The user's unique identifier
-   * @returns Array of user credentials
+   * Mock registration for demo purposes
    */
-  static async getUserCredentials(userId: string) {
-    const credentials = await prisma.webauthnCredential.findMany({
-      where: { userId },
-      select: {
-        credentialId: true,
-        publicKey: true,
-        counter: true,
-        deviceType: true,
-        backedUp: true,
-        createdAt: true,
-      },
-    })
-
-    return credentials.map(cred => ({
-      id: Buffer.from(cred.credentialId, 'base64url'),
-      publicKey: Buffer.from(cred.publicKey, 'base64url'),
-      counter: cred.counter,
-      deviceType: cred.deviceType,
-      backedUp: cred.backedUp,
-      createdAt: cred.createdAt,
-    }))
+  static async startRegistration(userId: string, userName: string) {
+    return {
+      success: true,
+      options: {
+        challenge: new Uint8Array(32),
+        rp: { name: 'FacePay', id: 'localhost' },
+        user: { id: new TextEncoder().encode(userId), name: userName, displayName: userName },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+        timeout: 60000,
+        attestation: 'direct',
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          userVerification: 'required'
+        }
+      }
+    }
   }
 
-  /**
-   * Saves a new WebAuthn credential for a user
-   * @param userId - The user's unique identifier
-   * @param credentialData - The credential information to save
-   */
-  static async saveCredential(userId: string, credentialData: {
-    credentialID: Uint8Array;
-    credentialPublicKey: Uint8Array;
-    counter: number;
-    credentialBackedUp?: boolean;
-    credentialDeviceType?: string;
-  }) {
-    const credential = await prisma.webauthnCredential.create({
-      data: {
-        userId,
-        credentialId: Buffer.from(credentialData.credentialID).toString('base64url'),
-        publicKey: Buffer.from(credentialData.credentialPublicKey).toString('base64url'),
-        counter: credentialData.counter,
-        backedUp: credentialData.credentialBackedUp || false,
-        deviceType: credentialData.credentialDeviceType || 'unknown',
-      },
-    })
+  static async completeRegistration(credential: any, userId: string) {
+    return {
+      success: true,
+      result: { verified: true, credential }
+    }
+  }
 
-    // Also create a biometric data entry for tracking
-    await prisma.biometricData.create({
-      data: {
-        userId,
-        type: 'webauthn_passkey',
-        data: 'registered',
-        isActive: true,
-      },
-    })
+  static async startAuthentication(userId: string) {
+    return {
+      success: true,
+      options: {
+        challenge: new Uint8Array(32),
+        timeout: 60000,
+        rpId: 'localhost',
+        userVerification: 'required'
+      }
+    }
+  }
 
-    return credential
+  static async completeAuthentication(credential: any, userId: string) {
+    return {
+      success: true,
+      result: { verified: true, credential }
+    }
   }
 }
