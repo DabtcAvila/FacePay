@@ -189,6 +189,61 @@ async function testTokenRefresh() {
   }
 }
 
+async function testWebAuthnLoginOptions() {
+  try {
+    const response = await axios.get(`${BASE_URL}/webauthn/login?email=${testUser.email}`)
+    await log('WebAuthn login options passed', {
+      hasOptions: !!response.data.data.options,
+      supportsBiometric: response.data.data.supportsBiometric
+    })
+    return true
+  } catch (error) {
+    await logError('WebAuthn login options failed', error)
+    return false
+  }
+}
+
+async function testWebAuthnLoginEndpoint() {
+  try {
+    // This test will fail since we don't have actual WebAuthn credentials
+    // But it should return proper error messages indicating the endpoint is working
+    const mockCredential = {
+      email: testUser.email,
+      credential: {
+        id: "mock-credential-id",
+        rawId: "mock-raw-id",
+        response: {
+          authenticatorData: "mock-authenticator-data",
+          clientDataJSON: Buffer.from(JSON.stringify({
+            type: "webauthn.get",
+            challenge: "mock-challenge",
+            origin: "http://localhost:3000"
+          })).toString('base64url'),
+          signature: "mock-signature",
+          userHandle: "mock-user-handle"
+        },
+        type: "public-key",
+        clientExtensionResults: {}
+      }
+    }
+
+    const response = await axios.post(`${BASE_URL}/webauthn/login`, mockCredential)
+    await log('WebAuthn login endpoint passed unexpectedly', response.data)
+    return true
+  } catch (error) {
+    // Expected to fail with proper error message
+    if (error.response?.status === 404 && error.response?.data?.error?.includes('Credential not found')) {
+      await log('WebAuthn login endpoint structure validated (expected credential not found)', {
+        status: error.response.status,
+        error: error.response.data.error
+      })
+      return true
+    }
+    await logError('WebAuthn login endpoint failed with unexpected error', error)
+    return false
+  }
+}
+
 async function runTests() {
   console.log('🚀 Starting FacePay API Tests...\n')
   
@@ -203,6 +258,8 @@ async function runTests() {
     { name: 'Get Transactions', fn: testGetTransactions },
     { name: 'Get Analytics', fn: testGetAnalytics },
     { name: 'Token Refresh', fn: testTokenRefresh },
+    { name: 'WebAuthn Login Options', fn: testWebAuthnLoginOptions },
+    { name: 'WebAuthn Login Endpoint', fn: testWebAuthnLoginEndpoint },
   ]
   
   let passed = 0

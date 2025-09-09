@@ -14,6 +14,7 @@ model User {
   id                String              @id @default(cuid())
   email             String              @unique
   name              String?
+  currentChallenge  String?             // Store current WebAuthn challenge
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   
@@ -44,6 +45,8 @@ model WebauthnCredential {
   credentialId String   @unique
   publicKey    String
   counter      Int      @default(0)
+  backedUp     Boolean  @default(false)
+  deviceType   String   @default("unknown") // single_device, multi_device, unknown
   userId       String
   createdAt    DateTime @default(now())
   
@@ -81,6 +84,36 @@ model Transaction {
   
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  refunds       Refund[]
+  receipts      Receipt[]
   
   @@map("transactions")
+}
+
+model Refund {
+  id            String    @id @default(cuid())
+  transactionId String
+  amount        Float
+  reason        String
+  status        String    @default("pending") // 'pending', 'processing', 'completed', 'failed'
+  processedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  metadata      Json?
+  
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@map("refunds")
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  transactionId String
+  receiptNumber String   @unique
+  format        String   @default("json") // 'json', 'html', 'pdf'
+  data          Json     // Receipt content
+  generatedAt   DateTime @default(now())
+  
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@map("receipts")
 }

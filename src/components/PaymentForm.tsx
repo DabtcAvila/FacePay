@@ -38,11 +38,51 @@ export default function PaymentForm({ amount, recipient, onPaymentComplete }: Pa
     }, 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (paymentMethod === 'face') {
       setPaymentStep('verification');
       setIsScanning(true);
+    } else if (paymentMethod === 'card') {
+      await handleStripeCheckout();
+    }
+  };
+
+  const handleStripeCheckout = async () => {
+    try {
+      setPaymentStep('processing');
+      
+      const response = await fetch('/api/payments/stripe/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify({
+          amount: formData.amount,
+          description: formData.description || 'FacePay Payment',
+          metadata: {
+            recipient: recipient || 'N/A',
+            paymentMethod: 'stripe_checkout',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { data } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      if (data.sessionUrl) {
+        window.location.href = data.sessionUrl;
+      }
+    } catch (error) {
+      console.error('Stripe checkout error:', error);
+      // Reset to details step on error
+      setPaymentStep('details');
+      // You might want to show an error message here
     }
   };
 
