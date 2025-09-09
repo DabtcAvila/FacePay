@@ -8,7 +8,7 @@ import FaceScanAnimation from '@/components/FaceScanAnimation';
 import PaymentForm from '@/components/PaymentForm';
 import RegistrationFlow from '@/components/RegistrationFlow';
 import WebAuthnDemo from '@/components/WebAuthnDemo';
-import FaceIDDemo from '@/components/FaceIDDemo';
+import SimpleFaceIDDemo from '@/components/SimpleFaceIDDemo';
 import { WebAuthnService, type WebAuthnCapabilities } from '@/services/webauthn';
 
 export default function LandingPage() {
@@ -51,21 +51,13 @@ export default function LandingPage() {
   };
 
   const handleFaceIDDemo = () => {
-    setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     setDemoMode('faceid');
   };
 
   const handleFaceIDError = (error: string) => {
     console.error('FaceID Demo error:', error);
-    setDemoError(error);
-    // Optionally switch to scan mode as fallback after a delay
-    if (error.includes('camera') || error.includes('permission')) {
-      setTimeout(() => {
-        setDemoMode('scan');
-        setIsScanning(true);
-      }, 3000);
-    }
+    // SimpleFaceIDDemo handles errors internally, this is kept for compatibility
   };
 
   const handleWebAuthnDemo = () => {
@@ -253,51 +245,10 @@ export default function LandingPage() {
               )}
 
               {demoMode === 'faceid' && (
-                <>
-                  <FaceIDDemo 
-                    onScanComplete={handleBiometricSuccess}
-                    onCancel={closeModal}
-                    userId={`demo-user-${Date.now()}`}
-                    userName="demo@facepay.com"
-                    enableWebAuthnFallback={true}
-                  />
-                  
-                  {/* Error display with fallback options */}
-                  {demoError && (
-                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-700 text-sm mb-3">{demoError}</p>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2 justify-center">
-                          <Button 
-                            onClick={() => {
-                              setDemoError('');
-                              setDemoMode('scan');
-                              setIsScanning(true);
-                            }}
-                            variant="outline" 
-                            size="sm"
-                          >
-                            Try Animation Demo
-                          </Button>
-                          {biometricReady && (
-                            <Button 
-                              onClick={() => {
-                                setDemoError('');
-                                setDemoMode('webauthn');
-                              }}
-                              size="sm"
-                            >
-                              Try Biometric Auth
-                            </Button>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 text-center mt-2">
-                          The animation demo shows our interface design without requiring camera access
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </>
+                <SimpleFaceIDDemo 
+                  onScanComplete={handleBiometricSuccess}
+                  onCancel={closeModal}
+                />
               )}
 
               {demoMode === 'scan' && (
