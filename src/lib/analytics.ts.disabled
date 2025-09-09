@@ -1,0 +1,601 @@
+import { PrismaClient } from '@prisma/client';
+import { NotificationPayload } from './websocket';
+
+const prisma = new PrismaClient();
+
+export interface NotificationMetrics {
+  totalSent: number;
+  totalDelivered: number;
+  totalFailed: number;
+  totalRead: number;
+  deliveryRate: number;
+  readRate: number;
+  avgDeliveryTime: number;
+  channelBreakdown: {
+    realtime: ChannelMetrics;
+    email: ChannelMetrics;
+    sms: ChannelMetrics;
+    push: ChannelMetrics;
+  };
+  typeBreakdown: Record<NotificationPayload['type'], TypeMetrics>;
+  hourlyDistribution: Array<{ hour: number; count: number }>;
+  userEngagement: {
+    activeUsers: number;
+    avgNotificationsPerUser: number;
+    topEngagedUsers: Array<{ userId: string; notificationCount: number; readRate: number }>;
+  };
+}
+
+export interface ChannelMetrics {
+  sent: number;
+  delivered: number;
+  failed: number;
+  deliveryRate: number;
+  avgDeliveryTime: number;
+  cost?: number;
+}
+
+export interface TypeMetrics {
+  sent: number;
+  delivered: number;
+  read: number;
+  readRate: number;
+  avgTimeToRead: number;
+  failureRate: number;
+}
+
+export interface UserEngagementMetrics {
+  userId: string;
+  totalNotifications: number;
+  readNotifications: number;
+  readRate: number;
+  avgTimeToRead: number;
+  preferredChannels: string[];
+  optOutRate: number;
+  lastActivity: Date;
+}
+
+export interface DeliveryMetrics {
+  timestamp: Date;
+  notificationId: string;
+  userId: string;
+  type: NotificationPayload['type'];
+  channel: string;
+  status: 'sent' | 'delivered' | 'failed' | 'read';
+  deliveryTime?: number; // in milliseconds
+  errorMessage?: string;
+  cost?: number;
+}
+
+export interface PerformanceMetrics {
+  avgProcessingTime: number;
+  peakThroughput: number;
+  queueDepth: number;
+  errorRate: number;
+  systemLoad: number;
+}
+
+class NotificationAnalytics {
+  // Get comprehensive notification metrics for a date range
+  public async getMetrics(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+  ): Promise<NotificationMetrics> {
+    const baseWhere: any = {
+      createdAt: { gte: startDate, lte: endDate },
+    };
+
+    if (userId) {
+      baseWhere.userId = userId;
+    }
+
+    // Get basic notification counts
+    const [notifications, notificationLogs] = await Promise.all([
+      prisma.notification.findMany({
+        where: baseWhere,
+        include: { _count: true },
+      }),
+      prisma.notificationLog.findMany({
+        where: {
+          timestamp: { gte: startDate, lte: endDate },
+          ...(userId && { userId }),
+        },
+      }),
+    ]);
+
+    const totalSent = notifications.length;
+    const totalRead = notifications.filter(n => n.read).length;
+    const readRate = totalSent > 0 ? (totalRead / totalSent) * 100 : 0;
+
+    // Calculate delivery metrics from logs
+    const deliveryLogs = notificationLogs.filter(log => 
+      ['sent', 'delivered', 'failed'].includes(log.action)
+    );
+
+    const totalDelivered = deliveryLogs.filter(log => log.action === 'delivered').length;
+    const totalFailed = deliveryLogs.filter(log => log.action === 'failed').length;
+    const deliveryRate = totalSent > 0 ? (totalDelivered / totalSent) * 100 : 0;
+
+    // Calculate average delivery time
+    const deliveryTimes = deliveryLogs
+      .filter(log => log.deliveryTime !== null)
+      .map(log => log.deliveryTime || 0);
+    const avgDeliveryTime = deliveryTimes.length > 0 
+      ? deliveryTimes.reduce((sum, time) => sum + time, 0) / deliveryTimes.length 
+      : 0;
+
+    // Channel breakdown
+    const channelBreakdown = await this.getChannelBreakdown(startDate, endDate, userId);
+
+    // Type breakdown
+    const typeBreakdown = await this.getTypeBreakdown(startDate, endDate, userId);
+
+    // Hourly distribution
+    const hourlyDistribution = await this.getHourlyDistribution(startDate, endDate, userId);
+
+    // User engagement metrics
+    const userEngagement = await this.getUserEngagementMetrics(startDate, endDate, userId);
+
+    return {
+      totalSent,
+      totalDelivered,
+      totalFailed,
+      totalRead,
+      deliveryRate,
+      readRate,
+      avgDeliveryTime,
+      channelBreakdown,
+      typeBreakdown,
+      hourlyDistribution,
+      userEngagement,
+    };
+  }
+
+  // Get channel-specific metrics
+  private async getChannelBreakdown(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+  ): Promise<NotificationMetrics['channelBreakdown']> {
+    const baseWhere: any = {
+      timestamp: { gte: startDate, lte: endDate },
+    };
+
+    if (userId) {
+      baseWhere.userId = userId;
+    }
+
+    const logs = await prisma.notificationLog.findMany({
+      where: baseWhere,
+    });
+
+    const channels = ['realtime', 'email', 'sms', 'push'];
+    const breakdown: any = {};
+
+    for (const channel of channels) {
+      const channelLogs = logs.filter(log => log.channel === channel);
+      
+      const sent = channelLogs.filter(log => log.action === 'sent').length;
+      const delivered = channelLogs.filter(log => log.action === 'delivered').length;
+      const failed = channelLogs.filter(log => log.action === 'failed').length;
+      const deliveryRate = sent > 0 ? (delivered / sent) * 100 : 0;
+      
+      const deliveryTimes = channelLogs
+        .filter(log => log.deliveryTime !== null)
+        .map(log => log.deliveryTime || 0);
+      const avgDeliveryTime = deliveryTimes.length > 0 
+        ? deliveryTimes.reduce((sum, time) => sum + time, 0) / deliveryTimes.length 
+        : 0;
+
+      const cost = channelLogs
+        .filter(log => log.cost !== null)
+        .reduce((sum, log) => sum + (log.cost || 0), 0);
+
+      breakdown[channel] = {
+        sent,
+        delivered,
+        failed,
+        deliveryRate,
+        avgDeliveryTime,
+        cost: cost > 0 ? cost : undefined,
+      };
+    }
+
+    return breakdown;
+  }
+
+  // Get notification type breakdown
+  private async getTypeBreakdown(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+  ): Promise<Record<NotificationPayload['type'], TypeMetrics>> {
+    const baseWhere: any = {
+      createdAt: { gte: startDate, lte: endDate },
+    };
+
+    if (userId) {
+      baseWhere.userId = userId;
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: baseWhere,
+    });
+
+    const types: NotificationPayload['type'][] = ['payment', 'security', 'system', 'promotion', 'reminder'];
+    const breakdown: any = {};
+
+    for (const type of types) {
+      const typeNotifications = notifications.filter(n => n.type === type);
+      const sent = typeNotifications.length;
+      const read = typeNotifications.filter(n => n.read).length;
+      const readRate = sent > 0 ? (read / sent) * 100 : 0;
+
+      // Calculate average time to read
+      const readNotifications = typeNotifications.filter(n => n.read && n.readAt);
+      const timeToReadValues = readNotifications.map(n => {
+        const timeDiff = n.readAt!.getTime() - n.createdAt.getTime();
+        return timeDiff;
+      });
+      const avgTimeToRead = timeToReadValues.length > 0
+        ? timeToReadValues.reduce((sum, time) => sum + time, 0) / timeToReadValues.length
+        : 0;
+
+      // Get failure rate from logs
+      const typeLogs = await prisma.notificationLog.findMany({
+        where: {
+          timestamp: { gte: startDate, lte: endDate },
+          notificationType: type,
+          ...(userId && { userId }),
+        },
+      });
+
+      const failed = typeLogs.filter(log => log.action === 'failed').length;
+      const failureRate = sent > 0 ? (failed / sent) * 100 : 0;
+
+      breakdown[type] = {
+        sent,
+        delivered: sent - failed, // Approximate
+        read,
+        readRate,
+        avgTimeToRead,
+        failureRate,
+      };
+    }
+
+    return breakdown;
+  }
+
+  // Get hourly distribution of notifications
+  private async getHourlyDistribution(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+  ): Promise<Array<{ hour: number; count: number }>> {
+    const baseWhere: any = {
+      createdAt: { gte: startDate, lte: endDate },
+    };
+
+    if (userId) {
+      baseWhere.userId = userId;
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: baseWhere,
+      select: { createdAt: true },
+    });
+
+    const hourlyData: Record<number, number> = {};
+
+    // Initialize all hours with 0
+    for (let i = 0; i < 24; i++) {
+      hourlyData[i] = 0;
+    }
+
+    // Count notifications by hour
+    notifications.forEach(notification => {
+      const hour = notification.createdAt.getHours();
+      hourlyData[hour]++;
+    });
+
+    return Object.entries(hourlyData).map(([hour, count]) => ({
+      hour: parseInt(hour),
+      count,
+    }));
+  }
+
+  // Get user engagement metrics
+  private async getUserEngagementMetrics(
+    startDate: Date,
+    endDate: Date,
+    specificUserId?: string
+  ): Promise<NotificationMetrics['userEngagement']> {
+    const baseWhere: any = {
+      createdAt: { gte: startDate, lte: endDate },
+    };
+
+    if (specificUserId) {
+      baseWhere.userId = specificUserId;
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: baseWhere,
+    });
+
+    // Group by user
+    const userStats: Record<string, { total: number; read: number }> = {};
+    notifications.forEach(n => {
+      if (!userStats[n.userId]) {
+        userStats[n.userId] = { total: 0, read: 0 };
+      }
+      userStats[n.userId].total++;
+      if (n.read) {
+        userStats[n.userId].read++;
+      }
+    });
+
+    const activeUsers = Object.keys(userStats).length;
+    const avgNotificationsPerUser = activeUsers > 0 
+      ? Object.values(userStats).reduce((sum, stats) => sum + stats.total, 0) / activeUsers 
+      : 0;
+
+    // Top engaged users
+    const topEngagedUsers = Object.entries(userStats)
+      .map(([userId, stats]) => ({
+        userId,
+        notificationCount: stats.total,
+        readRate: stats.total > 0 ? (stats.read / stats.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.notificationCount - a.notificationCount)
+      .slice(0, 10);
+
+    return {
+      activeUsers,
+      avgNotificationsPerUser,
+      topEngagedUsers,
+    };
+  }
+
+  // Get detailed user engagement metrics for a specific user
+  public async getUserEngagementDetails(
+    userId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<UserEngagementMetrics> {
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId,
+        createdAt: { gte: startDate, lte: endDate },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalNotifications = notifications.length;
+    const readNotifications = notifications.filter(n => n.read).length;
+    const readRate = totalNotifications > 0 ? (readNotifications / totalNotifications) * 100 : 0;
+
+    // Calculate average time to read
+    const readNotificationsWithTime = notifications.filter(n => n.read && n.readAt);
+    const timeToReadValues = readNotificationsWithTime.map(n => {
+      return n.readAt!.getTime() - n.createdAt.getTime();
+    });
+    const avgTimeToRead = timeToReadValues.length > 0
+      ? timeToReadValues.reduce((sum, time) => sum + time, 0) / timeToReadValues.length
+      : 0;
+
+    // Get preferred channels from logs
+    const logs = await prisma.notificationLog.findMany({
+      where: {
+        userId,
+        timestamp: { gte: startDate, lte: endDate },
+        action: 'delivered',
+      },
+    });
+
+    const channelCounts: Record<string, number> = {};
+    logs.forEach(log => {
+      if (log.channel) {
+        channelCounts[log.channel] = (channelCounts[log.channel] || 0) + 1;
+      }
+    });
+
+    const preferredChannels = Object.entries(channelCounts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([channel]) => channel);
+
+    // Get opt-out rate (placeholder - would need to implement opt-out tracking)
+    const optOutRate = 0;
+
+    const lastActivity = notifications.length > 0 ? notifications[0].createdAt : new Date();
+
+    return {
+      userId,
+      totalNotifications,
+      readNotifications,
+      readRate,
+      avgTimeToRead,
+      preferredChannels,
+      optOutRate,
+      lastActivity,
+    };
+  }
+
+  // Track delivery metrics for performance monitoring
+  public async trackDelivery(metrics: Omit<DeliveryMetrics, 'timestamp'>): Promise<void> {
+    try {
+      await prisma.notificationLog.create({
+        data: {
+          notificationId: metrics.notificationId,
+          userId: metrics.userId,
+          notificationType: metrics.type,
+          channel: metrics.channel,
+          action: metrics.status,
+          deliveryTime: metrics.deliveryTime,
+          errorMessage: metrics.errorMessage,
+          cost: metrics.cost,
+          timestamp: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to track delivery metrics:', error);
+    }
+  }
+
+  // Get performance metrics
+  public async getPerformanceMetrics(
+    startDate: Date,
+    endDate: Date
+  ): Promise<PerformanceMetrics> {
+    const logs = await prisma.notificationLog.findMany({
+      where: {
+        timestamp: { gte: startDate, lte: endDate },
+      },
+    });
+
+    // Calculate average processing time
+    const processingTimes = logs
+      .filter(log => log.deliveryTime !== null)
+      .map(log => log.deliveryTime || 0);
+    const avgProcessingTime = processingTimes.length > 0
+      ? processingTimes.reduce((sum, time) => sum + time, 0) / processingTimes.length
+      : 0;
+
+    // Calculate peak throughput (notifications per minute)
+    const timeSlots: Record<string, number> = {};
+    logs.forEach(log => {
+      const timeSlot = new Date(log.timestamp).toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+      timeSlots[timeSlot] = (timeSlots[timeSlot] || 0) + 1;
+    });
+    const peakThroughput = Math.max(...Object.values(timeSlots), 0);
+
+    // Get current queue depth (would need to implement queue monitoring)
+    const queueDepth = 0; // Placeholder
+
+    // Calculate error rate
+    const totalActions = logs.length;
+    const errors = logs.filter(log => log.action === 'failed').length;
+    const errorRate = totalActions > 0 ? (errors / totalActions) * 100 : 0;
+
+    // System load (placeholder - would need system monitoring)
+    const systemLoad = 0;
+
+    return {
+      avgProcessingTime,
+      peakThroughput,
+      queueDepth,
+      errorRate,
+      systemLoad,
+    };
+  }
+
+  // Get cost analytics
+  public async getCostAnalytics(
+    startDate: Date,
+    endDate: Date
+  ): Promise<{
+    totalCost: number;
+    costByChannel: Record<string, number>;
+    costByType: Record<string, number>;
+    avgCostPerNotification: number;
+    costTrends: Array<{ date: string; cost: number }>;
+  }> {
+    const logs = await prisma.notificationLog.findMany({
+      where: {
+        timestamp: { gte: startDate, lte: endDate },
+        cost: { not: null },
+      },
+    });
+
+    const totalCost = logs.reduce((sum, log) => sum + (log.cost || 0), 0);
+    const avgCostPerNotification = logs.length > 0 ? totalCost / logs.length : 0;
+
+    // Cost by channel
+    const costByChannel: Record<string, number> = {};
+    logs.forEach(log => {
+      if (log.channel) {
+        costByChannel[log.channel] = (costByChannel[log.channel] || 0) + (log.cost || 0);
+      }
+    });
+
+    // Cost by type
+    const costByType: Record<string, number> = {};
+    logs.forEach(log => {
+      if (log.notificationType) {
+        costByType[log.notificationType] = (costByType[log.notificationType] || 0) + (log.cost || 0);
+      }
+    });
+
+    // Daily cost trends
+    const dailyCosts: Record<string, number> = {};
+    logs.forEach(log => {
+      const date = log.timestamp.toISOString().slice(0, 10); // YYYY-MM-DD
+      dailyCosts[date] = (dailyCosts[date] || 0) + (log.cost || 0);
+    });
+
+    const costTrends = Object.entries(dailyCosts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, cost]) => ({ date, cost }));
+
+    return {
+      totalCost,
+      costByChannel,
+      costByType,
+      avgCostPerNotification,
+      costTrends,
+    };
+  }
+
+  // Generate analytics report
+  public async generateReport(
+    startDate: Date,
+    endDate: Date,
+    userId?: string
+  ): Promise<{
+    summary: NotificationMetrics;
+    performance: PerformanceMetrics;
+    costs: Awaited<ReturnType<typeof this.getCostAnalytics>>;
+    recommendations: string[];
+  }> {
+    const [summary, performance, costs] = await Promise.all([
+      this.getMetrics(startDate, endDate, userId),
+      this.getPerformanceMetrics(startDate, endDate),
+      this.getCostAnalytics(startDate, endDate),
+    ]);
+
+    // Generate recommendations based on the data
+    const recommendations: string[] = [];
+
+    if (summary.deliveryRate < 95) {
+      recommendations.push('Delivery rate is below optimal (95%). Consider reviewing email/SMS providers.');
+    }
+
+    if (summary.readRate < 30) {
+      recommendations.push('Read rate is low. Consider improving notification content and timing.');
+    }
+
+    if (performance.errorRate > 5) {
+      recommendations.push('Error rate is high. Review system logs and provider configurations.');
+    }
+
+    if (costs.avgCostPerNotification > 0.01) {
+      recommendations.push('Consider optimizing notification channels to reduce costs.');
+    }
+
+    if (summary.channelBreakdown.sms.sent > summary.channelBreakdown.email.sent * 2) {
+      recommendations.push('SMS usage is high. Consider using more cost-effective channels for non-critical notifications.');
+    }
+
+    return {
+      summary,
+      performance,
+      costs,
+      recommendations,
+    };
+  }
+}
+
+// Singleton instance
+export const notificationAnalytics = new NotificationAnalytics();
+
+export { NotificationAnalytics };

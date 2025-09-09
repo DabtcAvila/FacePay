@@ -1,0 +1,245 @@
+version: '3.8'
+
+services:
+  # Redis main instance
+  redis:
+    image: redis:7-alpine
+    container_name: facepay-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-facepay123}
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-facepay123}
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Redis Sentinel for high availability
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: facepay-redis-sentinel
+    ports:
+      - "26379:26379"
+    depends_on:
+      - redis
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+      - ./config/sentinel.conf:/usr/local/etc/redis/sentinel.conf
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - ha
+
+  # Redis Cluster Node 1
+  redis-cluster-1:
+    image: redis:7-alpine
+    container_name: facepay-redis-cluster-1
+    ports:
+      - "7000:6379"
+      - "17000:16379"
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --port 6379
+    volumes:
+      - redis_cluster_1_data:/data
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - cluster
+
+  # Redis Cluster Node 2
+  redis-cluster-2:
+    image: redis:7-alpine
+    container_name: facepay-redis-cluster-2
+    ports:
+      - "7001:6379"
+      - "17001:16379"
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --port 6379
+    volumes:
+      - redis_cluster_2_data:/data
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - cluster
+
+  # Redis Cluster Node 3
+  redis-cluster-3:
+    image: redis:7-alpine
+    container_name: facepay-redis-cluster-3
+    ports:
+      - "7002:6379"
+      - "17002:16379"
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --port 6379
+    volumes:
+      - redis_cluster_3_data:/data
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - cluster
+
+  # Redis Commander - Web UI for Redis
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: facepay-redis-commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-facepay123}
+    depends_on:
+      - redis
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+  # RedisInsight - Official Redis GUI
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: facepay-redis-insight
+    ports:
+      - "8001:8001"
+    volumes:
+      - redis_insight_data:/db
+    depends_on:
+      - redis
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+  # PostgreSQL database (for comparison and backup)
+  postgres:
+    image: postgres:15-alpine
+    container_name: facepay-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-facepay}
+      POSTGRES_USER: ${POSTGRES_USER:-facepay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-facepay123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-facepay}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Redis Exporter for Prometheus monitoring
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: facepay-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-facepay123}
+    depends_on:
+      - redis
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: facepay-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - redis-exporter
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: facepay-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Nginx for load balancing (in production)
+  nginx:
+    image: nginx:alpine
+    container_name: facepay-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+      - ./config/ssl:/etc/nginx/ssl
+    depends_on:
+      - redis
+    networks:
+      - facepay-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  redis_data:
+    driver: local
+  redis_cluster_1_data:
+    driver: local
+  redis_cluster_2_data:
+    driver: local
+  redis_cluster_3_data:
+    driver: local
+  redis_insight_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  facepay-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

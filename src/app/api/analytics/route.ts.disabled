@@ -1,0 +1,345 @@
+import { NextRequest, NextResponse } from 'next/server';
+// import { prisma } from '@/lib/prisma';
+import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware';
+// import type { AnalyticsEvent } from '@/lib/analytics';
+
+// TODO: Add analytics models to Prisma schema before enabling this route
+// POST - Batch analytics events
+export async function POST(request: NextRequest) {
+  try {
+    // Temporarily disabled - analytics models not in schema
+    return createSuccessResponse({
+      message: 'Analytics temporarily disabled - models not in schema',
+      processedCount: 0,
+      totalCount: 0
+    });
+    
+    // const { events }: { events: AnalyticsEvent[] } = await request.json();
+
+    if (!events || !Array.isArray(events)) {
+      return createErrorResponse('Invalid events data', 400);
+    }
+
+    // Validate and sanitize events
+    const validEvents = events.filter(event => 
+      event.id && 
+      event.name && 
+      event.timestamp && 
+      event.sessionId
+    );
+
+    if (validEvents.length === 0) {
+      return createErrorResponse('No valid events provided', 400);
+    }
+
+    // Store events in database
+    const storedEvents = await Promise.all(
+      validEvents.map(event => 
+        prisma.analyticsEvent.create({
+          data: {
+            id: event.id,
+            name: event.name,
+            properties: event.properties,
+            timestamp: new Date(event.timestamp),
+            userId: event.userId,
+            sessionId: event.sessionId,
+            url: event.url,
+            userAgent: event.userAgent,
+            source: event.source,
+          }
+        }).catch(error => {
+          console.warn(`Failed to store event ${event.id}:`, error);
+          return null;
+        })
+      )
+    );
+
+    const successCount = storedEvents.filter(event => event !== null).length;
+
+    // Process special event types
+    await processSpecialEvents(validEvents);
+
+    return createSuccessResponse({
+      message: `Processed ${successCount} of ${events.length} events`,
+      processedCount: successCount,
+      totalCount: events.length
+    });
+
+  } catch (error) {
+    console.error('Analytics events processing error:', error);
+    return createErrorResponse('Failed to process analytics events', 500);
+  }
+}
+
+// GET - Retrieve analytics data
+export async function GET(request: NextRequest) {
+  try {
+    // Temporarily disabled - analytics models not in schema
+    return createSuccessResponse({
+      events: [],
+      aggregated: {},
+      timeRange: '24h',
+      totalEvents: 0
+    });
+    const { searchParams } = new URL(request.url);
+    const timeRange = searchParams.get('timeRange') || '24h';
+    const eventName = searchParams.get('eventName');
+    const userId = searchParams.get('userId');
+    const sessionId = searchParams.get('sessionId');
+    const limit = parseInt(searchParams.get('limit') || '100');
+
+    // Calculate time range
+    const timeRanges = {
+      '1h': 1 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '90d': 90 * 24 * 60 * 60 * 1000
+    };
+
+    const timeRangeMs = timeRanges[timeRange as keyof typeof timeRanges] || timeRanges['24h'];
+    const startTime = new Date(Date.now() - timeRangeMs);
+
+    // Build where clause
+    const where: any = {
+      timestamp: { gte: startTime }
+    };
+
+    if (eventName) where.name = eventName;
+    if (userId) where.userId = userId;
+    if (sessionId) where.sessionId = sessionId;
+
+    // Get events
+    const events = await prisma.analyticsEvent.findMany({
+      where,
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        properties: true,
+        timestamp: true,
+        userId: true,
+        sessionId: true,
+        url: true,
+        source: true
+      }
+    });
+
+    // Get aggregated data
+    const aggregatedData = await getAggregatedData(where, startTime);
+
+    return createSuccessResponse({
+      events,
+      aggregated: aggregatedData,
+      timeRange,
+      totalEvents: events.length
+    });
+
+  } catch (error) {
+    console.error('Analytics data retrieval error:', error);
+    return createErrorResponse('Failed to retrieve analytics data', 500);
+  }
+}
+
+async function processSpecialEvents(events: AnalyticsEvent[]) {
+  // Process conversion events
+  const conversionEvents = events.filter(event => 
+    event.name === 'conversion' || 
+    event.name === 'purchase' || 
+    event.name === 'payment_success'
+  );
+
+  for (const event of conversionEvents) {
+    try {
+      await prisma.conversionEvent.create({
+        data: {
+          id: event.id,
+          eventName: event.name,
+          userId: event.userId,
+          sessionId: event.sessionId,
+          value: event.properties.value || event.properties.amount || 0,
+          currency: event.properties.currency || 'USD',
+          timestamp: new Date(event.timestamp),
+          properties: event.properties
+        }
+      }).catch(error => {
+        // Ignore duplicate key errors
+        if (!error.message.includes('Unique constraint')) {
+          throw error;
+        }
+      });
+    } catch (error) {
+      console.warn(`Failed to process conversion event ${event.id}:`, error);
+    }
+  }
+
+  // Process user journey events
+  const journeyEvents = events.filter(event => event.name === 'user_journey');
+  
+  for (const event of journeyEvents) {
+    try {
+      await prisma.userJourneyStep.create({
+        data: {
+          id: event.id,
+          userId: event.userId,
+          sessionId: event.sessionId,
+          step: event.properties.step,
+          category: event.properties.category,
+          timestamp: new Date(event.timestamp),
+          properties: event.properties
+        }
+      }).catch(error => {
+        // Ignore duplicate key errors
+        if (!error.message.includes('Unique constraint')) {
+          throw error;
+        }
+      });
+    } catch (error) {
+      console.warn(`Failed to process journey event ${event.id}:`, error);
+    }
+  }
+
+  // Process biometric authentication events
+  const biometricEvents = events.filter(event => 
+    event.name === 'biometric_auth' || 
+    event.name.startsWith('face_id_') ||
+    event.name.startsWith('webauthn_')
+  );
+
+  for (const event of biometricEvents) {
+    try {
+      await prisma.biometricEvent.create({
+        data: {
+          id: event.id,
+          userId: event.userId,
+          sessionId: event.sessionId,
+          method: event.properties.method || 'unknown',
+          success: event.properties.success || false,
+          errorCode: event.properties.error_code,
+          duration: event.properties.duration_ms,
+          timestamp: new Date(event.timestamp),
+          properties: event.properties
+        }
+      }).catch(error => {
+        // Ignore duplicate key errors
+        if (!error.message.includes('Unique constraint')) {
+          throw error;
+        }
+      });
+    } catch (error) {
+      console.warn(`Failed to process biometric event ${event.id}:`, error);
+    }
+  }
+}
+
+async function getAggregatedData(where: any, startTime: Date) {
+  try {
+    // Event counts by name
+    const eventCounts = await prisma.analyticsEvent.groupBy({
+      by: ['name'],
+      where,
+      _count: { name: true },
+      orderBy: { _count: { name: 'desc' } }
+    });
+
+    // Unique users and sessions
+    const uniqueMetrics = await prisma.analyticsEvent.aggregate({
+      where,
+      _count: {
+        userId: true,
+        sessionId: true
+      }
+    });
+
+    // Top pages
+    const topPages = await prisma.analyticsEvent.groupBy({
+      by: ['url'],
+      where: {
+        ...where,
+        name: 'page_view'
+      },
+      _count: { url: true },
+      orderBy: { _count: { url: 'desc' } },
+      take: 10
+    });
+
+    // Conversion metrics
+    const conversionData = await prisma.conversionEvent.aggregate({
+      where: {
+        timestamp: { gte: startTime }
+      },
+      _count: { id: true },
+      _sum: { value: true },
+      _avg: { value: true }
+    });
+
+    // Biometric success rates
+    const biometricData = await prisma.biometricEvent.groupBy({
+      by: ['method', 'success'],
+      where: {
+        timestamp: { gte: startTime }
+      },
+      _count: { id: true }
+    });
+
+    // Calculate success rates
+    const biometricSuccessRates = biometricData.reduce((acc, item) => {
+      if (!acc[item.method]) {
+        acc[item.method] = { total: 0, successful: 0 };
+      }
+      acc[item.method].total += item._count.id;
+      if (item.success) {
+        acc[item.method].successful += item._count.id;
+      }
+      return acc;
+    }, {} as Record<string, { total: number; successful: number }>);
+
+    // Format success rates
+    const formattedBiometricRates = Object.entries(biometricSuccessRates).map(([method, data]) => ({
+      method,
+      successRate: data.total > 0 ? (data.successful / data.total) * 100 : 0,
+      totalAttempts: data.total,
+      successfulAttempts: data.successful
+    }));
+
+    // Hourly event distribution
+    const hourlyDistribution = await prisma.analyticsEvent.findMany({
+      where,
+      select: {
+        timestamp: true
+      }
+    }).then(events => {
+      const hours = new Array(24).fill(0);
+      events.forEach(event => {
+        const hour = new Date(event.timestamp).getHours();
+        hours[hour]++;
+      });
+      return hours.map((count, hour) => ({ hour, count }));
+    });
+
+    return {
+      eventCounts: eventCounts.map(item => ({
+        eventName: item.name,
+        count: item._count.name
+      })),
+      uniqueUsers: uniqueMetrics._count.userId,
+      uniqueSessions: uniqueMetrics._count.sessionId,
+      topPages: topPages.map(item => ({
+        url: item.url,
+        views: item._count.url
+      })),
+      conversions: {
+        total: conversionData._count.id,
+        totalValue: conversionData._sum.value || 0,
+        averageValue: conversionData._avg.value || 0
+      },
+      biometricSuccessRates: formattedBiometricRates,
+      hourlyDistribution
+    };
+
+  } catch (error) {
+    console.warn('Failed to generate aggregated data:', error);
+    return {};
+  }
+}

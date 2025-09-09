@@ -20,9 +20,11 @@ import {
   Globe,
   Lock
 } from 'lucide-react';
+import BiometricWithFallback from '@/components/BiometricWithFallback';
+// Legacy import - use BiometricWithFallback instead
 import NativeBiometric from '@/components/NativeBiometric';
 
-type DemoMode = 'landing' | 'face-id' | 'simple-face-id' | 'biometric' | 'real-biometric' | 'success';
+type DemoMode = 'landing' | 'face-id' | 'simple-face-id' | 'biometric' | 'real-biometric' | 'unified' | 'success';
 
 // Simple Button Component
 const SimpleButton = ({ 
@@ -303,14 +305,21 @@ export default function DemoPage() {
             </div>
             
             <div className="bg-white rounded-xl">
-              <NativeBiometric
+              <BiometricWithFallback
                 userId={`demo-real-${Date.now()}`}
                 userName="demo@facepay.com"
                 mode="demo"
-                onSuccess={handleDemoComplete}
+                title="Real Device Biometric Authentication"
+                subtitle="Use your REAL Face ID, Touch ID, or Windows Hello"
+                onSuccess={(result) => {
+                  console.log('Real biometric success:', result)
+                  handleDemoComplete()
+                }}
                 onError={(error) => console.error('Real biometric error:', error)}
                 onCancel={handleBackToLanding}
                 showFallbackOptions={true}
+                preferredMethod="biometric"
+                className="p-0"
               />
             </div>
           </div>

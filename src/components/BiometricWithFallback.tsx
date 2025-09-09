@@ -12,11 +12,8 @@ import {
   AlertCircle, 
   X, 
   Loader2,
-  Smartphone,
   RefreshCw,
-  WifiOff,
-  Zap,
-  AlertTriangle
+  WifiOff
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WebAuthnService, type WebAuthnCapabilities, type WebAuthnError } from '@/services/webauthn'
@@ -31,6 +28,9 @@ export interface BiometricAuthResult {
     platform: string
   }
   timestamp: number
+  credentialId?: string
+  verified?: boolean
+  type?: 'registration' | 'authentication' | 'demo'
 }
 
 interface BiometricWithFallbackProps {
@@ -39,10 +39,12 @@ interface BiometricWithFallbackProps {
   onSuccess?: (result: BiometricAuthResult) => void
   onError?: (error: WebAuthnError) => void
   onCancel?: () => void
-  mode?: 'authentication' | 'registration'
+  mode?: 'authentication' | 'registration' | 'demo'
   title?: string
   subtitle?: string
   className?: string
+  showFallbackOptions?: boolean
+  preferredMethod?: AuthMethod
 }
 
 type AuthMethod = 'detecting' | 'biometric' | 'camera' | 'demo' | 'fallback'
@@ -57,7 +59,9 @@ export default function BiometricWithFallback({
   mode = 'authentication',
   title = 'FacePay Authentication',
   subtitle,
-  className = ''
+  className = '',
+  showFallbackOptions = true,
+  preferredMethod
 }: BiometricWithFallbackProps) {
   const [capabilities, setCapabilities] = useState<WebAuthnCapabilities | null>(null)
   const [currentMethod, setCurrentMethod] = useState<AuthMethod>('detecting')
@@ -83,10 +87,22 @@ export default function BiometricWithFallback({
       // Seleccionar el mejor método automáticamente
       let selectedMethod: AuthMethod = 'demo' // Fallback por defecto
       
-      if (caps.isSupported && caps.isPlatformAuthenticatorAvailable) {
-        selectedMethod = 'biometric'
-      } else if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-        selectedMethod = 'camera'
+      if (preferredMethod) {
+        // Use preferred method if specified and available
+        if (preferredMethod === 'biometric' && caps.isSupported && caps.isPlatformAuthenticatorAvailable) {
+          selectedMethod = 'biometric'
+        } else if (preferredMethod === 'camera' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+          selectedMethod = 'camera'
+        } else {
+          selectedMethod = preferredMethod
+        }
+      } else {
+        // Auto-select best available method
+        if (caps.isSupported && caps.isPlatformAuthenticatorAvailable) {
+          selectedMethod = 'biometric'
+        } else if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+          selectedMethod = 'camera'
+        }
       }
       
       setCurrentMethod(selectedMethod)
@@ -150,38 +166,77 @@ export default function BiometricWithFallback({
     setError(null)
 
     try {
-      // TODO: Implementar llamadas reales a la API de biometría
-      // Por ahora simulamos el proceso para demostrar la UI
+      let result
       
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Simular verificación biométrica
-      const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-      
-      if (isAvailable) {
-        // En producción, aquí se haría la llamada real a la API
-        startProgressAnimation(2000)
+      if (mode === 'demo') {
+        // Demo mode - simulate biometric process
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         
-        return {
-          success: true,
-          method: 'biometric' as const,
-          biometricType: (['face', 'fingerprint'].includes(capabilities.biometricTypes[0]) ? capabilities.biometricTypes[0] : 'unknown') as 'face' | 'fingerprint' | 'unknown',
-          deviceInfo: {
-            isIOS: capabilities.deviceInfo.isIOS,
-            isMobile: capabilities.deviceInfo.isMobile,
-            platform: capabilities.deviceInfo.platform
-          },
-          timestamp: Date.now()
+        if (isAvailable) {
+          startProgressAnimation(2000)
+          result = {
+            success: true,
+            method: 'biometric' as const,
+            biometricType: (['face', 'fingerprint'].includes(capabilities.biometricTypes[0]) ? capabilities.biometricTypes[0] : 'unknown') as 'face' | 'fingerprint' | 'unknown',
+            deviceInfo: {
+              isIOS: capabilities.deviceInfo.isIOS,
+              isMobile: capabilities.deviceInfo.isMobile,
+              platform: capabilities.deviceInfo.platform
+            },
+            timestamp: Date.now()
+          }
+        } else {
+          throw new Error('Biometric verification failed')
         }
       } else {
-        throw new Error('Biometric verification failed')
+        // Real biometric authentication
+        if (mode === 'registration') {
+          const webAuthnResult = await WebAuthnService.register({
+            userId,
+            userName,
+            userDisplayName: userName
+          })
+          
+          startProgressAnimation(1500)
+          result = {
+            success: true,
+            method: 'biometric' as const,
+            biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
+            deviceInfo: {
+              isIOS: capabilities.deviceInfo.isIOS,
+              isMobile: capabilities.deviceInfo.isMobile,
+              platform: capabilities.deviceInfo.platform
+            },
+            timestamp: Date.now(),
+            credentialId: webAuthnResult.id
+          }
+        } else {
+          const webAuthnResult = await WebAuthnService.authenticate()
+          
+          startProgressAnimation(1500)
+          result = {
+            success: true,
+            method: 'biometric' as const,
+            biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
+            deviceInfo: {
+              isIOS: capabilities.deviceInfo.isIOS,
+              isMobile: capabilities.deviceInfo.isMobile,
+              platform: capabilities.deviceInfo.platform
+            },
+            timestamp: Date.now(),
+            credentialId: webAuthnResult.id
+          }
+        }
       }
+      
+      return result
     } catch (err) {
       const webAuthnError = WebAuthnService.handleWebAuthnError(err)
       setError(webAuthnError)
       throw webAuthnError
     }
-  }, [capabilities, startProgressAnimation])
+  }, [capabilities, startProgressAnimation, mode, userId, userName])
 
   // Autenticación con cámara
   const performCameraAuth = useCallback(async () => {
@@ -338,50 +393,54 @@ export default function BiometricWithFallback({
   const methodInfo = getMethodInfo()
 
   // Renderizar controles de método
-  const renderMethodControls = () => (
-    <div className="flex flex-wrap gap-2 justify-center">
-      {/* Demo siempre disponible */}
-      <Button
-        onClick={() => switchMethod('demo')}
-        variant={currentMethod === 'demo' ? 'default' : 'outline'}
-        size="sm"
-        className="flex items-center gap-2"
-      >
-        <Sparkles className="w-4 h-4" />
-        Visual Demo
-      </Button>
-
-      {/* Biometría si está disponible */}
-      {capabilities?.isPlatformAuthenticatorAvailable && (
+  const renderMethodControls = () => {
+    if (!showFallbackOptions) return null
+    
+    return (
+      <div className="flex flex-wrap gap-2 justify-center">
+        {/* Demo siempre disponible */}
         <Button
-          onClick={() => switchMethod('biometric')}
-          variant={currentMethod === 'biometric' ? 'default' : 'outline'}
+          onClick={() => switchMethod('demo')}
+          variant={currentMethod === 'demo' ? 'default' : 'outline'}
           size="sm"
           className="flex items-center gap-2"
         >
-          {capabilities.biometricTypes.includes('face') ? (
-            <Eye className="w-4 h-4" />
-          ) : (
-            <Fingerprint className="w-4 h-4" />
-          )}
-          {capabilities.deviceInfo.isIOS ? 'Device ID' : 'Biometrics'}
+          <Sparkles className="w-4 h-4" />
+          Visual Demo
         </Button>
-      )}
 
-      {/* Cámara si está disponible */}
-      {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' && (
-        <Button
-          onClick={() => switchMethod('camera')}
-          variant={currentMethod === 'camera' ? 'default' : 'outline'}
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <Camera className="w-4 h-4" />
-          Camera
-        </Button>
-      )}
-    </div>
-  )
+        {/* Biometría si está disponible */}
+        {capabilities?.isPlatformAuthenticatorAvailable && (
+          <Button
+            onClick={() => switchMethod('biometric')}
+            variant={currentMethod === 'biometric' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            {capabilities.biometricTypes.includes('face') ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <Fingerprint className="w-4 h-4" />
+            )}
+            {capabilities.deviceInfo.isIOS ? 'Device ID' : 'Biometrics'}
+          </Button>
+        )}
+
+        {/* Cámara si está disponible */}
+        {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' && (
+          <Button
+            onClick={() => switchMethod('camera')}
+            variant={currentMethod === 'camera' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Camera className="w-4 h-4" />
+            Camera
+          </Button>
+        )}
+      </div>
+    )
+  }
 
   // Renderizar interfaz principal
   const renderAuthInterface = () => (
@@ -505,7 +564,7 @@ export default function BiometricWithFallback({
       )}
 
       {/* Controles de método */}
-      {authStage === 'ready' && renderMethodControls()}
+      {authStage === 'ready' && showFallbackOptions && renderMethodControls()}
     </div>
   )
 

@@ -7,15 +7,16 @@ import { Button } from '@/components/ui/button';
 import FaceScanAnimation from '@/components/FaceScanAnimation';
 import PaymentForm from '@/components/PaymentForm';
 import RegistrationFlow from '@/components/RegistrationFlow';
+import BiometricWithFallback from '@/components/BiometricWithFallback';
+// Legacy imports - deprecated, use BiometricWithFallback instead
 import WebAuthnDemo from '@/components/WebAuthnDemo';
 import SimpleFaceIDDemo from '@/components/SimpleFaceIDDemo';
 import NativeBiometric from '@/components/NativeBiometric';
-import BiometricWithFallback from '@/components/BiometricWithFallback';
 import { WebAuthnService, type WebAuthnCapabilities } from '@/services/webauthn';
 
 export default function LandingPage() {
   const [showDemo, setShowDemo] = useState(false);
-  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid' | 'native' | 'biometric'>('scan');
+  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid' | 'native' | 'biometric' | 'unified'>('scan');
   const [isScanning, setIsScanning] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [webAuthnCapabilities, setWebAuthnCapabilities] = useState<WebAuthnCapabilities | null>(null);
@@ -41,12 +42,7 @@ export default function LandingPage() {
 
   const handleDemoClick = () => {
     setShowDemo(true);
-    // Choose the best available demo mode based on capabilities
-    if (biometricReady) {
-      setDemoMode('biometric'); // Use new fallback component
-    } else {
-      setDemoMode('biometric'); // Fallback component handles all cases
-    }
+    setDemoMode('unified'); // Always use unified component for smart fallback
   };
 
   const handleFaceIDDemo = () => {
@@ -66,7 +62,7 @@ export default function LandingPage() {
 
   const handleNativeBiometricDemo = () => {
     setShowDemo(true);
-    setDemoMode('biometric'); // Use unified component
+    setDemoMode('unified'); // Use unified component
   };
 
   const handleScanComplete = () => {
@@ -211,7 +207,7 @@ export default function LandingPage() {
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold">
-                    {demoMode === 'biometric' ? 'Biometric Authentication with Smart Fallbacks' :
+                    {(demoMode === 'biometric' || demoMode === 'unified') ? 'Smart Biometric Authentication with Fallbacks' :
                      demoMode === 'native' ? 'Real Biometric Authentication' :
                      demoMode === 'webauthn' ? 'WebAuthn Demo' :
                      demoMode === 'faceid' ? 'Face Recognition Demo' :
@@ -221,7 +217,7 @@ export default function LandingPage() {
                   
                   {/* Demo instructions */}
                   <p className="text-sm text-gray-600 mt-1">
-                    {demoMode === 'biometric' ? 'Smart authentication that automatically uses the best available method on your device' :
+                    {(demoMode === 'biometric' || demoMode === 'unified') ? 'Smart authentication that automatically uses the best available method on your device' :
                      demoMode === 'native' ? 'Use your device\'s REAL Face ID, Touch ID, or Windows Hello' :
                      demoMode === 'webauthn' ? 'WebAuthn authentication demo' :
                      demoMode === 'faceid' ? 'Test our face recognition technology with your camera' :
@@ -239,11 +235,11 @@ export default function LandingPage() {
                 </button>
               </div>
 
-              {demoMode === 'biometric' && (
+              {(demoMode === 'biometric' || demoMode === 'unified') && (
                 <BiometricWithFallback 
                   userId={`demo-user-${Date.now()}`}
                   userName="demo@facepay.com"
-                  mode="authentication"
+                  mode={demoMode === 'unified' ? 'demo' : 'authentication'}
                   title="Smart Biometric Authentication"
                   subtitle="Automatically selects the best authentication method"
                   onSuccess={(result) => {
@@ -252,6 +248,7 @@ export default function LandingPage() {
                   }}
                   onError={(error) => console.error('Biometric error:', error)}
                   onCancel={closeModal}
+                  showFallbackOptions={true}
                 />
               )}
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { webhookSecurity } from '@/middleware/security'
+import { logSuspiciousActivity, SecuritySeverity } from '@/lib/security-logger'
 import Stripe from 'stripe'
 import { headers } from 'next/headers'
 
@@ -9,7 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
-export async function POST(request: NextRequest) {
+async function webhookHandler(request: NextRequest) {
   try {
     const body = await request.text()
     const headersList = headers()
@@ -17,7 +19,16 @@ export async function POST(request: NextRequest) {
 
     if (!signature) {
       console.error('No stripe signature found')
+      logSuspiciousActivity(request, 'Webhook request without Stripe signature', undefined, SecuritySeverity.HIGH)
       return new NextResponse('No signature', { status: 400 })
+    }
+
+    // Additional security: Check if request is from Stripe's IP ranges (optional)
+    const clientIP = getClientIP(request)
+    if (!isValidStripeIP(clientIP)) {
+      console.warn('Webhook from non-Stripe IP:', clientIP)
+      logSuspiciousActivity(request, `Webhook from suspicious IP: ${clientIP}`, undefined, SecuritySeverity.MEDIUM)
+      // Don't block here as Stripe IPs can change, but log for monitoring
     }
 
     let event: Stripe.Event
@@ -26,6 +37,7 @@ export async function POST(request: NextRequest) {
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err) {
       console.error('Webhook signature verification failed:', err)
+      logSuspiciousActivity(request, `Invalid webhook signature: ${err}`, undefined, SecuritySeverity.HIGH)
       return new NextResponse('Invalid signature', { status: 400 })
     }
 
@@ -69,8 +81,36 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Webhook processing error:', error)
+    logSuspiciousActivity(request, `Webhook processing error: ${error}`, undefined, SecuritySeverity.MEDIUM)
     return new NextResponse('Webhook error', { status: 500 })
   }
+}
+
+// Helper functions
+function getClientIP(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  const real = request.headers.get('x-real-ip')
+  const connectingIP = request.headers.get('x-connecting-ip')
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim()
+  }
+  
+  return real || connectingIP || 'unknown'
+}
+
+// Basic Stripe IP validation (simplified - in production use official Stripe IP ranges)
+function isValidStripeIP(ip: string): boolean {
+  // Stripe's known IP ranges (simplified - update with official ranges)
+  const stripeIPRanges = [
+    '54.187.174.', '54.187.205.', '54.187.216.', '54.241.31.',
+    '52.14.14.', '52.89.214.', '54.148.220.', '54.241.32.'
+  ]
+  
+  // If IP is unknown, allow it (common in development)
+  if (ip === 'unknown') return true
+  
+  return stripeIPRanges.some(range => ip.startsWith(range))
 }
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
@@ -293,3 +333,6 @@ async function savePaymentMethod(userId: string, paymentMethodId: string, custom
     console.error('Error saving payment method:', error)
   }
 }
+
+// Apply security middleware and export
+export const POST = webhookSecurity(webhookHandler)

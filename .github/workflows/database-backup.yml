@@ -1,0 +1,543 @@
+name: Database Backup & Maintenance
+
+on:
+  schedule:
+    # Daily backup at 2 AM UTC
+    - cron: '0 2 * * *'
+    # Weekly full backup on Sundays at 1 AM UTC
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Type of backup to perform'
+        required: true
+        default: 'incremental'
+        type: choice
+        options:
+        - incremental
+        - full
+        - schema-only
+      retention_days:
+        description: 'Number of days to retain backup'
+        required: false
+        default: '30'
+        type: string
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Pre-backup health check
+  pre-backup-check:
+    name: Pre-Backup Health Check
+    runs-on: ubuntu-latest
+    outputs:
+      db-status: ${{ steps.health-check.outputs.status }}
+      backup-type: ${{ steps.determine-type.outputs.type }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine backup type
+        id: determine-type
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "type=${{ github.event.inputs.backup_type }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.schedule }}" == "0 1 * * 0" ]]; then
+            echo "type=full" >> $GITHUB_OUTPUT
+          else
+            echo "type=incremental" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Database health check
+        id: health-check
+        run: |
+          echo "Checking database connectivity..."
+          
+          # Create a simple health check script
+          cat > db-health-check.js << 'EOF'
+          const { PrismaClient } = require('@prisma/client');
+          
+          async function healthCheck() {
+            const prisma = new PrismaClient();
+            try {
+              await prisma.$connect();
+              console.log('Database connection successful');
+              
+              // Basic query to check if database is responsive
+              const result = await prisma.$queryRaw`SELECT 1 as health`;
+              console.log('Database query successful:', result);
+              
+              await prisma.$disconnect();
+              return { status: 'healthy' };
+            } catch (error) {
+              console.error('Database health check failed:', error);
+              await prisma.$disconnect();
+              return { status: 'unhealthy', error: error.message };
+            }
+          }
+          
+          healthCheck().then(result => {
+            if (result.status === 'healthy') {
+              process.exit(0);
+            } else {
+              process.exit(1);
+            }
+          });
+          EOF
+          
+          if node db-health-check.js; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Log backup plan
+        run: |
+          echo "📋 Backup Plan:"
+          echo "- Backup Type: ${{ steps.determine-type.outputs.type }}"
+          echo "- Database Status: ${{ steps.health-check.outputs.status }}"
+          echo "- Scheduled: ${{ github.event_name }}"
+
+  # Job 2: Create database backup
+  create-backup:
+    name: Create Database Backup
+    runs-on: ubuntu-latest
+    needs: pre-backup-check
+    if: needs.pre-backup-check.outputs.db-status == 'healthy'
+    outputs:
+      backup-file: ${{ steps.backup.outputs.filename }}
+      backup-size: ${{ steps.backup.outputs.size }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL client (if needed)
+        run: |
+          if [[ "${{ secrets.DATABASE_URL }}" == *"postgresql"* ]]; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
+      - name: Create backup directory
+        run: mkdir -p backups
+
+      - name: Generate backup filename
+        id: backup-info
+        run: |
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          backup_type="${{ needs.pre-backup-check.outputs.backup-type }}"
+          filename="facepay_${backup_type}_${timestamp}.sql"
+          echo "filename=$filename" >> $GITHUB_OUTPUT
+          echo "timestamp=$timestamp" >> $GITHUB_OUTPUT
+
+      - name: Create database backup
+        id: backup
+        run: |
+          backup_file="backups/${{ steps.backup-info.outputs.filename }}"
+          
+          # Parse database URL to extract connection details
+          if [[ "${{ secrets.DATABASE_URL }}" == *"postgresql"* ]]; then
+            echo "Creating PostgreSQL backup..."
+            
+            # Extract connection details from DATABASE_URL
+            db_url="${{ secrets.DATABASE_URL }}"
+            
+            if [[ "${{ needs.pre-backup-check.outputs.backup-type }}" == "schema-only" ]]; then
+              pg_dump "$db_url" --schema-only --no-owner --no-privileges > "$backup_file"
+            elif [[ "${{ needs.pre-backup-check.outputs.backup-type }}" == "full" ]]; then
+              pg_dump "$db_url" --no-owner --no-privileges --verbose > "$backup_file"
+            else
+              # Incremental backup (last 24 hours of changes)
+              pg_dump "$db_url" --no-owner --no-privileges \
+                --where="updated_at > NOW() - INTERVAL '24 hours'" > "$backup_file"
+            fi
+            
+          elif [[ "${{ secrets.DATABASE_URL }}" == *"mysql"* ]]; then
+            echo "Creating MySQL backup..."
+            # MySQL backup logic here
+            mysqldump --single-transaction --routines --triggers "${{ secrets.DATABASE_URL }}" > "$backup_file"
+            
+          else
+            echo "Creating SQLite backup..."
+            # For SQLite or other databases, use Prisma
+            cat > backup-script.js << 'EOF'
+          const { PrismaClient } = require('@prisma/client');
+          const fs = require('fs');
+          
+          async function createBackup() {
+            const prisma = new PrismaClient();
+            try {
+              await prisma.$connect();
+              
+              // Export all tables
+              const tables = await prisma.$queryRaw`
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name NOT LIKE 'sqlite_%'
+              `;
+              
+              let backupData = '';
+              
+              for (const table of tables) {
+                const data = await prisma.$queryRawUnsafe(`SELECT * FROM ${table.name}`);
+                backupData += `-- Table: ${table.name}\n`;
+                backupData += JSON.stringify(data, null, 2) + '\n\n';
+              }
+              
+              fs.writeFileSync('${{ steps.backup-info.outputs.filename }}', backupData);
+              console.log('Backup created successfully');
+              
+              await prisma.$disconnect();
+            } catch (error) {
+              console.error('Backup failed:', error);
+              await prisma.$disconnect();
+              process.exit(1);
+            }
+          }
+          
+          createBackup();
+          EOF
+            
+            node backup-script.js
+          fi
+          
+          # Get backup file size
+          backup_size=$(du -h "$backup_file" | cut -f1)
+          echo "size=$backup_size" >> $GITHUB_OUTPUT
+          echo "filename=${{ steps.backup-info.outputs.filename }}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Backup created: $backup_file ($backup_size)"
+
+      - name: Compress backup
+        run: |
+          cd backups
+          gzip "${{ steps.backup-info.outputs.filename }}"
+          compressed_file="${{ steps.backup-info.outputs.filename }}.gz"
+          compressed_size=$(du -h "$compressed_file" | cut -f1)
+          echo "Compressed backup size: $compressed_size"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: database-backup-${{ steps.backup-info.outputs.timestamp }}
+          path: backups/${{ steps.backup-info.outputs.filename }}.gz
+          retention-days: ${{ github.event.inputs.retention_days || 30 }}
+
+  # Job 3: Verify backup integrity
+  verify-backup:
+    name: Verify Backup Integrity
+    runs-on: ubuntu-latest
+    needs: [pre-backup-check, create-backup]
+    if: needs.create-backup.result == 'success'
+    steps:
+      - name: Download backup artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: database-backup-${{ needs.create-backup.outputs.backup-file }}
+
+      - name: Verify backup file
+        run: |
+          backup_file=$(find . -name "*.gz" | head -1)
+          
+          if [ -f "$backup_file" ]; then
+            echo "✅ Backup file exists: $backup_file"
+            
+            # Check if file can be decompressed
+            if gzip -t "$backup_file"; then
+              echo "✅ Backup file integrity verified"
+              
+              # Get uncompressed size
+              uncompressed_size=$(gzip -l "$backup_file" | tail -1 | awk '{print $2}')
+              echo "Uncompressed size: $uncompressed_size bytes"
+              
+              # Basic content verification
+              if [ "$uncompressed_size" -gt 100 ]; then
+                echo "✅ Backup appears to contain data"
+              else
+                echo "⚠️ Backup file seems too small"
+                exit 1
+              fi
+              
+            else
+              echo "❌ Backup file is corrupted"
+              exit 1
+            fi
+          else
+            echo "❌ Backup file not found"
+            exit 1
+          fi
+
+  # Job 4: Store backup securely (optional cloud storage)
+  store-backup:
+    name: Store Backup Securely
+    runs-on: ubuntu-latest
+    needs: [create-backup, verify-backup]
+    if: needs.verify-backup.result == 'success'
+    steps:
+      - name: Download backup artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: database-backup-${{ needs.create-backup.outputs.backup-file }}
+
+      # Uncomment and configure based on your cloud storage provider
+      
+      # AWS S3 Storage
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v2
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: us-east-1
+      
+      # - name: Upload to S3
+      #   run: |
+      #     backup_file=$(find . -name "*.gz" | head -1)
+      #     aws s3 cp "$backup_file" s3://${{ secrets.BACKUP_BUCKET }}/facepay/$(basename "$backup_file")
+      
+      # Google Cloud Storage
+      # - name: Setup Cloud SDK
+      #   uses: google-github-actions/setup-gcloud@v1
+      #   with:
+      #     service_account_key: ${{ secrets.GCP_SA_KEY }}
+      #     project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
+      # - name: Upload to GCS
+      #   run: |
+      #     backup_file=$(find . -name "*.gz" | head -1)
+      #     gsutil cp "$backup_file" gs://${{ secrets.BACKUP_BUCKET }}/facepay/$(basename "$backup_file")
+      
+      # Azure Blob Storage
+      # - name: Upload to Azure
+      #   uses: azure/CLI@v1
+      #   with:
+      #     azcliversion: latest
+      #     inlineScript: |
+      #       backup_file=$(find . -name "*.gz" | head -1)
+      #       az storage blob upload \
+      #         --account-name ${{ secrets.AZURE_STORAGE_ACCOUNT }} \
+      #         --account-key ${{ secrets.AZURE_STORAGE_KEY }} \
+      #         --container-name backups \
+      #         --name facepay/$(basename "$backup_file") \
+      #         --file "$backup_file"
+
+      - name: Simulate secure storage
+        run: |
+          echo "🔒 Backup would be stored securely in cloud storage"
+          echo "Configure your preferred cloud storage provider above"
+
+  # Job 5: Database maintenance
+  maintenance:
+    name: Database Maintenance
+    runs-on: ubuntu-latest
+    needs: [pre-backup-check, store-backup]
+    if: needs.pre-backup-check.outputs.backup-type == 'full' && success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database maintenance
+        run: |
+          echo "🔧 Running database maintenance tasks..."
+          
+          # Create maintenance script
+          cat > maintenance.js << 'EOF'
+          const { PrismaClient } = require('@prisma/client');
+          
+          async function maintenance() {
+            const prisma = new PrismaClient();
+            try {
+              await prisma.$connect();
+              console.log('Connected to database for maintenance');
+              
+              // Cleanup old sessions (if you have a sessions table)
+              // const deletedSessions = await prisma.session.deleteMany({
+              //   where: {
+              //     expires: {
+              //       lt: new Date()
+              //     }
+              //   }
+              // });
+              // console.log(`Deleted ${deletedSessions.count} expired sessions`);
+              
+              // Cleanup old logs (if you have a logs table)
+              // const oldDate = new Date();
+              // oldDate.setDate(oldDate.getDate() - 90);
+              // const deletedLogs = await prisma.log.deleteMany({
+              //   where: {
+              //     createdAt: {
+              //       lt: oldDate
+              //     }
+              //   }
+              // });
+              // console.log(`Deleted ${deletedLogs.count} old log entries`);
+              
+              // Update statistics or refresh materialized views
+              console.log('Maintenance completed successfully');
+              
+              await prisma.$disconnect();
+            } catch (error) {
+              console.error('Maintenance failed:', error);
+              await prisma.$disconnect();
+              process.exit(1);
+            }
+          }
+          
+          maintenance();
+          EOF
+          
+          node maintenance.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  # Job 6: Cleanup old backups
+  cleanup-old-backups:
+    name: Cleanup Old Backups
+    runs-on: ubuntu-latest
+    needs: [store-backup]
+    if: always()
+    steps:
+      - name: Simulate backup cleanup
+        run: |
+          echo "🧹 Cleaning up old backups..."
+          echo "This would remove backups older than the retention period"
+          
+          # In a real implementation, you would:
+          # 1. List all backups in your storage location
+          # 2. Check their creation dates
+          # 3. Delete those older than retention period
+          
+          retention_days="${{ github.event.inputs.retention_days || '30' }}"
+          echo "Retention policy: $retention_days days"
+
+  # Job 7: Generate backup report
+  generate-report:
+    name: Generate Backup Report
+    runs-on: ubuntu-latest
+    needs: [pre-backup-check, create-backup, verify-backup, store-backup, maintenance, cleanup-old-backups]
+    if: always()
+    steps:
+      - name: Create backup report
+        run: |
+          echo "# Database Backup Report" > backup-report.md
+          echo "" >> backup-report.md
+          echo "**Generated on:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> backup-report.md
+          echo "**Backup Type:** ${{ needs.pre-backup-check.outputs.backup-type }}" >> backup-report.md
+          echo "**Trigger:** ${{ github.event_name }}" >> backup-report.md
+          echo "" >> backup-report.md
+          
+          echo "## Job Results" >> backup-report.md
+          echo "- Pre-backup Check: ${{ needs.pre-backup-check.result }}" >> backup-report.md
+          echo "- Create Backup: ${{ needs.create-backup.result }}" >> backup-report.md
+          echo "- Verify Backup: ${{ needs.verify-backup.result }}" >> backup-report.md
+          echo "- Store Backup: ${{ needs.store-backup.result }}" >> backup-report.md
+          echo "- Maintenance: ${{ needs.maintenance.result }}" >> backup-report.md
+          echo "- Cleanup: ${{ needs.cleanup-old-backups.result }}" >> backup-report.md
+          echo "" >> backup-report.md
+          
+          if [[ "${{ needs.create-backup.result }}" == "success" ]]; then
+            echo "## Backup Details" >> backup-report.md
+            echo "- **File:** ${{ needs.create-backup.outputs.backup-file }}" >> backup-report.md
+            echo "- **Size:** ${{ needs.create-backup.outputs.backup-size }}" >> backup-report.md
+            echo "- **Status:** ✅ Success" >> backup-report.md
+          else
+            echo "## Backup Status" >> backup-report.md
+            echo "❌ **Backup failed** - Check the logs for details" >> backup-report.md
+          fi
+          
+          echo "" >> backup-report.md
+          echo "## Next Steps" >> backup-report.md
+          if [[ "${{ needs.create-backup.result }}" == "success" ]]; then
+            echo "- Backup completed successfully and is available in artifacts" >> backup-report.md
+            echo "- Next scheduled backup: Tomorrow at 2 AM UTC (incremental)" >> backup-report.md
+            echo "- Next full backup: Next Sunday at 1 AM UTC" >> backup-report.md
+          else
+            echo "- ⚠️ Review backup failure and resolve issues" >> backup-report.md
+            echo "- Consider running manual backup once issues are resolved" >> backup-report.md
+          fi
+
+      - name: Upload backup report
+        uses: actions/upload-artifact@v3
+        with:
+          name: backup-report
+          path: backup-report.md
+          retention-days: 90
+
+  # Job 8: Notification
+  notify:
+    name: Notify Backup Status
+    runs-on: ubuntu-latest
+    needs: [generate-report]
+    if: always()
+    steps:
+      - name: Download backup report
+        uses: actions/download-artifact@v3
+        with:
+          name: backup-report
+
+      - name: Notify backup status
+        run: |
+          if [[ "${{ needs.generate-report.result }}" == "success" ]]; then
+            echo "✅ Database backup workflow completed"
+          else
+            echo "❌ Database backup workflow completed with issues"
+            exit 1
+          fi
+          
+          echo "Check artifacts for detailed backup report"
+
+      # Optional: Slack notification for backup status
+      # - name: Slack Backup Notification
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: ${{ job.status }}
+      #     channel: '#infrastructure'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     fields: repo,message,commit,author,action,eventName,ref,workflow
+      #   if: always()
+
+      # Critical: Email notification for backup failures
+      # - name: Email Notification on Failure
+      #   if: failure()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 587
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: "🚨 FacePay Database Backup Failed"
+      #     to: admin@facepay.com
+      #     from: noreply@facepay.com
+      #     body: |
+      #       Database backup for FacePay failed on $(date).
+      #       
+      #       Please check the GitHub Actions logs immediately:
+      #       https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      #       
+      #       This requires immediate attention to ensure data safety.

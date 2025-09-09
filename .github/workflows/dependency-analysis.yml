@@ -1,0 +1,421 @@
+name: Dependency Analysis
+
+on:
+  schedule:
+    # Run weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/dependency-analysis.yml'
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Analyze dependency tree
+  dependency-tree:
+    name: Dependency Tree Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate dependency tree
+        run: |
+          echo "# Dependency Tree Analysis" > dependency-report.md
+          echo "" >> dependency-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "## Production Dependencies" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          npm ls --prod --depth=0 >> dependency-report.md 2>&1 || true
+          echo '```' >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "## Development Dependencies" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          npm ls --dev --depth=0 >> dependency-report.md 2>&1 || true
+          echo '```' >> dependency-report.md
+          echo "" >> dependency-report.md
+          
+          echo "## Full Dependency Tree" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          npm ls --all >> dependency-report.md 2>&1 || true
+          echo '```' >> dependency-report.md
+
+      - name: Analyze bundle size impact
+        run: |
+          echo "" >> dependency-report.md
+          echo "## Bundle Size Analysis" >> dependency-report.md
+          
+          # Install bundle analyzer
+          npm install --no-save webpack-bundle-analyzer
+          
+          # Generate bundle analysis
+          echo "### Top 20 Largest Dependencies" >> dependency-report.md
+          echo '```' >> dependency-report.md
+          npm ls --parseable --all | xargs du -sh | sort -rh | head -20 >> dependency-report.md 2>&1 || true
+          echo '```' >> dependency-report.md
+
+      - name: Upload dependency report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-analysis-report
+          path: dependency-report.md
+          retention-days: 30
+
+  # Job 2: Check for outdated dependencies
+  outdated-check:
+    name: Outdated Dependencies Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for outdated packages
+        run: |
+          echo "# Outdated Dependencies Report" > outdated-report.md
+          echo "" >> outdated-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> outdated-report.md
+          echo "" >> outdated-report.md
+          
+          echo "## Outdated Packages" >> outdated-report.md
+          echo '```' >> outdated-report.md
+          npm outdated >> outdated-report.md 2>&1 || true
+          echo '```' >> outdated-report.md
+
+      - name: Generate update suggestions
+        run: |
+          echo "" >> outdated-report.md
+          echo "## Update Suggestions" >> outdated-report.md
+          
+          # Check for major version updates
+          echo "### Major Version Updates Available:" >> outdated-report.md
+          npm outdated --json 2>/dev/null | jq -r 'to_entries[] | select(.value.wanted != .value.latest) | "- \(.key): \(.value.current) → \(.value.latest) (major update)"' >> outdated-report.md 2>&1 || echo "No major updates found" >> outdated-report.md
+          
+          echo "" >> outdated-report.md
+          echo "### Minor/Patch Updates Available:" >> outdated-report.md
+          npm outdated --json 2>/dev/null | jq -r 'to_entries[] | select(.value.wanted == .value.latest) | "- \(.key): \(.value.current) → \(.value.latest) (safe update)"' >> outdated-report.md 2>&1 || echo "No minor/patch updates found" >> outdated-report.md
+
+      - name: Upload outdated report
+        uses: actions/upload-artifact@v3
+        with:
+          name: outdated-dependencies-report
+          path: outdated-report.md
+          retention-days: 30
+
+  # Job 3: License compliance deep scan
+  license-analysis:
+    name: License Compliance Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install license checker
+        run: npm install --no-save license-checker license-checker-rseidelsohn
+
+      - name: Generate license report
+        run: |
+          echo "# License Compliance Report" > license-report.md
+          echo "" >> license-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> license-report.md
+          echo "" >> license-report.md
+          
+          # Generate detailed license report
+          npx license-checker --json --out licenses-detailed.json
+          
+          # Count licenses by type
+          echo "## License Summary" >> license-report.md
+          echo '```' >> license-report.md
+          npx license-checker --summary >> license-report.md 2>&1 || true
+          echo '```' >> license-report.md
+          
+          echo "" >> license-report.md
+          echo "## License Details" >> license-report.md
+          echo '```' >> license-report.md
+          npx license-checker --csv >> license-report.md 2>&1 || true
+          echo '```' >> license-report.md
+
+      - name: Check for license issues
+        run: |
+          echo "" >> license-report.md
+          echo "## License Compliance Issues" >> license-report.md
+          
+          # Define problematic licenses
+          problematic_licenses=("GPL-2.0" "GPL-3.0" "AGPL-1.0" "AGPL-3.0" "LGPL-2.0" "LGPL-2.1" "LGPL-3.0" "WTFPL")
+          
+          issues_found=false
+          for license in "${problematic_licenses[@]}"; do
+            if jq -r '.[] | .licenses' licenses-detailed.json | grep -q "$license"; then
+              if [ "$issues_found" = false ]; then
+                echo "⚠️ **Problematic licenses detected:**" >> license-report.md
+                issues_found=true
+              fi
+              echo "- $license" >> license-report.md
+            fi
+          done
+          
+          if [ "$issues_found" = false ]; then
+            echo "✅ No problematic licenses detected" >> license-report.md
+          fi
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-analysis-report
+          path: |
+            license-report.md
+            licenses-detailed.json
+          retention-days: 90
+
+  # Job 4: Dependency security deep scan
+  security-deep-scan:
+    name: Deep Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Enhanced npm audit
+        run: |
+          echo "# Enhanced Security Analysis" > security-deep-report.md
+          echo "" >> security-deep-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> security-deep-report.md
+          echo "" >> security-deep-report.md
+          
+          echo "## Npm Audit Results" >> security-deep-report.md
+          echo '```json' >> security-deep-report.md
+          npm audit --json >> security-deep-report.md 2>&1 || true
+          echo '```' >> security-deep-report.md
+
+      - name: Audit production only
+        run: |
+          echo "" >> security-deep-report.md
+          echo "## Production Dependencies Audit" >> security-deep-report.md
+          echo '```' >> security-deep-report.md
+          npm audit --only=prod >> security-deep-report.md 2>&1 || true
+          echo '```' >> security-deep-report.md
+
+      - name: Check for known malicious packages
+        run: |
+          echo "" >> security-deep-report.md
+          echo "## Malicious Package Check" >> security-deep-report.md
+          
+          # List of known patterns that might indicate malicious packages
+          suspicious_patterns=("bitcoin" "crypto-miner" "keylogger" "backdoor")
+          
+          echo "Checking for suspicious patterns in package names..." >> security-deep-report.md
+          found_suspicious=false
+          
+          for pattern in "${suspicious_patterns[@]}"; do
+            if npm ls --parseable --all | grep -i "$pattern"; then
+              echo "⚠️ Found suspicious pattern: $pattern" >> security-deep-report.md
+              found_suspicious=true
+            fi
+          done
+          
+          if [ "$found_suspicious" = false ]; then
+            echo "✅ No suspicious patterns detected" >> security-deep-report.md
+          fi
+
+      - name: Upload security deep report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-deep-scan-report
+          path: security-deep-report.md
+          retention-days: 90
+
+  # Job 5: Performance impact analysis
+  performance-analysis:
+    name: Performance Impact Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Analyze bundle impact
+        run: |
+          echo "# Performance Impact Analysis" > performance-report.md
+          echo "" >> performance-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          echo "## Package Size Analysis" >> performance-report.md
+          
+          # Install package-size analyzer
+          npm install --no-save package-size
+          
+          echo "### Largest Packages (Top 20)" >> performance-report.md
+          echo '```' >> performance-report.md
+          find node_modules -name package.json -exec dirname {} \; | xargs du -sh | sort -rh | head -20 >> performance-report.md 2>&1 || true
+          echo '```' >> performance-report.md
+
+      - name: Check for duplicate dependencies
+        run: |
+          echo "" >> performance-report.md
+          echo "## Duplicate Dependencies" >> performance-report.md
+          echo '```' >> performance-report.md
+          npm ls --all | grep -E "├──|└──" | cut -d' ' -f2 | sort | uniq -d >> performance-report.md 2>&1 || echo "No duplicates found" >> performance-report.md
+          echo '```' >> performance-report.md
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-analysis-report
+          path: performance-report.md
+          retention-days: 30
+
+  # Job 6: Generate comprehensive summary
+  generate-summary:
+    name: Generate Summary Report
+    runs-on: ubuntu-latest
+    needs: [dependency-tree, outdated-check, license-analysis, security-deep-scan, performance-analysis]
+    if: always()
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v3
+
+      - name: Create comprehensive summary
+        run: |
+          echo "# Comprehensive Dependency Analysis Summary" > DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          
+          echo "## Analysis Results" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "- Dependency Tree: ${{ needs.dependency-tree.result }}" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "- Outdated Check: ${{ needs.outdated-check.result }}" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "- License Analysis: ${{ needs.license-analysis.result }}" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "- Security Deep Scan: ${{ needs.security-deep-scan.result }}" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "- Performance Analysis: ${{ needs.performance-analysis.result }}" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          
+          echo "## Quick Actions Needed" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          
+          # Check if any critical issues were found
+          critical_issues=false
+          
+          if [[ "${{ needs.security-deep-scan.result }}" != "success" ]]; then
+            echo "🚨 **Security issues detected** - Review security scan results immediately" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+            critical_issues=true
+          fi
+          
+          if [[ "${{ needs.license-analysis.result }}" != "success" ]]; then
+            echo "⚖️ **License compliance issues** - Review license analysis results" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+            critical_issues=true
+          fi
+          
+          if [ "$critical_issues" = false ]; then
+            echo "✅ No critical issues detected in this analysis" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          fi
+          
+          echo "" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "## Report Locations" >> DEPENDENCY_ANALYSIS_SUMMARY.md
+          echo "All detailed reports are available in the GitHub Actions artifacts for this workflow run." >> DEPENDENCY_ANALYSIS_SUMMARY.md
+
+      - name: Upload summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-analysis-summary
+          path: DEPENDENCY_ANALYSIS_SUMMARY.md
+          retention-days: 90
+
+      - name: Comment on latest commit (if scheduled)
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('DEPENDENCY_ANALYSIS_SUMMARY.md', 'utf8');
+            
+            // Get the latest commit
+            const commit = await github.rest.repos.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'main'
+            });
+            
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commit.data.sha,
+              body: `📊 **Weekly Dependency Analysis Report**\n\n${summary}`
+            });
+
+  # Job 7: Notify results
+  notify:
+    name: Notify Analysis Results
+    runs-on: ubuntu-latest
+    needs: [generate-summary]
+    if: always()
+    steps:
+      - name: Notify completion
+        run: |
+          if [[ "${{ needs.generate-summary.result }}" == "success" ]]; then
+            echo "✅ Dependency analysis completed successfully!"
+          else
+            echo "❌ Dependency analysis completed with issues!"
+          fi
+          
+          echo "Check the artifacts for detailed reports."
+
+      # Optional: Slack notification for critical issues
+      # - name: Slack Critical Issues Alert
+      #   if: needs.security-deep-scan.result != 'success' || needs.license-analysis.result != 'success'
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: failure
+      #     channel: '#security-alerts'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     fields: repo,message,commit,author
+      #     text: "Critical dependency issues detected in FacePay! Check the dependency analysis report."

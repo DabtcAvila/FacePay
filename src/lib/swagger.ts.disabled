@@ -1,0 +1,826 @@
+import swaggerJsdoc from 'swagger-jsdoc'
+import { OpenAPIV3 } from 'openapi-types'
+
+// Basic OpenAPI 3.0 configuration
+const options: swaggerJsdoc.Options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'FacePay API',
+      version: '1.0.0',
+      description: 'Biometric Payment Platform API with Facial Recognition Authentication',
+      contact: {
+        name: 'FacePay Support',
+        email: 'support@facepay.com',
+      },
+      license: {
+        name: 'MIT',
+        url: 'https://opensource.org/licenses/MIT',
+      },
+    },
+    servers: [
+      {
+        url: process.env.NODE_ENV === 'production' 
+          ? 'https://facepay.com/api' 
+          : 'http://localhost:3000/api',
+        description: process.env.NODE_ENV === 'production' 
+          ? 'Production server' 
+          : 'Development server',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'JWT token obtained from login endpoint',
+        },
+        ApiKeyAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+          description: 'API Key for external integrations',
+        },
+        BiometricAuth: {
+          type: 'oauth2',
+          description: 'Biometric authentication flow',
+          flows: {
+            authorizationCode: {
+              authorizationUrl: '/api/webauthn/authenticate/start',
+              tokenUrl: '/api/webauthn/authenticate/complete',
+              scopes: {
+                'biometric:read': 'Read biometric data',
+                'biometric:write': 'Write biometric data',
+              },
+            },
+          },
+        },
+      },
+      schemas: {
+        // Error Schemas
+        Error: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: false,
+            },
+            error: {
+              type: 'string',
+              example: 'An error occurred',
+            },
+            code: {
+              type: 'string',
+              example: 'INTERNAL_ERROR',
+            },
+            details: {
+              type: 'object',
+              additionalProperties: true,
+            },
+          },
+          required: ['success', 'error'],
+        },
+        ValidationError: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: false,
+            },
+            error: {
+              type: 'string',
+              example: 'Validation failed',
+            },
+            code: {
+              type: 'string',
+              example: 'VALIDATION_ERROR',
+            },
+            details: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  field: {
+                    type: 'string',
+                    example: 'email',
+                  },
+                  message: {
+                    type: 'string',
+                    example: 'Email is required',
+                  },
+                },
+              },
+            },
+          },
+        },
+        
+        // Success Response Wrapper
+        SuccessResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            data: {
+              type: 'object',
+              additionalProperties: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Operation completed successfully',
+            },
+          },
+          required: ['success', 'data'],
+        },
+
+        // User Schemas
+        User: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'clp1abc123def456ghi789',
+            },
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'user@example.com',
+            },
+            name: {
+              type: 'string',
+              example: 'John Doe',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2024-01-01T12:00:00Z',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+              example: '2024-01-01T12:00:00Z',
+            },
+            lastLogin: {
+              type: 'string',
+              format: 'date-time',
+              example: '2024-01-01T12:00:00Z',
+            },
+          },
+        },
+        UserProfile: {
+          allOf: [
+            { $ref: '#/components/schemas/User' },
+            {
+              type: 'object',
+              properties: {
+                biometricData: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/BiometricData' },
+                },
+                paymentMethods: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/PaymentMethod' },
+                },
+                _count: {
+                  type: 'object',
+                  properties: {
+                    transactions: {
+                      type: 'integer',
+                      example: 42,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+        LoginRequest: {
+          type: 'object',
+          properties: {
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'user@example.com',
+            },
+            password: {
+              type: 'string',
+              minLength: 8,
+              example: 'securepassword123',
+            },
+          },
+          required: ['email', 'password'],
+        },
+        RegisterRequest: {
+          type: 'object',
+          properties: {
+            email: {
+              type: 'string',
+              format: 'email',
+              example: 'user@example.com',
+            },
+            name: {
+              type: 'string',
+              minLength: 2,
+              example: 'John Doe',
+            },
+            password: {
+              type: 'string',
+              minLength: 8,
+              example: 'securepassword123',
+            },
+          },
+          required: ['email', 'name', 'password'],
+        },
+        AuthResponse: {
+          type: 'object',
+          properties: {
+            user: { $ref: '#/components/schemas/User' },
+            tokens: {
+              type: 'object',
+              properties: {
+                accessToken: {
+                  type: 'string',
+                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refreshToken: {
+                  type: 'string',
+                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                expiresIn: {
+                  type: 'integer',
+                  example: 3600,
+                },
+              },
+            },
+            sessionId: {
+              type: 'string',
+              example: 'sess_abc123def456',
+            },
+          },
+        },
+
+        // Payment Schemas
+        PaymentMethod: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'pm_abc123def456',
+            },
+            type: {
+              type: 'string',
+              enum: ['card', 'bank_account', 'crypto', 'biometric'],
+              example: 'card',
+            },
+            provider: {
+              type: 'string',
+              enum: ['stripe', 'paypal', 'crypto', 'internal'],
+              example: 'stripe',
+            },
+            isDefault: {
+              type: 'boolean',
+              example: true,
+            },
+            details: {
+              type: 'object',
+              additionalProperties: true,
+              example: {
+                last4: '4242',
+                brand: 'visa',
+                exp_month: 12,
+                exp_year: 2025,
+              },
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+        CreateCheckoutSessionRequest: {
+          type: 'object',
+          properties: {
+            amount: {
+              type: 'number',
+              minimum: 0.01,
+              example: 29.99,
+            },
+            currency: {
+              type: 'string',
+              minLength: 3,
+              maxLength: 3,
+              default: 'USD',
+              example: 'USD',
+            },
+            description: {
+              type: 'string',
+              example: 'Product purchase',
+            },
+            successUrl: {
+              type: 'string',
+              format: 'uri',
+              example: 'https://example.com/success',
+            },
+            cancelUrl: {
+              type: 'string',
+              format: 'uri',
+              example: 'https://example.com/cancel',
+            },
+            paymentMethodTypes: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              default: ['card'],
+              example: ['card'],
+            },
+            mode: {
+              type: 'string',
+              enum: ['payment', 'setup', 'subscription'],
+              default: 'payment',
+              example: 'payment',
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: {
+                type: 'string',
+              },
+            },
+          },
+          required: ['amount'],
+        },
+        CheckoutSessionResponse: {
+          type: 'object',
+          properties: {
+            sessionId: {
+              type: 'string',
+              example: 'cs_abc123def456',
+            },
+            sessionUrl: {
+              type: 'string',
+              format: 'uri',
+              example: 'https://checkout.stripe.com/pay/cs_abc123def456',
+            },
+            transactionId: {
+              type: 'string',
+              example: 'txn_abc123def456',
+            },
+            customerId: {
+              type: 'string',
+              example: 'cus_abc123def456',
+            },
+          },
+        },
+
+        // Transaction Schemas
+        Transaction: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'txn_abc123def456',
+            },
+            userId: {
+              type: 'string',
+              example: 'usr_abc123def456',
+            },
+            amount: {
+              type: 'number',
+              example: 29.99,
+            },
+            currency: {
+              type: 'string',
+              example: 'USD',
+            },
+            status: {
+              type: 'string',
+              enum: ['pending', 'completed', 'failed', 'refunded'],
+              example: 'completed',
+            },
+            paymentMethodId: {
+              type: 'string',
+              example: 'pm_abc123def456',
+            },
+            description: {
+              type: 'string',
+              example: 'Product purchase',
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: true,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+            paymentMethod: {
+              $ref: '#/components/schemas/PaymentMethod',
+            },
+          },
+        },
+        CreateTransactionRequest: {
+          type: 'object',
+          properties: {
+            amount: {
+              type: 'number',
+              minimum: 0.01,
+              example: 29.99,
+            },
+            currency: {
+              type: 'string',
+              minLength: 3,
+              maxLength: 3,
+              default: 'USD',
+              example: 'USD',
+            },
+            paymentMethodId: {
+              type: 'string',
+              example: 'pm_abc123def456',
+            },
+            description: {
+              type: 'string',
+              example: 'Product purchase',
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: {
+                type: 'string',
+              },
+            },
+          },
+          required: ['amount', 'paymentMethodId'],
+        },
+        TransactionListResponse: {
+          type: 'object',
+          properties: {
+            transactions: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/Transaction' },
+            },
+            pagination: {
+              type: 'object',
+              properties: {
+                page: {
+                  type: 'integer',
+                  example: 1,
+                },
+                limit: {
+                  type: 'integer',
+                  example: 20,
+                },
+                total: {
+                  type: 'integer',
+                  example: 100,
+                },
+                totalPages: {
+                  type: 'integer',
+                  example: 5,
+                },
+                hasNext: {
+                  type: 'boolean',
+                  example: true,
+                },
+                hasPrev: {
+                  type: 'boolean',
+                  example: false,
+                },
+              },
+            },
+          },
+        },
+
+        // Biometric Schemas
+        BiometricData: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'bio_abc123def456',
+            },
+            type: {
+              type: 'string',
+              enum: ['face', 'fingerprint', 'voice'],
+              example: 'face',
+            },
+            isActive: {
+              type: 'boolean',
+              example: true,
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+
+        // WebAuthn Schemas
+        WebAuthnCredential: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'cred_abc123def456',
+            },
+            name: {
+              type: 'string',
+              example: 'iPhone Face ID',
+            },
+            type: {
+              type: 'string',
+              enum: ['public-key'],
+              example: 'public-key',
+            },
+            credentialId: {
+              type: 'string',
+              example: 'abc123def456...',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+        PublicKeyCredentialCreationOptions: {
+          type: 'object',
+          properties: {
+            challenge: {
+              type: 'string',
+              example: 'abc123def456ghi789...',
+            },
+            rp: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string',
+                  example: 'FacePay',
+                },
+                id: {
+                  type: 'string',
+                  example: 'facepay.com',
+                },
+              },
+            },
+            user: {
+              type: 'object',
+              properties: {
+                id: {
+                  type: 'string',
+                  example: 'user123',
+                },
+                name: {
+                  type: 'string',
+                  example: 'user@example.com',
+                },
+                displayName: {
+                  type: 'string',
+                  example: 'John Doe',
+                },
+              },
+            },
+            pubKeyCredParams: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  alg: {
+                    type: 'integer',
+                    example: -7,
+                  },
+                  type: {
+                    type: 'string',
+                    example: 'public-key',
+                  },
+                },
+              },
+            },
+            timeout: {
+              type: 'integer',
+              example: 60000,
+            },
+            attestation: {
+              type: 'string',
+              enum: ['none', 'indirect', 'direct'],
+              example: 'none',
+            },
+          },
+        },
+
+        // Analytics Schemas
+        AnalyticsStats: {
+          type: 'object',
+          properties: {
+            totalTransactions: {
+              type: 'integer',
+              example: 1250,
+            },
+            totalRevenue: {
+              type: 'number',
+              example: 125000.50,
+            },
+            averageTransactionValue: {
+              type: 'number',
+              example: 100.00,
+            },
+            successRate: {
+              type: 'number',
+              example: 98.5,
+            },
+            biometricAuthSuccess: {
+              type: 'number',
+              example: 95.2,
+            },
+            topPaymentMethods: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  method: {
+                    type: 'string',
+                    example: 'card',
+                  },
+                  count: {
+                    type: 'integer',
+                    example: 850,
+                  },
+                  percentage: {
+                    type: 'number',
+                    example: 68.0,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        UnauthorizedError: {
+          description: 'Authentication required',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/Error',
+              },
+              example: {
+                success: false,
+                error: 'Authentication required',
+                code: 'UNAUTHORIZED',
+              },
+            },
+          },
+        },
+        ForbiddenError: {
+          description: 'Insufficient permissions',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/Error',
+              },
+              example: {
+                success: false,
+                error: 'Insufficient permissions',
+                code: 'FORBIDDEN',
+              },
+            },
+          },
+        },
+        NotFoundError: {
+          description: 'Resource not found',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/Error',
+              },
+              example: {
+                success: false,
+                error: 'Resource not found',
+                code: 'NOT_FOUND',
+              },
+            },
+          },
+        },
+        ValidationError: {
+          description: 'Validation failed',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/ValidationError',
+              },
+            },
+          },
+        },
+        InternalServerError: {
+          description: 'Internal server error',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/Error',
+              },
+              example: {
+                success: false,
+                error: 'Internal server error',
+                code: 'INTERNAL_ERROR',
+              },
+            },
+          },
+        },
+      },
+      parameters: {
+        PageParam: {
+          name: 'page',
+          in: 'query',
+          description: 'Page number for pagination',
+          required: false,
+          schema: {
+            type: 'integer',
+            minimum: 1,
+            default: 1,
+          },
+        },
+        LimitParam: {
+          name: 'limit',
+          in: 'query',
+          description: 'Number of items per page',
+          required: false,
+          schema: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 100,
+            default: 20,
+          },
+        },
+        SortParam: {
+          name: 'sortBy',
+          in: 'query',
+          description: 'Field to sort by',
+          required: false,
+          schema: {
+            type: 'string',
+            enum: ['createdAt', 'amount', 'status'],
+            default: 'createdAt',
+          },
+        },
+        SortOrderParam: {
+          name: 'sortOrder',
+          in: 'query',
+          description: 'Sort order',
+          required: false,
+          schema: {
+            type: 'string',
+            enum: ['asc', 'desc'],
+            default: 'desc',
+          },
+        },
+      },
+    },
+    security: [
+      {
+        BearerAuth: [],
+      },
+    ],
+    tags: [
+      {
+        name: 'Authentication',
+        description: 'User authentication and authorization',
+      },
+      {
+        name: 'Users',
+        description: 'User management operations',
+      },
+      {
+        name: 'Payments',
+        description: 'Payment processing and methods',
+      },
+      {
+        name: 'Transactions',
+        description: 'Transaction management and history',
+      },
+      {
+        name: 'WebAuthn',
+        description: 'Biometric authentication via WebAuthn',
+      },
+      {
+        name: 'Analytics',
+        description: 'Analytics and reporting',
+      },
+      {
+        name: 'Health',
+        description: 'System health and monitoring',
+      },
+    ],
+  } as OpenAPIV3.Document,
+  apis: [
+    './src/app/api/**/*.ts', // Include all API routes
+    './src/lib/swagger-docs.ts', // Additional documentation
+  ],
+}
+
+const specs = swaggerJsdoc(options)
+
+export { specs }
+export default specs

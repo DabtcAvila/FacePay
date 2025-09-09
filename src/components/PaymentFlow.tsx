@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CreditCard,
@@ -1181,4 +1181,17 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   );
 };
 
-export default PaymentFlow;
+// Memoize the component for better performance
+const MemoizedPaymentFlow = memo(PaymentFlow, (prevProps, nextProps) => {
+  // Custom comparison for optimal re-rendering
+  return (
+    prevProps.isOpen === nextProps.isOpen &&
+    prevProps.demoMode === nextProps.demoMode &&
+    prevProps.paymentDetails.amount === nextProps.paymentDetails.amount &&
+    prevProps.paymentDetails.merchant === nextProps.paymentDetails.merchant
+  );
+});
+
+MemoizedPaymentFlow.displayName = 'PaymentFlow';
+
+export default MemoizedPaymentFlow;

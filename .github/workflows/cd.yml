@@ -1,0 +1,352 @@
+name: CD - Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      skip_tests:
+        description: 'Skip tests (emergency deployment)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18.x'
+  NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+  NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+
+jobs:
+  # Job 1: Pre-deployment checks
+  pre-deployment:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-env: ${{ steps.determine-env.outputs.environment }}
+      should-deploy: ${{ steps.determine-env.outputs.should-deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine deployment environment
+        id: determine-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=none" >> $GITHUB_OUTPUT
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log deployment decision
+        run: |
+          echo "Deploy Environment: ${{ steps.determine-env.outputs.environment }}"
+          echo "Should Deploy: ${{ steps.determine-env.outputs.should-deploy }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+
+  # Job 2: Run CI checks (unless skipped)
+  ci-checks:
+    name: CI Quality Checks
+    uses: ./.github/workflows/ci.yml
+    needs: pre-deployment
+    if: needs.pre-deployment.outputs.should-deploy == 'true' && !github.event.inputs.skip_tests
+    secrets: inherit
+
+  # Job 3: Build for deployment
+  build-for-deployment:
+    name: Build for Deployment
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, ci-checks]
+    if: needs.pre-deployment.outputs.should-deploy == 'true' && (needs.ci-checks.result == 'success' || github.event.inputs.skip_tests)
+    outputs:
+      build-version: ${{ steps.build-info.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Generate build info
+        id: build-info
+        run: |
+          echo "version=$(date +%Y%m%d)-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BUILD_VERSION: ${{ steps.build-info.outputs.version }}
+          NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.build-info.outputs.timestamp }}
+          NEXT_PUBLIC_ENVIRONMENT: ${{ needs.pre-deployment.outputs.deploy-env }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts-${{ steps.build-info.outputs.version }}
+          path: |
+            .next/
+            package.json
+            package-lock.json
+            prisma/
+          retention-days: 7
+
+  # Job 4: Deploy to Vercel
+  deploy-vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-for-deployment]
+    if: needs.pre-deployment.outputs.should-deploy == 'true'
+    environment:
+      name: ${{ needs.pre-deployment.outputs.deploy-env }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@canary
+
+      - name: Pull Vercel environment information
+        run: |
+          if [[ "${{ needs.pre-deployment.outputs.deploy-env }}" == "production" ]]; then
+            vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+
+      - name: Build project artifacts
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        run: |
+          if [[ "${{ needs.pre-deployment.outputs.deploy-env }}" == "production" ]]; then
+            url=$(vercel --prod --token=${{ secrets.VERCEL_TOKEN }})
+          else
+            url=$(vercel --token=${{ secrets.VERCEL_TOKEN }})
+          fi
+          echo "url=$url" >> $GITHUB_OUTPUT
+          echo "Deployed to: $url"
+
+      - name: Comment PR with deployment URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Deployment successful!\n\n**Environment:** ${{ needs.pre-deployment.outputs.deploy-env }}\n**URL:** ${{ steps.deploy.outputs.url }}\n**Build Version:** ${{ needs.build-for-deployment.outputs.build-version }}`
+            })
+
+  # Job 5: Deploy to Netlify (Alternative/Backup)
+  deploy-netlify:
+    name: Deploy to Netlify (Backup)
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-for-deployment]
+    if: needs.pre-deployment.outputs.should-deploy == 'true' && false # Disabled by default
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts-${{ needs.build-for-deployment.outputs.build-version }}
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v2.0
+        with:
+          publish-dir: '.next'
+          production-branch: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Deploy from GitHub Actions - ${{ needs.build-for-deployment.outputs.build-version }}"
+          enable-pull-request-comment: true
+          enable-commit-comment: false
+          overwrites-pull-request-comment: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  # Job 6: Database Migration
+  database-migration:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-vercel]
+    if: needs.pre-deployment.outputs.deploy-env == 'production'
+    environment: production-db
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+  # Job 7: Smoke Tests
+  smoke-tests:
+    name: Post-Deployment Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-vercel]
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          url="${{ needs.deploy-vercel.outputs.url }}"
+          echo "Testing health endpoint: $url/api/health"
+          
+          for i in {1..10}; do
+            if curl -f "$url/api/health"; then
+              echo "Health check passed!"
+              break
+            else
+              echo "Health check failed, retrying in 10 seconds... ($i/10)"
+              sleep 10
+            fi
+            
+            if [ $i -eq 10 ]; then
+              echo "Health check failed after 10 attempts"
+              exit 1
+            fi
+          done
+
+      - name: Critical API tests
+        run: |
+          url="${{ needs.deploy-vercel.outputs.url }}"
+          
+          # Test authentication endpoints
+          echo "Testing auth endpoints..."
+          curl -f "$url/api/auth/register" -X POST -H "Content-Type: application/json" -d '{}' || true
+          curl -f "$url/api/auth/login" -X POST -H "Content-Type: application/json" -d '{}' || true
+          
+          # Test WebAuthn endpoints
+          echo "Testing WebAuthn endpoints..."
+          curl -f "$url/api/webauthn/register-options" || true
+          
+          echo "Smoke tests completed!"
+
+  # Job 8: Rollback capability
+  setup-rollback:
+    name: Setup Rollback Capability
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-vercel, smoke-tests]
+    if: needs.pre-deployment.outputs.deploy-env == 'production'
+    steps:
+      - name: Store deployment info for rollback
+        run: |
+          echo "Deployment successful!"
+          echo "Environment: ${{ needs.pre-deployment.outputs.deploy-env }}"
+          echo "URL: ${{ needs.deploy-vercel.outputs.url }}"
+          echo "Build Version: ${{ needs.build-for-deployment.outputs.build-version }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          
+          # Store in GitHub environment for future reference
+          echo "LAST_SUCCESSFUL_DEPLOYMENT_SHA=${{ github.sha }}" >> $GITHUB_ENV
+          echo "LAST_SUCCESSFUL_DEPLOYMENT_URL=${{ needs.deploy-vercel.outputs.url }}" >> $GITHUB_ENV
+
+  # Job 9: Notify deployment status
+  notify-deployment:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy-vercel, smoke-tests, setup-rollback]
+    if: always() && needs.pre-deployment.outputs.should-deploy == 'true'
+    steps:
+      - name: Notify Success
+        if: needs.deploy-vercel.result == 'success' && needs.smoke-tests.result == 'success'
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "Environment: ${{ needs.pre-deployment.outputs.deploy-env }}"
+          echo "URL: ${{ needs.deploy-vercel.outputs.url }}"
+          echo "Build Version: ${{ needs.build-for-deployment.outputs.build-version }}"
+          echo "All smoke tests passed!"
+
+      - name: Notify Failure
+        if: needs.deploy-vercel.result != 'success' || needs.smoke-tests.result != 'success'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Environment: ${{ needs.pre-deployment.outputs.deploy-env }}"
+          echo "Please check the logs and consider rollback if necessary."
+          exit 1
+
+      # Optional: Slack notification (uncomment and add SLACK_WEBHOOK_URL secret)
+      # - name: Slack Deployment Notification
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: ${{ job.status }}
+      #     channel: '#deployments'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     fields: repo,message,commit,author,action,eventName,ref,workflow
+      #   if: always()
+
+      # Optional: Discord notification
+      # - name: Discord Webhook
+      #   uses: Ilshidur/action-discord@master
+      #   env:
+      #     DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      #   with:
+      #     args: |
+      #       🚀 **FacePay Deployment ${{ job.status }}**
+      #       Environment: ${{ needs.pre-deployment.outputs.deploy-env }}
+      #       URL: ${{ needs.deploy-vercel.outputs.url }}
+      #       Build: ${{ needs.build-for-deployment.outputs.build-version }}

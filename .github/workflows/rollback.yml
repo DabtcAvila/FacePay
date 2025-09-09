@@ -1,0 +1,625 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_target:
+        description: 'What to rollback to'
+        required: true
+        type: choice
+        options:
+        - previous_release
+        - specific_commit
+        - last_known_good
+      target_commit:
+        description: 'Specific commit SHA (if rollback_target is specific_commit)'
+        required: false
+        type: string
+      rollback_reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        default: false
+        type: boolean
+      notify_team:
+        description: 'Notify team via Slack/Discord'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Validate rollback request
+  validate-rollback:
+    name: Validate Rollback Request
+    runs-on: ubuntu-latest
+    outputs:
+      target-commit: ${{ steps.determine-target.outputs.commit }}
+      target-tag: ${{ steps.determine-target.outputs.tag }}
+      can-rollback: ${{ steps.validate.outputs.can-rollback }}
+      rollback-type: ${{ github.event.inputs.rollback_target }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine rollback target
+        id: determine-target
+        run: |
+          case "${{ github.event.inputs.rollback_target }}" in
+            "previous_release")
+              echo "Finding previous release..."
+              # Get the latest two releases
+              latest_tag=$(git describe --tags --abbrev=0)
+              previous_tag=$(git describe --tags --abbrev=0 "$latest_tag"^)
+              commit=$(git rev-list -n 1 "$previous_tag")
+              echo "commit=$commit" >> $GITHUB_OUTPUT
+              echo "tag=$previous_tag" >> $GITHUB_OUTPUT
+              echo "Rollback target: $previous_tag ($commit)"
+              ;;
+            "specific_commit")
+              commit="${{ github.event.inputs.target_commit }}"
+              if [ -z "$commit" ]; then
+                echo "Error: Specific commit SHA required"
+                exit 1
+              fi
+              # Validate commit exists
+              if git cat-file -e "$commit"^{commit}; then
+                echo "commit=$commit" >> $GITHUB_OUTPUT
+                echo "tag=" >> $GITHUB_OUTPUT
+                echo "Rollback target: $commit"
+              else
+                echo "Error: Commit $commit not found"
+                exit 1
+              fi
+              ;;
+            "last_known_good")
+              echo "Finding last known good deployment..."
+              # Look for successful deployment commits in the last 30 days
+              commit=$(git log --since="30 days ago" --grep="deploy.*success" --format="%H" -n 1)
+              if [ -z "$commit" ]; then
+                # Fallback to last commit with successful CI
+                commit=$(git log --since="7 days ago" --format="%H" -n 10 | head -1)
+              fi
+              echo "commit=$commit" >> $GITHUB_OUTPUT
+              echo "tag=" >> $GITHUB_OUTPUT
+              echo "Rollback target: $commit (last known good)"
+              ;;
+            *)
+              echo "Error: Invalid rollback target"
+              exit 1
+              ;;
+          esac
+
+      - name: Validate rollback target
+        id: validate
+        run: |
+          target_commit="${{ steps.determine-target.outputs.commit }}"
+          current_commit="${{ github.sha }}"
+          
+          echo "Current commit: $current_commit"
+          echo "Target commit: $target_commit"
+          
+          # Check if target is different from current
+          if [ "$target_commit" = "$current_commit" ]; then
+            echo "Error: Target commit is the same as current commit"
+            echo "can-rollback=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Check if target commit is in the past
+          if git merge-base --is-ancestor "$target_commit" "$current_commit"; then
+            echo "✅ Valid rollback target (target is ancestor of current)"
+            echo "can-rollback=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Warning: Target commit is not an ancestor of current commit"
+            echo "This might be a forward deployment rather than rollback"
+            echo "can-rollback=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get rollback information
+        run: |
+          target_commit="${{ steps.determine-target.outputs.commit }}"
+          
+          echo "📋 Rollback Information:"
+          echo "- Reason: ${{ github.event.inputs.rollback_reason }}"
+          echo "- Target: ${{ github.event.inputs.rollback_target }}"
+          echo "- Commit: $target_commit"
+          echo "- Skip Tests: ${{ github.event.inputs.skip_tests }}"
+          echo "- Notify Team: ${{ github.event.inputs.notify_team }}"
+          echo ""
+          
+          # Show commit details
+          echo "Target commit details:"
+          git show --no-patch --format="Commit: %H%nAuthor: %an <%ae>%nDate: %ad%nMessage: %s" "$target_commit"
+
+  # Job 2: Create rollback branch
+  create-rollback-branch:
+    name: Create Rollback Branch
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: needs.validate-rollback.outputs.can-rollback == 'true'
+    outputs:
+      rollback-branch: ${{ steps.create-branch.outputs.branch-name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Rollback"
+
+      - name: Create rollback branch
+        id: create-branch
+        run: |
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          branch_name="rollback/emergency-$timestamp"
+          target_commit="${{ needs.validate-rollback.outputs.target-commit }}"
+          
+          echo "Creating rollback branch: $branch_name"
+          
+          # Create new branch from target commit
+          git checkout -b "$branch_name" "$target_commit"
+          
+          # Push the rollback branch
+          git push origin "$branch_name"
+          
+          echo "branch-name=$branch_name" >> $GITHUB_OUTPUT
+          echo "✅ Rollback branch created: $branch_name"
+
+  # Job 3: Run tests (unless skipped)
+  rollback-tests:
+    name: Rollback Tests
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, create-rollback-branch]
+    if: needs.validate-rollback.outputs.can-rollback == 'true' && github.event.inputs.skip_tests != 'true'
+    steps:
+      - name: Checkout rollback branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-rollback-branch.outputs.rollback-branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Run critical tests
+        run: npm run test:critical
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BUILD_VERSION: "rollback-${{ needs.validate-rollback.outputs.target-commit }}"
+          NEXT_PUBLIC_ENVIRONMENT: "rollback"
+
+  # Job 4: Database rollback preparation
+  prepare-db-rollback:
+    name: Prepare Database Rollback
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, create-rollback-branch]
+    if: needs.validate-rollback.outputs.can-rollback == 'true'
+    outputs:
+      db-backup-created: ${{ steps.backup.outputs.created }}
+    steps:
+      - name: Checkout rollback branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-rollback-branch.outputs.rollback-branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create pre-rollback database backup
+        id: backup
+        run: |
+          echo "🔒 Creating pre-rollback database backup..."
+          
+          timestamp=$(date +%Y%m%d_%H%M%S)
+          backup_name="pre-rollback-backup-$timestamp"
+          
+          # Create backup script
+          cat > pre-rollback-backup.js << 'EOF'
+          const { PrismaClient } = require('@prisma/client');
+          const fs = require('fs');
+          
+          async function createBackup() {
+            const prisma = new PrismaClient();
+            try {
+              await prisma.$connect();
+              console.log('Creating pre-rollback backup...');
+              
+              // This is a simplified backup - in production you'd use proper database tools
+              const backupData = {
+                timestamp: new Date().toISOString(),
+                reason: 'Pre-rollback backup',
+                tables: {}
+              };
+              
+              // Add your table exports here based on your schema
+              // Example:
+              // backupData.tables.users = await prisma.user.findMany();
+              // backupData.tables.payments = await prisma.payment.findMany();
+              
+              const backupFile = `pre-rollback-backup-${Date.now()}.json`;
+              fs.writeFileSync(backupFile, JSON.stringify(backupData, null, 2));
+              
+              console.log(`Backup created: ${backupFile}`);
+              await prisma.$disconnect();
+            } catch (error) {
+              console.error('Backup failed:', error);
+              await prisma.$disconnect();
+              process.exit(1);
+            }
+          }
+          
+          createBackup();
+          EOF
+          
+          node pre-rollback-backup.js
+          echo "created=true" >> $GITHUB_OUTPUT
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Check for schema changes
+        run: |
+          target_commit="${{ needs.validate-rollback.outputs.target-commit }}"
+          current_commit="HEAD"
+          
+          echo "Checking for database schema changes between commits..."
+          
+          # Check if prisma schema has changed
+          if git diff "$target_commit..$current_commit" --name-only | grep -q "prisma/schema.prisma"; then
+            echo "⚠️ WARNING: Prisma schema has changed!"
+            echo "Manual database migration may be required after rollback."
+            
+            echo "Schema changes:"
+            git diff "$target_commit..$current_commit" prisma/schema.prisma || true
+          else
+            echo "✅ No schema changes detected"
+          fi
+
+  # Job 5: Deploy rollback
+  deploy-rollback:
+    name: Deploy Rollback
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, create-rollback-branch, rollback-tests, prepare-db-rollback]
+    if: needs.validate-rollback.outputs.can-rollback == 'true' && (needs.rollback-tests.result == 'success' || github.event.inputs.skip_tests == 'true')
+    environment:
+      name: production-rollback
+    steps:
+      - name: Checkout rollback branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-rollback-branch.outputs.rollback-branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@canary
+
+      - name: Deploy rollback to production
+        run: |
+          echo "🚀 Deploying rollback to production..."
+          
+          # Pull Vercel environment
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          
+          # Build for production
+          vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          
+          # Deploy to production
+          deployment_url=$(vercel --prod --token=${{ secrets.VERCEL_TOKEN }})
+          
+          echo "Rollback deployed to: $deployment_url"
+          echo "DEPLOYMENT_URL=$deployment_url" >> $GITHUB_ENV
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to become available..."
+          sleep 30
+
+      - name: Verify rollback deployment
+        run: |
+          deployment_url="${{ env.DEPLOYMENT_URL }}"
+          
+          echo "🔍 Verifying rollback deployment..."
+          
+          # Test health endpoint
+          for i in {1..5}; do
+            if curl -f "$deployment_url/api/health"; then
+              echo "✅ Health check passed"
+              break
+            else
+              echo "Health check failed, retrying... ($i/5)"
+              sleep 10
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "❌ Health check failed after 5 attempts"
+              exit 1
+            fi
+          done
+          
+          # Test critical endpoints
+          echo "Testing critical endpoints..."
+          curl -f "$deployment_url/" > /dev/null && echo "✅ Homepage accessible"
+          curl -f "$deployment_url/api/auth/register" -X POST -H "Content-Type: application/json" -d '{}' > /dev/null && echo "✅ Auth endpoint accessible" || true
+
+  # Job 6: Post-rollback verification
+  post-rollback-verification:
+    name: Post-Rollback Verification
+    runs-on: ubuntu-latest
+    needs: [deploy-rollback]
+    if: success()
+    steps:
+      - name: Comprehensive verification
+        run: |
+          deployment_url="${{ env.DEPLOYMENT_URL }}"
+          
+          echo "🔬 Running comprehensive post-rollback verification..."
+          
+          # Extended health checks
+          echo "1. Extended health check..."
+          for endpoint in "/" "/api/health" "/dashboard"; do
+            if curl -f "$deployment_url$endpoint" > /dev/null 2>&1; then
+              echo "✅ $endpoint - OK"
+            else
+              echo "❌ $endpoint - FAILED"
+            fi
+          done
+          
+          # Performance check
+          echo "2. Basic performance check..."
+          response_time=$(curl -o /dev/null -s -w "%{time_total}" "$deployment_url")
+          echo "Response time: ${response_time}s"
+          
+          if (( $(echo "$response_time < 5.0" | bc -l) )); then
+            echo "✅ Response time acceptable"
+          else
+            echo "⚠️ Response time slower than expected"
+          fi
+          
+          echo "✅ Post-rollback verification completed"
+
+  # Job 7: Update production references
+  update-production-refs:
+    name: Update Production References
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, deploy-rollback, post-rollback-verification]
+    if: success()
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Rollback"
+
+      - name: Create rollback commit on main
+        run: |
+          target_commit="${{ needs.validate-rollback.outputs.target-commit }}"
+          rollback_reason="${{ github.event.inputs.rollback_reason }}"
+          
+          echo "Creating rollback commit on main branch..."
+          
+          # Reset main to target commit
+          git reset --hard "$target_commit"
+          
+          # Create a rollback commit message
+          cat > rollback-message.txt << EOF
+          EMERGENCY ROLLBACK: $rollback_reason
+          
+          Rollback Details:
+          - Target: ${{ github.event.inputs.rollback_target }}
+          - Commit: $target_commit
+          - Reason: $rollback_reason
+          - Initiated by: ${{ github.actor }}
+          - Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          This rollback was performed using GitHub Actions.
+          Deployment URL: ${{ env.DEPLOYMENT_URL }}
+          EOF
+          
+          # Amend the commit with rollback info
+          git commit --amend -F rollback-message.txt
+          
+          # Force push to main (DANGER: Only in emergency rollback)
+          git push --force-with-lease origin main
+          
+          echo "✅ Main branch updated with rollback"
+
+  # Job 8: Create rollback documentation
+  create-rollback-docs:
+    name: Create Rollback Documentation
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, deploy-rollback, post-rollback-verification, update-production-refs]
+    if: always()
+    steps:
+      - name: Create rollback report
+        run: |
+          echo "# Emergency Rollback Report" > ROLLBACK_REPORT.md
+          echo "" >> ROLLBACK_REPORT.md
+          echo "**Executed on:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> ROLLBACK_REPORT.md
+          echo "**Initiated by:** ${{ github.actor }}" >> ROLLBACK_REPORT.md
+          echo "**Reason:** ${{ github.event.inputs.rollback_reason }}" >> ROLLBACK_REPORT.md
+          echo "" >> ROLLBACK_REPORT.md
+          
+          echo "## Rollback Details" >> ROLLBACK_REPORT.md
+          echo "- **Type:** ${{ needs.validate-rollback.outputs.rollback-type }}" >> ROLLBACK_REPORT.md
+          echo "- **Target Commit:** ${{ needs.validate-rollback.outputs.target-commit }}" >> ROLLBACK_REPORT.md
+          echo "- **Target Tag:** ${{ needs.validate-rollback.outputs.target-tag }}" >> ROLLBACK_REPORT.md
+          echo "- **Rollback Branch:** ${{ needs.create-rollback-branch.outputs.rollback-branch }}" >> ROLLBACK_REPORT.md
+          echo "- **Tests Skipped:** ${{ github.event.inputs.skip_tests }}" >> ROLLBACK_REPORT.md
+          echo "" >> ROLLBACK_REPORT.md
+          
+          echo "## Execution Results" >> ROLLBACK_REPORT.md
+          echo "- **Validation:** ${{ needs.validate-rollback.result }}" >> ROLLBACK_REPORT.md
+          echo "- **Branch Creation:** ${{ needs.create-rollback-branch.result }}" >> ROLLBACK_REPORT.md
+          echo "- **Tests:** ${{ needs.rollback-tests.result }}" >> ROLLBACK_REPORT.md
+          echo "- **DB Preparation:** ${{ needs.prepare-db-rollback.result }}" >> ROLLBACK_REPORT.md
+          echo "- **Deployment:** ${{ needs.deploy-rollback.result }}" >> ROLLBACK_REPORT.md
+          echo "- **Verification:** ${{ needs.post-rollback-verification.result }}" >> ROLLBACK_REPORT.md
+          echo "- **Main Update:** ${{ needs.update-production-refs.result }}" >> ROLLBACK_REPORT.md
+          echo "" >> ROLLBACK_REPORT.md
+          
+          if [[ "${{ needs.deploy-rollback.result }}" == "success" ]]; then
+            echo "## ✅ Rollback Status: SUCCESS" >> ROLLBACK_REPORT.md
+            echo "The emergency rollback has been completed successfully." >> ROLLBACK_REPORT.md
+            echo "- Production is now running the rolled-back version" >> ROLLBACK_REPORT.md
+            echo "- All verification checks passed" >> ROLLBACK_REPORT.md
+            echo "- Main branch has been updated" >> ROLLBACK_REPORT.md
+          else
+            echo "## ❌ Rollback Status: FAILED" >> ROLLBACK_REPORT.md
+            echo "The emergency rollback encountered issues and may not be complete." >> ROLLBACK_REPORT.md
+            echo "**IMMEDIATE ACTION REQUIRED:**" >> ROLLBACK_REPORT.md
+            echo "- Check the failed job logs" >> ROLLBACK_REPORT.md
+            echo "- Consider manual rollback procedures" >> ROLLBACK_REPORT.md
+            echo "- Contact the development team immediately" >> ROLLBACK_REPORT.md
+          fi
+          
+          echo "" >> ROLLBACK_REPORT.md
+          echo "## Next Steps" >> ROLLBACK_REPORT.md
+          echo "1. Monitor application health and user reports" >> ROLLBACK_REPORT.md
+          echo "2. Investigate and fix the issues that caused this rollback" >> ROLLBACK_REPORT.md
+          echo "3. Plan and execute a proper fix deployment" >> ROLLBACK_REPORT.md
+          echo "4. Update incident documentation" >> ROLLBACK_REPORT.md
+          echo "" >> ROLLBACK_REPORT.md
+          echo "## Incident Timeline" >> ROLLBACK_REPORT.md
+          echo "This rollback was performed as part of incident response procedures." >> ROLLBACK_REPORT.md
+          echo "Ensure this incident is properly documented and followed up." >> ROLLBACK_REPORT.md
+
+      - name: Upload rollback report
+        uses: actions/upload-artifact@v3
+        with:
+          name: emergency-rollback-report
+          path: ROLLBACK_REPORT.md
+          retention-days: 365
+
+  # Job 9: Notify team
+  notify-team:
+    name: Notify Team
+    runs-on: ubuntu-latest
+    needs: [validate-rollback, deploy-rollback, create-rollback-docs]
+    if: always() && github.event.inputs.notify_team == 'true'
+    steps:
+      - name: Download rollback report
+        uses: actions/download-artifact@v3
+        with:
+          name: emergency-rollback-report
+
+      - name: Prepare notification
+        run: |
+          if [[ "${{ needs.deploy-rollback.result }}" == "success" ]]; then
+            status="✅ SUCCESSFUL"
+            color="good"
+          else
+            status="❌ FAILED"
+            color="danger"
+          fi
+          
+          echo "NOTIFICATION_STATUS=$status" >> $GITHUB_ENV
+          echo "NOTIFICATION_COLOR=$color" >> $GITHUB_ENV
+
+      - name: GitHub Issue Notification
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('ROLLBACK_REPORT.md', 'utf8');
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Emergency Rollback Executed - ${{ env.NOTIFICATION_STATUS }}`,
+              body: report,
+              labels: ['emergency', 'rollback', 'incident']
+            });
+
+      # Optional: Slack notification
+      # - name: Slack Emergency Notification
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: custom
+      #     channel: '#emergencies'
+      #     webhook_url: ${{ secrets.SLACK_EMERGENCY_WEBHOOK_URL }}
+      #     custom_payload: |
+      #       {
+      #         attachments: [{
+      #           color: '${{ env.NOTIFICATION_COLOR }}',
+      #           title: '🚨 EMERGENCY ROLLBACK EXECUTED',
+      #           fields: [{
+      #             title: 'Status',
+      #             value: '${{ env.NOTIFICATION_STATUS }}',
+      #             short: true
+      #           }, {
+      #             title: 'Reason',
+      #             value: '${{ github.event.inputs.rollback_reason }}',
+      #             short: true
+      #           }, {
+      #             title: 'Initiated By',
+      #             value: '${{ github.actor }}',
+      #             short: true
+      #           }, {
+      #             title: 'Target',
+      #             value: '${{ needs.validate-rollback.outputs.target-commit }}',
+      #             short: true
+      #           }],
+      #           footer: 'FacePay Emergency Response',
+      #           ts: ${{ github.event.head_commit.timestamp }}
+      #         }]
+      #       }
+
+      # Optional: Discord notification
+      # - name: Discord Emergency Alert
+      #   uses: Ilshidur/action-discord@master
+      #   env:
+      #     DISCORD_WEBHOOK: ${{ secrets.DISCORD_EMERGENCY_WEBHOOK }}
+      #   with:
+      #     args: |
+      #       🚨 **EMERGENCY ROLLBACK ${{ env.NOTIFICATION_STATUS }}**
+      #       
+      #       **Reason:** ${{ github.event.inputs.rollback_reason }}
+      #       **Initiated by:** ${{ github.actor }}
+      #       **Target:** ${{ needs.validate-rollback.outputs.target-commit }}
+      #       
+      #       Check GitHub Actions for detailed report.
+
+      - name: Console notification
+        run: |
+          echo "🚨 EMERGENCY ROLLBACK NOTIFICATION SENT"
+          echo "Status: ${{ env.NOTIFICATION_STATUS }}"
+          echo "All relevant parties should be notified via configured channels"

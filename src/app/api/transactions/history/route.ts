@@ -251,7 +251,7 @@ async function generateAnalytics(userId: string, baseWhere: any) {
     }, {} as Record<string, any>)
 
     // Calculate totals
-    const totalAmount = statusBreakdown.reduce((sum, item) => sum + (item._sum.amount || 0), 0)
+    const totalAmount = statusBreakdown.reduce((sum, item) => sum + Number(item._sum.amount || 0), 0)
     const completedAmount = statusBreakdown.find(item => item.status === 'completed')?._sum.amount || 0
     const refundedAmount = statusBreakdown.find(item => item.status === 'refunded')?._sum.amount || 0
 
@@ -259,14 +259,14 @@ async function generateAnalytics(userId: string, baseWhere: any) {
       summary: {
         totalTransactions,
         totalAmount,
-        completedAmount,
-        refundedAmount,
-        netAmount: completedAmount - refundedAmount,
+        completedAmount: Number(completedAmount || 0),
+        refundedAmount: Number(refundedAmount || 0),
+        netAmount: Number(completedAmount || 0) - Number(refundedAmount || 0),
       },
       statusBreakdown: statusBreakdown.map(item => ({
         status: item.status,
         count: item._count.id,
-        totalAmount: item._sum.amount || 0,
+        totalAmount: Number(item._sum.amount || 0),
       })),
       paymentMethodBreakdown: paymentMethodBreakdown.map(item => {
         const method = paymentMethods.find(pm => pm.id === item.paymentMethodId)
@@ -275,7 +275,7 @@ async function generateAnalytics(userId: string, baseWhere: any) {
           type: method?.type || 'unknown',
           provider: method?.provider || 'unknown',
           count: item._count.id,
-          totalAmount: item._sum.amount || 0,
+          totalAmount: Number(item._sum.amount || 0),
         }
       }),
       monthlyBreakdown: Object.entries(monthlyBreakdown)

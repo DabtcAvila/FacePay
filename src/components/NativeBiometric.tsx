@@ -1,5 +1,9 @@
 'use client';
 
+// DEPRECATED: This component is deprecated. Use BiometricWithFallback with preferredMethod="biometric" instead.
+// BiometricWithFallback provides the same native biometric functionality plus intelligent fallbacks.
+// This component is kept for backward compatibility only.
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 

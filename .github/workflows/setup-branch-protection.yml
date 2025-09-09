@@ -1,0 +1,407 @@
+name: Setup Branch Protection Rules
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_changes:
+        description: 'Apply changes to branch protection (set to true to execute)'
+        required: true
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Show what would be applied without making changes'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  setup-protection:
+    name: Configure Branch Protection
+    runs-on: ubuntu-latest
+    if: github.actor == 'Davicho' || github.actor == 'admin' # Restrict to authorized users
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup branch protection rules
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const dryRun = ${{ github.event.inputs.dry_run }};
+            const applyChanges = ${{ github.event.inputs.apply_changes }};
+            
+            if (!applyChanges && !dryRun) {
+              console.log('No action taken. Set apply_changes to true or dry_run to true.');
+              return;
+            }
+            
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Define branch protection rules
+            const protectionRules = {
+              main: {
+                required_status_checks: {
+                  strict: true,
+                  contexts: [
+                    'CI - Tests, Lint & Type Check / Quality Gate',
+                    'Security Analysis (SAST) / Security Summary',
+                    'Code Coverage & Quality Metrics / Coverage Quality Gates'
+                  ]
+                },
+                enforce_admins: false, // Allow admins to bypass for emergency situations
+                required_pull_request_reviews: {
+                  required_approving_review_count: 2,
+                  dismiss_stale_reviews: true,
+                  require_code_owner_reviews: true,
+                  require_last_push_approval: true,
+                  bypass_pull_request_allowances: {
+                    users: ['Davicho'] // Repository owner can bypass for emergencies
+                  }
+                },
+                restrictions: null, // No push restrictions, but PRs are required
+                required_linear_history: true,
+                allow_force_pushes: false,
+                allow_deletions: false,
+                block_creations: false,
+                required_conversation_resolution: true,
+                lock_branch: false,
+                allow_fork_syncing: true
+              },
+              develop: {
+                required_status_checks: {
+                  strict: true,
+                  contexts: [
+                    'CI - Tests, Lint & Type Check / Quality Gate'
+                  ]
+                },
+                enforce_admins: false,
+                required_pull_request_reviews: {
+                  required_approving_review_count: 1,
+                  dismiss_stale_reviews: true,
+                  require_code_owner_reviews: false,
+                  require_last_push_approval: false
+                },
+                restrictions: null,
+                required_linear_history: false,
+                allow_force_pushes: false,
+                allow_deletions: false,
+                block_creations: false,
+                required_conversation_resolution: true,
+                lock_branch: false,
+                allow_fork_syncing: true
+              }
+            };
+            
+            // Apply protection rules
+            for (const [branch, rules] of Object.entries(protectionRules)) {
+              console.log(`\n${dryRun ? '[DRY RUN] ' : ''}Configuring protection for branch: ${branch}`);
+              
+              try {
+                if (dryRun) {
+                  console.log('Would apply the following rules:');
+                  console.log(JSON.stringify(rules, null, 2));
+                } else {
+                  const response = await github.rest.repos.updateBranchProtection({
+                    owner,
+                    repo,
+                    branch,
+                    ...rules
+                  });
+                  console.log(`✅ Protection rules applied successfully for ${branch}`);
+                }
+              } catch (error) {
+                if (error.status === 404) {
+                  console.log(`⚠️ Branch ${branch} not found. Skipping protection rules.`);
+                } else {
+                  console.error(`❌ Error applying protection to ${branch}:`, error.message);
+                }
+              }
+            }
+            
+            // Create CODEOWNERS file if it doesn't exist
+            const codeownersPath = '.github/CODEOWNERS';
+            const codeownersContent = `# Global code owners
+            * @Davicho
+            
+            # API routes require security review
+            /src/app/api/ @Davicho
+            
+            # Database schema changes require careful review
+            /prisma/ @Davicho
+            
+            # CI/CD workflows require admin approval
+            /.github/workflows/ @Davicho
+            
+            # Security-related files
+            /src/lib/auth-middleware.ts @Davicho
+            /src/lib/encryption.ts @Davicho
+            /src/lib/jwt.ts @Davicho
+            /src/lib/security-logger.ts @Davicho
+            /src/middleware/security.ts @Davicho
+            
+            # WebAuthn and biometric authentication
+            /src/services/webauthn.ts @Davicho
+            /src/components/*Biometric* @Davicho
+            /src/components/WebAuthn* @Davicho
+            
+            # Payment processing
+            /src/services/payments.ts @Davicho
+            /src/app/api/payments/ @Davicho
+            /src/app/api/transactions/ @Davicho
+            
+            # Configuration files
+            /package.json @Davicho
+            /next.config.js @Davicho
+            /tailwind.config.js @Davicho
+            /tsconfig.json @Davicho
+            `;
+            
+            try {
+              if (dryRun) {
+                console.log('\n[DRY RUN] Would create/update CODEOWNERS file with:');
+                console.log(codeownersContent);
+              } else {
+                // Check if CODEOWNERS exists
+                let existingContent = '';
+                try {
+                  const { data } = await github.rest.repos.getContent({
+                    owner,
+                    repo,
+                    path: codeownersPath
+                  });
+                  existingContent = Buffer.from(data.content, 'base64').toString();
+                } catch (error) {
+                  if (error.status !== 404) {
+                    throw error;
+                  }
+                }
+                
+                if (existingContent !== codeownersContent) {
+                  const createOrUpdate = existingContent ? 'updateFile' : 'createOrUpdateFileContents';
+                  await github.rest.repos[createOrUpdate]({
+                    owner,
+                    repo,
+                    path: codeownersPath,
+                    message: 'chore: setup/update CODEOWNERS file for branch protection',
+                    content: Buffer.from(codeownersContent).toString('base64'),
+                    ...(existingContent && { sha: (await github.rest.repos.getContent({ owner, repo, path: codeownersPath })).data.sha })
+                  });
+                  console.log('✅ CODEOWNERS file created/updated successfully');
+                } else {
+                  console.log('ℹ️ CODEOWNERS file is already up to date');
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error creating/updating CODEOWNERS file:', error.message);
+            }
+            
+            // Setup repository settings
+            const repoSettings = {
+              allow_merge_commit: false, // Require PR merges to use squash or rebase
+              allow_squash_merge: true,
+              allow_rebase_merge: true,
+              allow_auto_merge: true, // Allow auto-merge when all checks pass
+              delete_branch_on_merge: true, // Automatically delete feature branches
+              allow_update_branch: true, // Allow updating PR branches
+              use_squash_pr_title_as_default: true,
+              squash_merge_commit_title: 'PR_TITLE',
+              squash_merge_commit_message: 'COMMIT_MESSAGES',
+              merge_commit_title: 'PR_TITLE',
+              merge_commit_message: 'PR_BODY'
+            };
+            
+            try {
+              if (dryRun) {
+                console.log('\n[DRY RUN] Would update repository settings:');
+                console.log(JSON.stringify(repoSettings, null, 2));
+              } else {
+                await github.rest.repos.update({
+                  owner,
+                  repo,
+                  ...repoSettings
+                });
+                console.log('✅ Repository settings updated successfully');
+              }
+            } catch (error) {
+              console.error('❌ Error updating repository settings:', error.message);
+            }
+            
+            // Summary
+            console.log('\n📋 Branch Protection Setup Summary:');
+            console.log('✅ Main branch: Strict protection with required reviews and status checks');
+            console.log('✅ Develop branch: Moderate protection for development workflow');
+            console.log('✅ CODEOWNERS file: Defines code review requirements by file type');
+            console.log('✅ Repository settings: Optimized for secure collaboration');
+            
+            if (dryRun) {
+              console.log('\n⚠️ This was a dry run. No actual changes were made.');
+              console.log('Set apply_changes to true to apply these configurations.');
+            }
+
+      - name: Create branch protection documentation
+        run: |
+          cat > BRANCH_PROTECTION_GUIDE.md << 'EOF'
+          # Branch Protection Guide
+          
+          This document explains the branch protection rules and workflow requirements for the FacePay repository.
+          
+          ## Protected Branches
+          
+          ### Main Branch (`main`)
+          - **Purpose**: Production-ready code
+          - **Protection Level**: Maximum
+          - **Requirements**:
+            - ✅ 2+ approving reviews required
+            - ✅ Dismiss stale reviews when new commits are pushed
+            - ✅ Code owner review required
+            - ✅ All status checks must pass:
+              - CI tests, linting, and type checking
+              - Security analysis (SAST)
+              - Code coverage quality gates
+            - ✅ Conversation resolution required
+            - ✅ Linear history enforced
+            - ❌ Force pushes blocked
+            - ❌ Deletions blocked
+          
+          ### Develop Branch (`develop`)
+          - **Purpose**: Integration branch for feature development
+          - **Protection Level**: Moderate
+          - **Requirements**:
+            - ✅ 1+ approving review required
+            - ✅ Dismiss stale reviews when new commits are pushed
+            - ✅ CI tests must pass
+            - ✅ Conversation resolution required
+            - ❌ Force pushes blocked
+            - ❌ Deletions blocked
+          
+          ## Workflow Requirements
+          
+          ### Pull Request Process
+          1. **Create Feature Branch**: Branch from `develop` using naming convention:
+             - `feature/description`
+             - `bugfix/description`
+             - `hotfix/description`
+          
+          2. **Development**: Make changes and commit with conventional commit messages:
+             - `feat: add new feature`
+             - `fix: resolve bug`
+             - `docs: update documentation`
+             - `test: add tests`
+             - `chore: maintenance tasks`
+          
+          3. **Create Pull Request**: 
+             - Target appropriate branch (`develop` for features, `main` for hotfixes)
+             - Fill out PR template completely
+             - Assign relevant reviewers
+          
+          4. **Code Review**: Address reviewer feedback and resolve conversations
+          
+          5. **Status Checks**: Ensure all automated checks pass
+          
+          6. **Merge**: Use squash merge to maintain clean history
+          
+          ### Emergency Procedures
+          
+          #### Hotfix to Production
+          1. Create hotfix branch from `main`
+          2. Make minimal necessary changes
+          3. Create PR to `main` with "hotfix" label
+          4. Get emergency approval (admin can bypass if critical)
+          5. After merge, create PR to merge `main` back to `develop`
+          
+          #### Emergency Rollback
+          - Use the Emergency Rollback workflow in GitHub Actions
+          - Admin privileges allow bypassing protection for critical situations
+          - Document all emergency actions in incident reports
+          
+          ## Code Owner Requirements
+          
+          Certain files require approval from designated code owners:
+          
+          - **API Routes** (`/src/app/api/`): Security-sensitive endpoints
+          - **Database Schema** (`/prisma/`): Schema changes affect data integrity
+          - **CI/CD Workflows** (`/.github/workflows/`): Infrastructure changes
+          - **Security Files**: Authentication, encryption, middleware
+          - **Payment Processing**: Financial transaction handling
+          
+          ## Best Practices
+          
+          ### For Developers
+          - Keep PRs focused and reasonably sized
+          - Write descriptive commit messages
+          - Add tests for new features
+          - Update documentation as needed
+          - Respond promptly to review feedback
+          
+          ### For Reviewers
+          - Review for functionality, security, and maintainability
+          - Test changes locally when possible
+          - Check for proper error handling
+          - Ensure tests are adequate
+          - Verify documentation updates
+          
+          ### For Repository Maintenance
+          - Regularly update dependencies via Dependabot PRs
+          - Monitor security alerts and address promptly
+          - Keep branch protection rules current
+          - Review and update code owner assignments
+          
+          ## Troubleshooting
+          
+          ### Common Issues
+          
+          **"Required status check is failing"**
+          - Check CI workflow logs
+          - Fix failing tests or linting issues
+          - Ensure all required checks are configured
+          
+          **"Review required"**
+          - Request review from team members
+          - Ensure code owners have reviewed if required
+          - Address reviewer feedback
+          
+          **"Conversations not resolved"**
+          - Reply to all reviewer comments
+          - Mark conversations as resolved after addressing
+          
+          ### Getting Help
+          
+          - Check workflow logs in GitHub Actions
+          - Review this documentation
+          - Ask for help in team channels
+          - Contact repository administrators for urgent issues
+          
+          ## Repository Settings
+          
+          The repository is configured with these optimal settings:
+          - **Merge Strategy**: Squash and merge (keeps clean history)
+          - **Auto-delete Branches**: Feature branches are automatically cleaned up
+          - **Auto-merge**: PRs can be set to merge automatically when checks pass
+          - **Branch Updates**: PR branches can be updated with latest changes
+          
+          ---
+          
+          *This guide is maintained automatically. Last updated: $(date)*
+          EOF
+
+      - name: Upload branch protection documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: branch-protection-guide
+          path: BRANCH_PROTECTION_GUIDE.md
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "🛡️ Branch Protection Setup Complete!"
+          echo ""
+          echo "Applied configurations:"
+          echo "- Main branch: Maximum protection with required reviews"
+          echo "- Develop branch: Moderate protection for development"
+          echo "- CODEOWNERS: File-specific review requirements"
+          echo "- Repository settings: Optimized for secure collaboration"
+          echo ""
+          echo "📖 Documentation created: BRANCH_PROTECTION_GUIDE.md"
+          echo "🔍 For troubleshooting, check the workflow logs and documentation"

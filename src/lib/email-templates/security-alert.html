@@ -1,0 +1,84 @@
+{{#> base}}
+{{#*inline "content"}}
+<h1 style="color: #dc2626; text-align: center; margin-bottom: 30px;">🔒 Security Alert</h1>
+
+<p>Dear {{customerName}},</p>
+
+<p><strong>We detected unusual activity on your FacePay account.</strong> As part of our commitment to keeping your account secure, we're notifying you of this event.</p>
+
+<div class="highlight" style="background-color: #fef2f2; border-left-color: #dc2626;">
+    <h3 style="margin-top: 0; color: #dc2626;">Security Event Details</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Alert Type:</td>
+            <td style="padding: 8px 0; text-align: right; color: #dc2626;">{{alertType}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Date & Time:</td>
+            <td style="padding: 8px 0; text-align: right;">{{datetime}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">IP Address:</td>
+            <td style="padding: 8px 0; text-align: right; font-family: monospace;">{{ipAddress}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Location:</td>
+            <td style="padding: 8px 0; text-align: right;">{{location}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Device:</td>
+            <td style="padding: 8px 0; text-align: right;">{{device}}</td>
+        </tr>
+    </table>
+</div>
+
+{{#if wasYou}}
+<div style="background-color: #f0fdf4; padding: 15px; border-radius: 5px; border-left: 4px solid #059669;">
+    <h4 style="margin-top: 0; color: #059669;">Was This You?</h4>
+    <p style="margin-bottom: 0;">If you recognize this activity, no further action is needed. Your account remains secure.</p>
+</div>
+{{else}}
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; border-left: 4px solid: #dc2626;">
+    <h4 style="margin-top: 0; color: #dc2626;">If This Wasn't You</h4>
+    <p>Please take immediate action to secure your account:</p>
+    <ol style="margin-bottom: 0;">
+        <li>Change your password immediately</li>
+        <li>Review your recent account activity</li>
+        <li>Check your biometric settings</li>
+        <li>Contact our security team if needed</li>
+    </ol>
+</div>
+{{/if}}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{securityCenterUrl}}" class="button" style="background-color: #dc2626;">Review Security Settings</a>
+    <a href="{{accountUrl}}" class="button" style="background-color: #6b7280; margin-left: 10px;">View Account Activity</a>
+</div>
+
+<div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; border: 1px solid #e2e8f0;">
+    <h4 style="margin-top: 0;">Security Tips</h4>
+    <ul style="margin-bottom: 0; font-size: 14px;">
+        <li>Always log out from public or shared devices</li>
+        <li>Keep your Face ID data updated and secure</li>
+        <li>Never share your account credentials</li>
+        <li>Enable all available security features</li>
+        <li>Report suspicious activity immediately</li>
+    </ul>
+</div>
+
+<p>We take security seriously at FacePay. Our advanced biometric authentication and monitoring systems work around the clock to protect your account.</p>
+
+<p>Stay secure,<br>
+The FacePay Security Team</p>
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<p style="font-size: 12px; color: #6b7280;">
+    <strong>Need Immediate Help?</strong><br>
+    If you believe your account has been compromised, please contact our 24/7 security hotline immediately:<br>
+    📞 <a href="tel:{{securityHotline}}">{{securityHotline}}</a><br>
+    📧 <a href="mailto:{{securityEmail}}">{{securityEmail}}</a><br>
+    🌐 <a href="{{emergencyUrl}}">Emergency Support Center</a>
+</p>
+{{/inline}}
+{{/base}}

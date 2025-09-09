@@ -1,0 +1,167 @@
+version: 2
+
+updates:
+  # Enable version updates for npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "Davicho"
+    assignees:
+      - "Davicho"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+    versioning-strategy: increase
+    allow:
+      # Allow updates for all dependencies
+      - dependency-type: "all"
+    ignore:
+      # Ignore major version updates for critical dependencies
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # Group React ecosystem updates
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      # Group testing dependencies
+      testing:
+        patterns:
+          - "@testing-library/*"
+          - "jest*"
+          - "@types/jest"
+          - "supertest"
+          - "@types/supertest"
+      # Group ESLint and Prettier
+      linting:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+          - "@typescript-eslint/*"
+      # Group TypeScript
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+        exclude-patterns:
+          - "@types/react*"
+      # Group Prisma
+      database:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
+      # Group authentication
+      auth:
+        patterns:
+          - "next-auth*"
+          - "@next-auth/*"
+          - "jsonwebtoken"
+          - "@types/jsonwebtoken"
+          - "bcryptjs"
+          - "@types/bcryptjs"
+      # Group WebAuthn
+      webauthn:
+        patterns:
+          - "@simplewebauthn/*"
+      # Group payment processing
+      payments:
+        patterns:
+          - "stripe"
+          - "@types/stripe"
+      # Group blockchain
+      blockchain:
+        patterns:
+          - "ethers"
+          - "web3"
+          - "@metamask/*"
+      # Group UI components
+      ui:
+        patterns:
+          - "@radix-ui/*"
+          - "lucide-react"
+          - "framer-motion"
+          - "class-variance-authority"
+          - "clsx"
+          - "tailwind*"
+      # Group build tools
+      build:
+        patterns:
+          - "postcss*"
+          - "autoprefixer"
+          - "@next/*"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "Davicho"
+    assignees:
+      - "Davicho"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "github-actions"
+      - "ci/cd"
+    groups:
+      # Group common actions updates
+      actions:
+        patterns:
+          - "actions/*"
+        exclude-patterns:
+          - "actions/checkout"
+      # Group setup actions
+      setup:
+        patterns:
+          - "*/setup-*"
+      # Group security actions
+      security:
+        patterns:
+          - "*security*"
+          - "*codeql*"
+          - "trufflesecurity/*"
+          - "aquasecurity/*"
+
+  # Enable version updates for Docker (if using Docker in the future)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "Davicho"
+    assignees:
+      - "Davicho"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "docker"
+      - "infrastructure"

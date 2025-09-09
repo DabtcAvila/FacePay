@@ -1,5 +1,8 @@
 'use client';
 
+// Optimized and unified WebAuthn service for biometric authentication
+// This service has been cleaned and consolidated from multiple implementations
+
 // Core types
 export interface BiometricCapabilities {
   isSupported: boolean
@@ -270,7 +273,7 @@ export class WebAuthnService {
   }
 
   /**
-   * Validate biometric authentication result - simplified for compatibility
+   * Validate biometric authentication result
    */
   static validateBiometricAuthentication(authInfo: any, deviceInfo?: any): { isValid: boolean; reason?: string } {
     if (!authInfo || !authInfo.userVerified) {
@@ -284,7 +287,7 @@ export class WebAuthnService {
   }
 
   /**
-   * Analyze biometric authentication - simplified for compatibility
+   * Analyze biometric authentication
    */
   static analyzeBiometricAuthentication(authInfo: any, deviceInfo?: any): any {
     return {
@@ -296,7 +299,7 @@ export class WebAuthnService {
   }
 
   /**
-   * Log biometric authentication result - simplified for compatibility
+   * Log biometric authentication result
    */
   static logBiometricAuthenticationResult(analysis: any, userId: string, authResult: any): void {
     console.log('[WebAuthn Service] Biometric authentication completed:', {
@@ -306,5 +309,38 @@ export class WebAuthnService {
       deviceType: analysis?.deviceType || 'unknown',
       timestamp: new Date().toISOString()
     })
+  }
+
+  /**
+   * Get friendly biometric type name based on device capabilities
+   */
+  static getBiometricTypeName(capabilities: WebAuthnCapabilities): string {
+    if (capabilities.biometricTypes.includes('face')) {
+      return capabilities.deviceInfo.isIOS ? 'Face ID' : 'Face Recognition'
+    } else if (capabilities.biometricTypes.includes('fingerprint')) {
+      return capabilities.deviceInfo.isIOS ? 'Touch ID' : 
+             capabilities.deviceInfo.isWindows ? 'Windows Hello' : 'Fingerprint'
+    } else if (capabilities.deviceInfo.isWindows && capabilities.isPlatformAuthenticatorAvailable) {
+      return 'Windows Hello'
+    }
+    
+    return 'Biometric Authentication'
+  }
+
+  /**
+   * Get appropriate biometric icon for device
+   */
+  static getBiometricIcon(capabilities: WebAuthnCapabilities): string {
+    if (capabilities.biometricTypes.includes('face')) {
+      return '👤' // Face icon
+    } else if (capabilities.biometricTypes.includes('fingerprint')) {
+      return '👆' // Fingerprint icon
+    } else if (capabilities.deviceInfo.isMobile) {
+      return '📱' // Mobile device icon
+    } else if (capabilities.deviceInfo.isWindows) {
+      return '🔐' // Windows Hello icon
+    }
+    
+    return '🛡️' // Generic security icon
   }
 }

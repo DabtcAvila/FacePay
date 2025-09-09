@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
+import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
+import { strictSecurity } from '@/middleware/security'
+import { validateUpdateProfile } from '@/middleware/validation'
+import { requireAuth, hasPermission } from '@/middleware/auth'
+import { logSuspiciousActivity, SecuritySeverity, analyzeThreatLevel } from '@/lib/security-logger'
 import { z } from 'zod'
 
-const updateProfileSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
-  email: z.string().email('Invalid email address').optional(),
-})
-
-export async function GET(request: NextRequest) {
+async function getProfileHandler(request: NextRequest) {
   try {
     const auth = await requireAuth(request)
     if (auth.error) return auth.error
+
+    // Check permissions
+    if (!hasPermission(auth.user, 'read:own_profile')) {
+      logSuspiciousActivity(request, 'Unauthorized profile access attempt', auth.user.userId, SecuritySeverity.MEDIUM)
+      return createErrorResponse('Insufficient permissions', 403)
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: auth.user.userId },
@@ -59,13 +64,29 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+async function updateProfileHandler(request: NextRequest) {
   try {
     const auth = await requireAuth(request)
     if (auth.error) return auth.error
 
-    const body = await request.json()
-    const { name, email } = updateProfileSchema.parse(body)
+    // Check permissions
+    if (!hasPermission(auth.user, 'update:own_profile')) {
+      logSuspiciousActivity(request, 'Unauthorized profile update attempt', auth.user.userId, SecuritySeverity.MEDIUM)
+      return createErrorResponse('Insufficient permissions', 403)
+    }
+
+    // Analyze request for threats
+    const threatAnalysis = analyzeThreatLevel(request)
+    if (threatAnalysis.shouldBlock) {
+      logSuspiciousActivity(request, 'Profile update blocked due to security threats', auth.user.userId, SecuritySeverity.HIGH)
+      return createErrorResponse('Request blocked due to security concerns', 403)
+    }
+
+    // Validate update data
+    const validation = await validateUpdateProfile(request)
+    if (validation.error) return validation.error
+    
+    const { name, email } = validation.data
 
     // Check if email is already taken by another user
     if (email) {
@@ -110,10 +131,26 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function deleteProfileHandler(request: NextRequest) {
+  let auth: any = null;
   try {
-    const auth = await requireAuth(request)
+    auth = await requireAuth(request)
     if (auth.error) return auth.error
+
+    // Check permissions
+    if (!hasPermission(auth.user, 'delete:own_account')) {
+      logSuspiciousActivity(request, 'Unauthorized account deletion attempt', auth.user.userId, SecuritySeverity.HIGH)
+      return createErrorResponse('Insufficient permissions', 403)
+    }
+
+    // Additional security: Require fresh authentication for account deletion
+    if (auth.user.needsRefresh) {
+      logSuspiciousActivity(request, 'Account deletion attempted with stale token', auth.user.userId, SecuritySeverity.HIGH)
+      return createErrorResponse('Fresh authentication required for account deletion', 401)
+    }
+
+    // Log the account deletion attempt
+    console.log(`[Security] Account deletion requested by user ${auth.user.userId}`)
 
     // Delete user and all related data (cascade)
     await prisma.user.delete({
@@ -124,6 +161,12 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     console.error('Delete account error:', error)
+    logSuspiciousActivity(request, 'Account deletion failed', auth?.user?.userId, SecuritySeverity.MEDIUM)
     return createErrorResponse('Internal server error', 500)
   }
 }
+
+// Apply security middleware and export handlers
+export const GET = strictSecurity(getProfileHandler)
+export const PUT = strictSecurity(updateProfileHandler)  
+export const DELETE = strictSecurity(deleteProfileHandler)

@@ -119,25 +119,25 @@ async function generateOverview(baseWhere: any, includeRefunds: boolean) {
     const refundAmount = isRefunded && metadata?.refund ? metadata.refund.refundAmount : 0
 
     acc.totalTransactions += 1
-    acc.totalAmount += transaction.amount
+    acc.totalAmount += Number(transaction.amount)
 
     switch (transaction.status) {
       case 'completed':
         acc.completedTransactions += 1
-        acc.completedAmount += transaction.amount
+        acc.completedAmount += Number(transaction.amount)
         break
       case 'pending':
         acc.pendingTransactions += 1
-        acc.pendingAmount += transaction.amount
+        acc.pendingAmount += Number(transaction.amount)
         break
       case 'failed':
         acc.failedTransactions += 1
         break
       case 'refunded':
         acc.refundedTransactions += 1
-        acc.refundedAmount += refundAmount || transaction.amount
+        acc.refundedAmount += refundAmount || Number(transaction.amount)
         if (includeRefunds) {
-          acc.netAmount -= (refundAmount || transaction.amount)
+          acc.netAmount -= (refundAmount || Number(transaction.amount))
         }
         break
     }
@@ -204,12 +204,12 @@ async function generateTimeSeries(baseWhere: any, granularity: string, startDate
       const refundAmount = t.status === 'refunded' && metadata?.refund ? metadata.refund.refundAmount : 0
 
       acc.total += 1
-      acc.totalAmount += t.amount
+      acc.totalAmount += Number(t.amount)
 
       switch (t.status) {
         case 'completed':
           acc.completed += 1
-          acc.completedAmount += t.amount
+          acc.completedAmount += Number(t.amount)
           break
         case 'pending':
           acc.pending += 1
@@ -219,7 +219,7 @@ async function generateTimeSeries(baseWhere: any, granularity: string, startDate
           break
         case 'refunded':
           acc.refunded += 1
-          acc.refundedAmount += refundAmount || t.amount
+          acc.refundedAmount += refundAmount || Number(t.amount)
           break
       }
 
@@ -330,9 +330,9 @@ async function generatePaymentMethodAnalytics(baseWhere: any) {
       provider: method?.provider || 'unknown',
       transactionCount: item._count.id,
       totalAmount: item._sum.amount || 0,
-      averageAmount: Math.round((item._avg.amount || 0) * 100) / 100,
+      averageAmount: Math.round((Number(item._avg.amount) || 0) * 100) / 100,
     }
-  }).sort((a, b) => b.totalAmount - a.totalAmount)
+  }).sort((a, b) => Number(b.totalAmount) - Number(a.totalAmount))
 }
 
 async function generateStatusAnalytics(baseWhere: any) {
@@ -386,7 +386,7 @@ async function generateFailureAnalytics(baseWhere: any) {
   let totalFailedAmount = 0
 
   failedTransactions.forEach(transaction => {
-    totalFailedAmount += transaction.amount
+    totalFailedAmount += Number(transaction.amount)
     const metadata = transaction.metadata as any
     const reason = metadata?.failureReason || metadata?.error || 'Unknown'
     failureReasons[reason] = (failureReasons[reason] || 0) + 1

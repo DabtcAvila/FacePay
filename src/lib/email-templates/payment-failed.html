@@ -1,0 +1,63 @@
+{{#> base}}
+{{#*inline "content"}}
+<h1 style="color: #dc2626; text-align: center; margin-bottom: 30px;">Payment Failed</h1>
+
+<p>Dear {{customerName}},</p>
+
+<p>We're sorry to inform you that your recent payment attempt was unsuccessful. No charges have been made to your account.</p>
+
+<div class="highlight" style="background-color: #fef2f2; border-left-color: #dc2626;">
+    <h3 style="margin-top: 0; color: #dc2626;">Transaction Details</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Attempted Amount:</td>
+            <td style="padding: 8px 0; text-align: right;">${{amount}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Transaction ID:</td>
+            <td style="padding: 8px 0; text-align: right; font-family: monospace;">{{transactionId}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Date & Time:</td>
+            <td style="padding: 8px 0; text-align: right;">{{datetime}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Failure Reason:</td>
+            <td style="padding: 8px 0; text-align: right; color: #dc2626;">{{failureReason}}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; border-left: 4px solid #f59e0b;">
+    <h4 style="margin-top: 0; color: #92400e;">How to Resolve This</h4>
+    <ul style="margin-bottom: 0;">
+        {{#if suggestions}}
+            {{#each suggestions}}
+            <li>{{this}}</li>
+            {{/each}}
+        {{else}}
+        <li>Check that your payment method has sufficient funds</li>
+        <li>Verify your payment information is correct</li>
+        <li>Ensure your Face ID authentication completed successfully</li>
+        <li>Try using a different payment method</li>
+        {{/if}}
+    </ul>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{retryUrl}}" class="button">Try Payment Again</a>
+</div>
+
+<p>If you continue to experience issues, our support team is here to help. Please don't hesitate to reach out.</p>
+
+<p>Best regards,<br>
+The FacePay Team</p>
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<p style="font-size: 12px; color: #6b7280;">
+    <strong>Need Help?</strong><br>
+    Contact our support team at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a> or visit our <a href="{{helpCenterUrl}}">Help Center</a>. Please include the transaction ID {{transactionId}} when contacting support.
+</p>
+{{/inline}}
+{{/base}}

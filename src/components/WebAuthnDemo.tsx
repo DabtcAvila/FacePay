@@ -1,5 +1,9 @@
 'use client'
 
+// DEPRECATED: This component is deprecated. Use BiometricWithFallback instead.
+// BiometricWithFallback provides better fallback handling and unified interface.
+// This component is kept for backward compatibility only.
+
 import { useState, useEffect } from 'react'
 import { WebAuthnService, type WebAuthnCapabilities, type WebAuthnError } from '@/services/webauthn'
 

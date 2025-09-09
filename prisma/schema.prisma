@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
@@ -15,28 +16,49 @@ model User {
   email             String              @unique
   name              String?
   currentChallenge  String?             // Store current WebAuthn challenge
+  isActive          Boolean             @default(true)   // Soft delete flag
+  deletedAt         DateTime?           // Soft delete timestamp
+  lastLoginAt       DateTime?           // Track user activity
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   
   // Relations
-  biometricData     BiometricData[]
-  paymentMethods    PaymentMethod[]
-  transactions      Transaction[]
+  biometricData       BiometricData[]
+  paymentMethods      PaymentMethod[]
+  transactions        Transaction[]
   webauthnCredentials WebauthnCredential[]
+  auditLogs          AuditLog[]
   
+  // Indexes for optimization
+  @@index([email])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([lastLoginAt])
+  @@index([deletedAt])
   @@map("users")
 }
 
 model BiometricData {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String   // 'face', 'fingerprint', 'voice'
-  data      String   // Encrypted biometric template
-  createdAt DateTime @default(now())
-  isActive  Boolean  @default(true)
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // 'face', 'fingerprint', 'voice'
+  data        String   // Encrypted biometric template
+  deviceId    String?  // Device identifier
+  confidence  Float?   // Biometric confidence score
+  isActive    Boolean  @default(true)
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
+  // Indexes for fast lookups
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+  @@index([userId, type, isActive])
+  @@index([createdAt])
+  @@index([deletedAt])
   @@map("biometric_data")
 }
 
@@ -47,39 +69,73 @@ model WebauthnCredential {
   counter      Int      @default(0)
   backedUp     Boolean  @default(false)
   deviceType   String   @default("unknown") // single_device, multi_device, unknown
+  deviceName   String?  // User-friendly device name
   userId       String
+  isActive     Boolean  @default(true) // Soft delete flag
+  deletedAt    DateTime? // Soft delete timestamp
+  lastUsedAt   DateTime? // Track credential usage
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
+  // Indexes for performance
+  @@index([userId])
+  @@index([credentialId])
+  @@index([isActive])
+  @@index([userId, isActive])
+  @@index([lastUsedAt])
+  @@index([deletedAt])
   @@map("webauthn_credentials")
 }
 
 model PaymentMethod {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String   // 'card', 'bank', 'crypto'
-  provider  String   // 'stripe', 'ethereum', 'bitcoin'
-  details   Json     // Payment method specific details
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // 'card', 'bank', 'crypto'
+  provider    String   // 'stripe', 'ethereum', 'bitcoin'
+  details     Json     // Payment method specific details
+  nickname    String?  // User-defined name
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true) // Soft delete flag
+  deletedAt   DateTime? // Soft delete timestamp
+  lastUsedAt  DateTime? // Track usage
+  expiresAt   DateTime? // For cards with expiration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   
+  // Performance indexes
+  @@index([userId])
+  @@index([type])
+  @@index([provider])
+  @@index([isDefault])
+  @@index([isActive])
+  @@index([userId, isActive])
+  @@index([userId, isDefault, isActive])
+  @@index([lastUsedAt])
+  @@index([expiresAt])
+  @@index([deletedAt])
   @@map("payment_methods")
 }
 
 model Transaction {
   id              String    @id @default(cuid())
   userId          String
-  amount          Float
+  amount          Decimal   @db.Decimal(15, 2) // Better for financial data
   currency        String    @default("USD")
   status          String    @default("pending") // 'pending', 'completed', 'failed', 'refunded'
   paymentMethodId String
   description     String?
+  reference       String?   // External reference ID
+  fee             Decimal?  @db.Decimal(15, 2) // Transaction fee
   metadata        Json?
+  isActive        Boolean   @default(true) // Soft delete flag
+  deletedAt       DateTime? // Soft delete timestamp
   createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   completedAt     DateTime?
   
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -87,33 +143,351 @@ model Transaction {
   refunds       Refund[]
   receipts      Receipt[]
   
+  // Critical indexes for financial queries
+  @@index([userId])
+  @@index([status])
+  @@index([currency])
+  @@index([paymentMethodId])
+  @@index([createdAt])
+  @@index([completedAt])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([amount])
+  @@index([reference])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("transactions")
 }
 
 model Refund {
   id            String    @id @default(cuid())
   transactionId String
-  amount        Float
+  amount        Decimal   @db.Decimal(15, 2) // Financial precision
   reason        String
   status        String    @default("pending") // 'pending', 'processing', 'completed', 'failed'
+  reference     String?   // External refund reference
+  isActive      Boolean   @default(true) // Soft delete flag
+  deletedAt     DateTime? // Soft delete timestamp
   processedAt   DateTime?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   metadata      Json?
   
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   
+  // Indexes for refund queries
+  @@index([transactionId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([processedAt])
+  @@index([amount])
+  @@index([reference])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("refunds")
 }
 
 model Receipt {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   transactionId String
-  receiptNumber String   @unique
-  format        String   @default("json") // 'json', 'html', 'pdf'
-  data          Json     // Receipt content
-  generatedAt   DateTime @default(now())
+  receiptNumber String    @unique
+  format        String    @default("json") // 'json', 'html', 'pdf'
+  data          Json      // Receipt content
+  fileUrl       String?   // URL to stored file
+  isActive      Boolean   @default(true) // Soft delete flag
+  deletedAt     DateTime? // Soft delete timestamp
+  generatedAt   DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   
+  // Indexes for receipt queries
+  @@index([transactionId])
+  @@index([receiptNumber])
+  @@index([format])
+  @@index([generatedAt])
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("receipts")
+}
+
+// Audit Log for tracking all database changes
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String?   // User who made the change (nullable for system changes)
+  tableName   String    // Table that was modified
+  recordId    String    // ID of the modified record
+  action      String    // 'CREATE', 'UPDATE', 'DELETE', 'RESTORE'
+  oldValues   Json?     // Previous values (for updates/deletes)
+  newValues   Json?     // New values (for creates/updates)
+  ipAddress   String?   // IP address of the user
+  userAgent   String?   // User agent string
+  createdAt   DateTime  @default(now())
+  
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Indexes for audit queries
+  @@index([userId])
+  @@index([tableName])
+  @@index([recordId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([tableName, recordId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// Analytics and Monitoring Models
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  name       String   // Event name
+  properties Json     // Event properties
+  timestamp  DateTime
+  userId     String?  // Optional user ID
+  sessionId  String   // Session identifier
+  url        String   // Page URL
+  userAgent  String   // User agent
+  source     String   // 'web', 'mobile', 'api'
+  createdAt  DateTime @default(now())
+  
+  // Indexes for fast analytics queries
+  @@index([name])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([source])
+  @@index([name, timestamp])
+  @@index([userId, timestamp])
+  @@map("analytics_events")
+}
+
+model ConversionEvent {
+  id         String   @id
+  eventName  String   // Conversion event name
+  userId     String?  // Optional user ID
+  sessionId  String   // Session identifier
+  value      Decimal  @db.Decimal(15, 2) // Conversion value
+  currency   String   @default("USD")
+  timestamp  DateTime
+  properties Json?    // Additional conversion properties
+  createdAt  DateTime @default(now())
+  
+  // Indexes for conversion analysis
+  @@index([eventName])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([eventName, timestamp])
+  @@index([userId, timestamp])
+  @@map("conversion_events")
+}
+
+model UserJourneyStep {
+  id         String   @id
+  userId     String?  // Optional user ID
+  sessionId  String   // Session identifier
+  step       String   // Journey step name
+  category   String   // Step category
+  timestamp  DateTime
+  properties Json?    // Additional step properties
+  createdAt  DateTime @default(now())
+  
+  // Indexes for user journey analysis
+  @@index([userId])
+  @@index([sessionId])
+  @@index([step])
+  @@index([category])
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([sessionId, timestamp])
+  @@map("user_journey_steps")
+}
+
+model BiometricEvent {
+  id         String   @id
+  userId     String?  // Optional user ID
+  sessionId  String   // Session identifier
+  method     String   // 'face_id', 'fingerprint', etc.
+  success    Boolean  // Authentication success
+  errorCode  String?  // Error code if failed
+  duration   Int?     // Authentication duration in ms
+  timestamp  DateTime
+  properties Json?    // Additional biometric properties
+  createdAt  DateTime @default(now())
+  
+  // Indexes for biometric analysis
+  @@index([method])
+  @@index([success])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([method, success])
+  @@index([method, timestamp])
+  @@index([userId, timestamp])
+  @@map("biometric_events")
+}
+
+model ErrorReport {
+  id          String   @id
+  message     String   // Error message
+  stack       String?  // Stack trace
+  filename    String?  // Source filename
+  lineno      Int?     // Line number
+  colno       Int?     // Column number
+  timestamp   DateTime
+  url         String   // Page URL where error occurred
+  userId      String?  // Optional user ID
+  sessionId   String   // Session identifier
+  userAgent   String   // User agent
+  severity    String   // 'low', 'medium', 'high', 'critical'
+  context     Json?    // Additional error context
+  fingerprint String?  // Error fingerprint for grouping
+  createdAt   DateTime @default(now())
+  
+  // Indexes for error analysis
+  @@index([severity])
+  @@index([timestamp])
+  @@index([fingerprint])
+  @@index([userId])
+  @@index([url])
+  @@index([severity, timestamp])
+  @@index([fingerprint, timestamp])
+  @@map("error_reports")
+}
+
+model PerformanceMetric {
+  id         String   @id
+  name       String   // Metric name
+  value      Float    // Metric value
+  unit       String   // Metric unit
+  timestamp  DateTime
+  url        String   // Page URL
+  userId     String?  // Optional user ID
+  sessionId  String   // Session identifier
+  deviceInfo Json     // Device information
+  createdAt  DateTime @default(now())
+  
+  // Indexes for performance analysis
+  @@index([name])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([url])
+  @@index([name, timestamp])
+  @@index([url, timestamp])
+  @@map("performance_metrics")
+}
+
+model Alert {
+  id        String   @id
+  type      String   // 'performance', 'error', 'business', 'security'
+  message   String   // Alert message
+  severity  String   // 'info', 'warning', 'error', 'critical'
+  timestamp DateTime
+  resolved  Boolean  @default(false)
+  metadata  Json?    // Additional alert data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Indexes for alert management
+  @@index([type])
+  @@index([severity])
+  @@index([resolved])
+  @@index([timestamp])
+  @@index([type, severity])
+  @@index([resolved, timestamp])
+  @@map("alerts")
+}
+
+// A/B Testing Models
+model ABTest {
+  id            String          @id @default(cuid())
+  name          String          // Test name
+  description   String          // Test description
+  status        String          @default("draft") // 'draft', 'running', 'paused', 'completed'
+  startDate     DateTime
+  endDate       DateTime?
+  traffic       Int             @default(100) // Percentage of users to include
+  metrics       Json            // Metrics to track
+  createdBy     String          // Creator ID
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  variants     ABTestVariant[]
+  assignments  ABTestAssignment[]
+  results      ABTestResult[]
+  
+  // Indexes for A/B test queries
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([createdAt])
+  @@map("ab_tests")
+}
+
+model ABTestVariant {
+  id          String   @id @default(cuid())
+  testId      String
+  name        String   // Variant name
+  description String   // Variant description
+  weight      Int      // Percentage allocation
+  config      Json     // Variant configuration
+  isControl   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  test        ABTest             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  assignments ABTestAssignment[]
+  results     ABTestResult[]
+  
+  // Indexes for variant queries
+  @@index([testId])
+  @@index([isControl])
+  @@map("ab_test_variants")
+}
+
+model ABTestAssignment {
+  id           String   @id @default(cuid())
+  testId       String
+  variantId    String
+  userId       String?  // Optional user ID
+  sessionId    String   // Session identifier
+  assignedAt   DateTime @default(now())
+  exposureLogged Boolean @default(false)
+  
+  test    ABTest        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  variant ABTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  // Unique constraint to prevent duplicate assignments
+  @@unique([testId, userId])
+  @@unique([testId, sessionId])
+  
+  // Indexes for assignment queries
+  @@index([testId])
+  @@index([variantId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([assignedAt])
+  @@map("ab_test_assignments")
+}
+
+model ABTestResult {
+  id        String   @id @default(cuid())
+  testId    String
+  variantId String
+  metric    String   // Metric name
+  value     Float    // Metric value
+  userId    String?  // Optional user ID
+  sessionId String   // Session identifier
+  timestamp DateTime @default(now())
+  
+  test    ABTest        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  variant ABTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  // Indexes for result analysis
+  @@index([testId])
+  @@index([variantId])
+  @@index([metric])
+  @@index([timestamp])
+  @@index([testId, metric])
+  @@index([variantId, metric])
+  @@map("ab_test_results")
 }

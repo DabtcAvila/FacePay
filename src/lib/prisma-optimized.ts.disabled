@@ -1,0 +1,231 @@
+import { PrismaClient, Prisma } from '@prisma/client'
+import { withAccelerate } from '@prisma/extension-accelerate'
+
+// Enhanced logging configuration
+const logConfig: Prisma.LogLevel[] = process.env.NODE_ENV === 'development' 
+  ? ['query', 'info', 'warn', 'error'] 
+  : ['error']
+
+// Connection pool configuration
+const connectionPoolConfig = {
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+}
+
+// Global Prisma instance with optimizations
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+// Create optimized Prisma client
+export const prismaOptimized = globalForPrisma.prisma ??= new PrismaClient({
+  log: logConfig,
+  errorFormat: 'pretty',
+  datasources: connectionPoolConfig.datasources,
+  // Connection optimization settings
+  transactionOptions: {
+    maxWait: 5000, // 5 seconds
+    timeout: 10000, // 10 seconds
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+  },
+})
+
+// Add performance extensions
+if (process.env.PRISMA_ACCELERATE_URL) {
+  // Use Prisma Accelerate for caching and connection pooling if available
+  prismaOptimized.$extends(withAccelerate())
+}
+
+// Soft delete middleware
+prismaOptimized.$use(async (params, next) => {
+  // Handle soft delete for findMany operations
+  if (params.action === 'findMany') {
+    // Check if the model supports soft deletes
+    const softDeleteModels = ['user', 'biometricData', 'webauthnCredential', 'paymentMethod', 'transaction', 'refund', 'receipt']
+    
+    if (softDeleteModels.includes(params.model?.toLowerCase() || '')) {
+      if (params.args.where != undefined) {
+        if (params.args.where.deletedAt == undefined) {
+          params.args.where['deletedAt'] = null
+        }
+      } else {
+        params.args['where'] = { deletedAt: null }
+      }
+    }
+  }
+
+  // Handle soft delete for findUnique operations
+  if (params.action === 'findUnique' || params.action === 'findFirst') {
+    const softDeleteModels = ['user', 'biometricData', 'webauthnCredential', 'paymentMethod', 'transaction', 'refund', 'receipt']
+    
+    if (softDeleteModels.includes(params.model?.toLowerCase() || '')) {
+      if (params.args.where != undefined) {
+        if (params.args.where.deletedAt == undefined) {
+          params.args.where['deletedAt'] = null
+        }
+      }
+    }
+  }
+
+  // Handle soft delete instead of actual delete
+  if (params.action === 'delete') {
+    params.action = 'update'
+    params.args['data'] = { 
+      deletedAt: new Date(),
+      isActive: false,
+    }
+  }
+
+  // Handle soft delete for deleteMany operations
+  if (params.action === 'deleteMany') {
+    params.action = 'updateMany'
+    if (params.args.data != undefined) {
+      params.args.data['deletedAt'] = new Date()
+      params.args.data['isActive'] = false
+    } else {
+      params.args['data'] = { 
+        deletedAt: new Date(),
+        isActive: false,
+      }
+    }
+  }
+
+  return next(params)
+})
+
+// Performance monitoring middleware
+prismaOptimized.$use(async (params, next) => {
+  const before = Date.now()
+  const result = await next(params)
+  const after = Date.now()
+  
+  const queryTime = after - before
+  
+  // Log slow queries in development
+  if (process.env.NODE_ENV === 'development' && queryTime > 1000) {
+    console.warn(`🐌 Slow query detected: ${params.model}.${params.action} took ${queryTime}ms`)
+  }
+  
+  // Log extremely slow queries in production
+  if (process.env.NODE_ENV === 'production' && queryTime > 5000) {
+    console.error(`🚨 Very slow query: ${params.model}.${params.action} took ${queryTime}ms`)
+  }
+  
+  return result
+})
+
+// Audit logging middleware
+prismaOptimized.$use(async (params, next) => {
+  const result = await next(params)
+  
+  // Skip audit logging for audit logs themselves and read operations
+  if (params.model === 'AuditLog' || ['findMany', 'findUnique', 'findFirst', 'count'].includes(params.action)) {
+    return result
+  }
+  
+  // Create audit log entry
+  try {
+    const auditData = {
+      tableName: params.model || 'unknown',
+      recordId: result?.id || 'unknown',
+      action: params.action.toUpperCase(),
+      newValues: params.action === 'create' ? params.args?.data : undefined,
+      oldValues: params.action === 'update' ? undefined : undefined, // Would need before state
+      createdAt: new Date(),
+    }
+    
+    // Note: In a real implementation, you'd want to capture the user context
+    // and potentially the old values for update operations
+    await prismaOptimized.auditLog.create({
+      data: auditData,
+    })
+  } catch (error) {
+    // Don't let audit logging failures break the main operation
+    console.error('Audit logging failed:', error)
+  }
+  
+  return result
+})
+
+// Connection management
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prismaOptimized
+}
+
+// Graceful shutdown
+process.on('beforeExit', async () => {
+  await prismaOptimized.$disconnect()
+})
+
+// Health check function
+export const healthCheck = async () => {
+  try {
+    await prismaOptimized.$queryRaw`SELECT 1`
+    return { status: 'healthy', timestamp: new Date() }
+  } catch (error) {
+    return { status: 'unhealthy', error: error.message, timestamp: new Date() }
+  }
+}
+
+// Connection pool stats
+export const getConnectionStats = async () => {
+  try {
+    const metrics = await prismaOptimized.$metrics.json()
+    return metrics
+  } catch (error) {
+    return { error: 'Metrics not available' }
+  }
+}
+
+// Transaction helper with retry logic
+export const withRetry = async <T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> => {
+  let lastError: Error
+  
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await operation()
+    } catch (error) {
+      lastError = error as Error
+      
+      if (i < maxRetries) {
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
+      }
+    }
+  }
+  
+  throw lastError!
+}
+
+// Batch operation helper
+export const batchOperation = async <T>(
+  items: T[],
+  operation: (batch: T[]) => Promise<void>,
+  batchSize = 100
+) => {
+  const batches = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    batches.push(items.slice(i, i + batchSize))
+  }
+  
+  const results = []
+  for (const batch of batches) {
+    try {
+      await operation(batch)
+      results.push({ success: true, count: batch.length })
+    } catch (error) {
+      results.push({ success: false, count: batch.length, error: error.message })
+    }
+  }
+  
+  return results
+}
+
+export default prismaOptimized

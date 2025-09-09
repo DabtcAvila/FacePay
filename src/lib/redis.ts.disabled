@@ -1,0 +1,338 @@
+import Redis, { RedisOptions, Cluster } from 'ioredis';
+import { createHash } from 'crypto';
+
+// Environment variables for Redis configuration
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
+const REDIS_PASSWORD = process.env.REDIS_PASSWORD;
+const REDIS_DB = parseInt(process.env.REDIS_DB || '0', 10);
+const REDIS_CLUSTER_NODES = process.env.REDIS_CLUSTER_NODES;
+const REDIS_SENTINEL_HOSTS = process.env.REDIS_SENTINEL_HOSTS;
+const REDIS_SENTINEL_NAME = process.env.REDIS_SENTINEL_NAME || 'mymaster';
+
+// Redis connection configuration
+const redisConfig: RedisOptions = {
+  host: REDIS_HOST,
+  port: REDIS_PORT,
+  password: REDIS_PASSWORD,
+  db: REDIS_DB,
+  retryDelayOnFailover: 100,
+  maxRetriesPerRequest: 3,
+  lazyConnect: true,
+  keepAlive: 30000,
+  connectTimeout: 10000,
+  commandTimeout: 5000,
+  // Connection pool settings
+  family: 4,
+  // Retry settings
+  retryDelayOnClusterDown: 300,
+  maxRetriesPerRequest: 10,
+  // Reconnection settings
+  reconnectOnError: (err) => {
+    const targetError = 'READONLY';
+    return err.message.includes(targetError);
+  },
+};
+
+// Redis clients for different purposes
+let redisClient: Redis | Cluster | null = null;
+let redisSubscriber: Redis | null = null;
+let redisPublisher: Redis | null = null;
+
+/**
+ * Initialize Redis client based on configuration
+ */
+function createRedisClient(): Redis | Cluster {
+  try {
+    // Redis Cluster configuration
+    if (REDIS_CLUSTER_NODES) {
+      const nodes = REDIS_CLUSTER_NODES.split(',').map(node => {
+        const [host, port] = node.trim().split(':');
+        return { host, port: parseInt(port, 10) };
+      });
+
+      return new Redis.Cluster(nodes, {
+        redisOptions: {
+          password: REDIS_PASSWORD,
+          lazyConnect: true,
+          maxRetriesPerRequest: 3,
+        },
+        clusterRetryDelayOnFailover: 100,
+        clusterRetryDelayOnClusterDown: 300,
+        clusterMaxRedirections: 6,
+      });
+    }
+
+    // Redis Sentinel configuration
+    if (REDIS_SENTINEL_HOSTS) {
+      const sentinels = REDIS_SENTINEL_HOSTS.split(',').map(host => {
+        const [hostname, port] = host.trim().split(':');
+        return { host: hostname, port: parseInt(port, 10) };
+      });
+
+      return new Redis({
+        sentinels,
+        name: REDIS_SENTINEL_NAME,
+        password: REDIS_PASSWORD,
+        db: REDIS_DB,
+        lazyConnect: true,
+        maxRetriesPerRequest: 3,
+      });
+    }
+
+    // Standard Redis configuration
+    if (REDIS_URL && REDIS_URL.startsWith('redis://')) {
+      return new Redis(REDIS_URL, redisConfig);
+    }
+
+    return new Redis(redisConfig);
+  } catch (error) {
+    console.error('Failed to create Redis client:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the main Redis client instance
+ */
+export function getRedisClient(): Redis | Cluster {
+  if (!redisClient) {
+    redisClient = createRedisClient();
+    
+    // Add event listeners
+    redisClient.on('connect', () => {
+      console.log('✅ Redis client connected');
+    });
+
+    redisClient.on('ready', () => {
+      console.log('🚀 Redis client ready');
+    });
+
+    redisClient.on('error', (err) => {
+      console.error('❌ Redis client error:', err);
+    });
+
+    redisClient.on('close', () => {
+      console.log('🔐 Redis client connection closed');
+    });
+
+    redisClient.on('reconnecting', () => {
+      console.log('🔄 Redis client reconnecting...');
+    });
+  }
+
+  return redisClient;
+}
+
+/**
+ * Get Redis subscriber client for pub/sub operations
+ */
+export function getRedisSubscriber(): Redis {
+  if (!redisSubscriber) {
+    redisSubscriber = new Redis(redisConfig);
+    
+    redisSubscriber.on('error', (err) => {
+      console.error('❌ Redis subscriber error:', err);
+    });
+  }
+
+  return redisSubscriber;
+}
+
+/**
+ * Get Redis publisher client for pub/sub operations
+ */
+export function getRedisPublisher(): Redis {
+  if (!redisPublisher) {
+    redisPublisher = new Redis(redisConfig);
+    
+    redisPublisher.on('error', (err) => {
+      console.error('❌ Redis publisher error:', err);
+    });
+  }
+
+  return redisPublisher;
+}
+
+/**
+ * Test Redis connection
+ */
+export async function testRedisConnection(): Promise<boolean> {
+  try {
+    const client = getRedisClient();
+    await client.ping();
+    return true;
+  } catch (error) {
+    console.error('Redis connection test failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Close all Redis connections
+ */
+export async function closeRedisConnections(): Promise<void> {
+  try {
+    const promises = [];
+    
+    if (redisClient) {
+      promises.push(redisClient.quit());
+    }
+    
+    if (redisSubscriber) {
+      promises.push(redisSubscriber.quit());
+    }
+    
+    if (redisPublisher) {
+      promises.push(redisPublisher.quit());
+    }
+
+    await Promise.all(promises);
+    
+    redisClient = null;
+    redisSubscriber = null;
+    redisPublisher = null;
+    
+    console.log('✅ All Redis connections closed');
+  } catch (error) {
+    console.error('❌ Error closing Redis connections:', error);
+    throw error;
+  }
+}
+
+/**
+ * Generate a cache key with optional prefix and hashing
+ */
+export function generateCacheKey(
+  namespace: string, 
+  key: string, 
+  options?: {
+    prefix?: string;
+    hash?: boolean;
+    suffix?: string;
+  }
+): string {
+  const { prefix = 'facepay', hash = false, suffix } = options || {};
+  
+  let fullKey = `${prefix}:${namespace}:${key}`;
+  
+  if (suffix) {
+    fullKey += `:${suffix}`;
+  }
+  
+  if (hash && fullKey.length > 250) {
+    // Redis key length limit is typically 512MB, but for performance reasons
+    // we hash long keys to keep them under 250 characters
+    const keyHash = createHash('sha256').update(fullKey).digest('hex');
+    fullKey = `${prefix}:${namespace}:hash:${keyHash}`;
+  }
+  
+  return fullKey;
+}
+
+/**
+ * Redis health check for monitoring
+ */
+export async function getRedisHealth(): Promise<{
+  status: 'healthy' | 'unhealthy';
+  latency: number;
+  memory: string;
+  connections: number;
+  version: string;
+}> {
+  try {
+    const client = getRedisClient();
+    const startTime = Date.now();
+    
+    await client.ping();
+    const latency = Date.now() - startTime;
+    
+    const info = await client.info();
+    const lines = info.split('\r\n');
+    
+    const memory = lines.find(line => line.startsWith('used_memory_human:'))?.split(':')[1] || 'unknown';
+    const connections = parseInt(lines.find(line => line.startsWith('connected_clients:'))?.split(':')[1] || '0', 10);
+    const version = lines.find(line => line.startsWith('redis_version:'))?.split(':')[1] || 'unknown';
+
+    return {
+      status: 'healthy',
+      latency,
+      memory,
+      connections,
+      version
+    };
+  } catch (error) {
+    return {
+      status: 'unhealthy',
+      latency: -1,
+      memory: 'unknown',
+      connections: 0,
+      version: 'unknown'
+    };
+  }
+}
+
+/**
+ * Flush Redis database (use with caution!)
+ */
+export async function flushRedisDB(pattern?: string): Promise<void> {
+  const client = getRedisClient();
+  
+  if (pattern) {
+    // Delete keys matching pattern
+    const keys = await client.keys(pattern);
+    if (keys.length > 0) {
+      await client.del(...keys);
+    }
+  } else {
+    // Flush entire database
+    await client.flushdb();
+  }
+}
+
+// Redis key patterns for different data types
+export const REDIS_KEYS = {
+  // Sessions
+  SESSION: (sessionId: string) => generateCacheKey('session', sessionId),
+  USER_SESSION: (userId: string) => generateCacheKey('user_session', userId),
+  
+  // Caching
+  API_CACHE: (endpoint: string, params?: string) => 
+    generateCacheKey('api', endpoint, { suffix: params }),
+  DB_CACHE: (table: string, query: string) => 
+    generateCacheKey('db', table, { suffix: query, hash: true }),
+  
+  // Rate limiting
+  RATE_LIMIT: (identifier: string, window: string) => 
+    generateCacheKey('rate_limit', identifier, { suffix: window }),
+  
+  // Locks
+  LOCK: (resource: string) => generateCacheKey('lock', resource),
+  
+  // Real-time features
+  USER_ONLINE: (userId: string) => generateCacheKey('online', userId),
+  NOTIFICATION: (userId: string) => generateCacheKey('notification', userId),
+  
+  // Payment processing
+  PAYMENT_LOCK: (paymentId: string) => generateCacheKey('payment_lock', paymentId),
+  PAYMENT_CACHE: (paymentId: string) => generateCacheKey('payment_cache', paymentId),
+  
+  // Biometric data (temporary storage)
+  BIOMETRIC_TEMP: (sessionId: string) => generateCacheKey('biometric_temp', sessionId),
+  
+  // WebAuthn challenges
+  WEBAUTHN_CHALLENGE: (challengeId: string) => generateCacheKey('webauthn_challenge', challengeId),
+} as const;
+
+export default {
+  getRedisClient,
+  getRedisSubscriber,
+  getRedisPublisher,
+  testRedisConnection,
+  closeRedisConnections,
+  generateCacheKey,
+  getRedisHealth,
+  flushRedisDB,
+  REDIS_KEYS,
+};

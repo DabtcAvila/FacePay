@@ -1,0 +1,1829 @@
+openapi: 3.0.0
+info:
+  title: FacePay API
+  version: 1.0.0
+  description: |
+    ## FacePay - Biometric Payment Platform API
+    
+    FacePay combines advanced biometric authentication with secure payment processing to create a seamless, secure payment experience. Our API provides comprehensive endpoints for user management, payment processing, biometric authentication, and transaction handling.
+    
+    ### Key Features
+    - 🔐 **Biometric Authentication**: WebAuthn-based face recognition and fingerprint authentication
+    - 💳 **Multi-Payment Support**: Stripe, crypto, and traditional payment methods
+    - 🛡️ **Enhanced Security**: Advanced threat detection and anomaly analysis
+    - 📊 **Analytics Dashboard**: Comprehensive payment and security analytics
+    - 🔄 **Real-time Processing**: Instant transaction processing and validation
+    
+    ### Authentication
+    Most endpoints require authentication using JWT tokens. Include your token in the Authorization header:
+    ```
+    Authorization: Bearer YOUR_JWT_TOKEN
+    ```
+    
+    ### Rate Limiting
+    - **Standard endpoints**: 1000 requests per hour per user
+    - **Authentication endpoints**: 10 requests per minute per IP
+    - **Payment endpoints**: 100 requests per hour per user
+    
+    ### Error Handling
+    All endpoints return standardized error responses with appropriate HTTP status codes and detailed error information.
+    
+  termsOfService: https://facepay.com/terms
+  contact:
+    name: FacePay API Support
+    url: https://facepay.com/support
+    email: api-support@facepay.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.facepay.com/v1
+    description: Production server
+  - url: https://api-staging.facepay.com/v1
+    description: Staging server
+  - url: http://localhost:3000/api
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Users
+    description: User profile and account management
+  - name: Payments
+    description: Payment processing and payment method management
+  - name: Transactions
+    description: Transaction history and management
+  - name: WebAuthn
+    description: Biometric authentication via WebAuthn
+  - name: Analytics
+    description: Payment analytics and reporting
+  - name: Health
+    description: System health monitoring
+  - name: Admin
+    description: Administrative endpoints (restricted access)
+
+paths:
+  # Health Check
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the current status of the API
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 12345.67
+                  version:
+                    type: string
+                    example: 1.0.0
+
+  # Authentication Endpoints
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user with email and password
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              standard_login:
+                summary: Standard login
+                value:
+                  email: john.doe@example.com
+                  password: securepassword123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+              examples:
+                login_success:
+                  summary: Successful login
+                  value:
+                    success: true
+                    data:
+                      user:
+                        id: clp1abc123def456ghi789
+                        email: john.doe@example.com
+                        name: John Doe
+                        createdAt: "2024-01-01T12:00:00Z"
+                        updatedAt: "2024-01-01T12:00:00Z"
+                      tokens:
+                        accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                        refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                        expiresIn: 3600
+                      sessionId: sess_abc123def456
+                    message: Login successful
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          description: Too many login attempts
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register a new user account
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              user_registration:
+                summary: New user registration
+                value:
+                  email: jane.doe@example.com
+                  name: Jane Doe
+                  password: securepassword123
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get a new access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              required:
+                - refreshToken
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken:
+                            type: string
+                          expiresIn:
+                            type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/demo-login:
+    post:
+      tags:
+        - Authentication
+      summary: Demo login (development only)
+      description: Quick login for development and testing purposes
+      operationId: demoLogin
+      responses:
+        '200':
+          description: Demo login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  # User Endpoints
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Retrieve the authenticated user's profile information
+      operationId: getUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+              examples:
+                user_profile:
+                  summary: Complete user profile
+                  value:
+                    success: true
+                    data:
+                      id: clp1abc123def456ghi789
+                      email: john.doe@example.com
+                      name: John Doe
+                      createdAt: "2024-01-01T12:00:00Z"
+                      updatedAt: "2024-01-01T12:00:00Z"
+                      biometricData:
+                        - id: bio_abc123
+                          type: face
+                          isActive: true
+                          createdAt: "2024-01-01T12:00:00Z"
+                      paymentMethods:
+                        - id: pm_abc123
+                          type: card
+                          provider: stripe
+                          isDefault: true
+                          createdAt: "2024-01-01T12:00:00Z"
+                      _count:
+                        transactions: 42
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update the authenticated user's profile information
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: John Updated Doe
+                email:
+                  type: string
+                  format: email
+                  example: john.updated@example.com
+            examples:
+              profile_update:
+                summary: Update profile
+                value:
+                  name: John Updated Doe
+                  email: john.updated@example.com
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          description: Email already taken
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user account
+      description: Permanently delete the authenticated user's account and all associated data
+      operationId: deleteUserAccount
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: null
+                      message:
+                        type: string
+                        example: Account deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Payment Endpoints
+  /payments/stripe/checkout:
+    post:
+      tags:
+        - Payments
+      summary: Create Stripe checkout session
+      description: Create a new Stripe checkout session for payment processing
+      operationId: createCheckoutSession
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutSessionRequest'
+            examples:
+              product_purchase:
+                summary: Product purchase
+                value:
+                  amount: 29.99
+                  currency: USD
+                  description: Premium subscription
+                  successUrl: https://example.com/success
+                  cancelUrl: https://example.com/cancel
+                  metadata:
+                    product_id: prod_123
+              subscription:
+                summary: Subscription setup
+                value:
+                  amount: 9.99
+                  currency: USD
+                  description: Monthly subscription
+                  mode: subscription
+                  metadata:
+                    plan: premium
+      responses:
+        '200':
+          description: Checkout session created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CheckoutSessionResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Payments
+      summary: Get checkout session details
+      description: Retrieve details of a specific checkout session
+      operationId: getCheckoutSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Stripe checkout session ID
+          example: cs_abc123def456
+      responses:
+        '200':
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  paymentStatus:
+                    type: string
+                  customerEmail:
+                    type: string
+                  amountTotal:
+                    type: number
+                  currency:
+                    type: string
+                  paymentIntent:
+                    type: string
+                  transactionId:
+                    type: string
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /payments/methods:
+    get:
+      tags:
+        - Payments
+      summary: Get payment methods
+      description: Retrieve all payment methods for the authenticated user
+      operationId: getPaymentMethods
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Payment methods retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PaymentMethod'
+
+    post:
+      tags:
+        - Payments
+      summary: Add payment method
+      description: Add a new payment method for the authenticated user
+      operationId: addPaymentMethod
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [card, bank_account, crypto]
+                provider:
+                  type: string
+                  enum: [stripe, paypal, crypto]
+                details:
+                  type: object
+                  additionalProperties: true
+                isDefault:
+                  type: boolean
+              required:
+                - type
+                - provider
+      responses:
+        '201':
+          description: Payment method added successfully
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /payments/methods/{id}:
+    delete:
+      tags:
+        - Payments
+      summary: Delete payment method
+      description: Remove a payment method
+      operationId: deletePaymentMethod
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Payment method ID
+      responses:
+        '200':
+          description: Payment method deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # Transaction Endpoints
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction history
+      description: Retrieve paginated transaction history for the authenticated user
+      operationId: getTransactions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, failed, refunded]
+          description: Filter by transaction status
+        - $ref: '#/components/parameters/SortParam'
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TransactionListResponse'
+              examples:
+                transaction_list:
+                  summary: Transaction list with pagination
+                  value:
+                    success: true
+                    data:
+                      transactions:
+                        - id: txn_abc123
+                          userId: usr_def456
+                          amount: 29.99
+                          currency: USD
+                          status: completed
+                          description: Product purchase
+                          createdAt: "2024-01-01T12:00:00Z"
+                          paymentMethod:
+                            type: card
+                            provider: stripe
+                      pagination:
+                        page: 1
+                        limit: 20
+                        total: 100
+                        totalPages: 5
+                        hasNext: true
+                        hasPrev: false
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+    post:
+      tags:
+        - Transactions
+      summary: Create transaction
+      description: Create a new transaction
+      operationId: createTransaction
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+            examples:
+              new_transaction:
+                summary: Create new transaction
+                value:
+                  amount: 49.99
+                  currency: USD
+                  paymentMethodId: pm_abc123def456
+                  description: Premium feature unlock
+                  metadata:
+                    feature: premium_analytics
+      responses:
+        '201':
+          description: Transaction created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Payment method not found
+
+  /transactions/{id}:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction details
+      description: Retrieve details of a specific transaction
+      operationId: getTransaction
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Transaction ID
+          example: txn_abc123def456
+      responses:
+        '200':
+          description: Transaction details retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Transaction'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /transactions/{id}/refund:
+    post:
+      tags:
+        - Transactions
+      summary: Refund transaction
+      description: Process a refund for a specific transaction
+      operationId: refundTransaction
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Transaction ID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  description: Partial refund amount (optional)
+                reason:
+                  type: string
+                  description: Refund reason
+                  example: Customer requested refund
+      responses:
+        '200':
+          description: Refund processed successfully
+        '400':
+          description: Invalid refund request
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /transactions/history:
+    get:
+      tags:
+        - Transactions
+      summary: Get detailed transaction history
+      description: Get comprehensive transaction history with advanced filtering
+      operationId: getTransactionHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: amountMin
+          in: query
+          schema:
+            type: number
+        - name: amountMax
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Transaction history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionListResponse'
+
+  /transactions/bulk:
+    post:
+      tags:
+        - Transactions
+      summary: Bulk transaction operations
+      description: Perform bulk operations on multiple transactions
+      operationId: bulkTransactionOperations
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operation:
+                  type: string
+                  enum: [export, update_status, bulk_refund]
+                transactionIds:
+                  type: array
+                  items:
+                    type: string
+                parameters:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Bulk operation completed successfully
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # WebAuthn Endpoints
+  /webauthn/register/start:
+    post:
+      tags:
+        - WebAuthn
+      summary: Start WebAuthn registration
+      description: Initiate biometric credential registration process
+      operationId: startWebAuthnRegistration
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Registration challenge created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PublicKeyCredentialCreationOptions'
+
+  /webauthn/register/complete:
+    post:
+      tags:
+        - WebAuthn
+      summary: Complete WebAuthn registration
+      description: Complete biometric credential registration with client response
+      operationId: completeWebAuthnRegistration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentialId:
+                  type: string
+                clientDataJSON:
+                  type: string
+                attestationObject:
+                  type: string
+                name:
+                  type: string
+                  example: iPhone Face ID
+      responses:
+        '200':
+          description: Registration completed successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/WebAuthnCredential'
+
+  /webauthn/authenticate/start:
+    post:
+      tags:
+        - WebAuthn
+      summary: Start WebAuthn authentication
+      description: Initiate biometric authentication challenge
+      operationId: startWebAuthnAuthentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User email (optional if already authenticated)
+      responses:
+        '200':
+          description: Authentication challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  challenge:
+                    type: string
+                  allowCredentials:
+                    type: array
+                    items:
+                      type: object
+                  timeout:
+                    type: integer
+
+  /webauthn/authenticate/complete:
+    post:
+      tags:
+        - WebAuthn
+      summary: Complete WebAuthn authentication
+      description: Complete biometric authentication with client response
+      operationId: completeWebAuthnAuthentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                credentialId:
+                  type: string
+                clientDataJSON:
+                  type: string
+                authenticatorData:
+                  type: string
+                signature:
+                  type: string
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+  /webauthn/credentials:
+    get:
+      tags:
+        - WebAuthn
+      summary: Get WebAuthn credentials
+      description: List all registered biometric credentials for the user
+      operationId: getWebAuthnCredentials
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Credentials retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WebAuthnCredential'
+
+    delete:
+      tags:
+        - WebAuthn
+      summary: Delete WebAuthn credential
+      description: Remove a registered biometric credential
+      operationId: deleteWebAuthnCredential
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: credentialId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Credential deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # Biometric Endpoints
+  /biometric/face:
+    post:
+      tags:
+        - WebAuthn
+      summary: Face verification
+      description: Verify user identity using facial recognition
+      operationId: verifyFace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageData:
+                  type: string
+                  format: base64
+                  description: Base64 encoded face image
+                confidence:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  description: Required confidence threshold
+      responses:
+        '200':
+          description: Face verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                  confidence:
+                    type: number
+                  message:
+                    type: string
+
+  # Analytics Endpoints
+  /analytics/stats:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics statistics
+      description: Retrieve comprehensive analytics and statistics
+      operationId: getAnalyticsStats
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, year]
+            default: month
+          description: Time period for statistics
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AnalyticsStats'
+              examples:
+                monthly_stats:
+                  summary: Monthly statistics
+                  value:
+                    success: true
+                    data:
+                      totalTransactions: 1250
+                      totalRevenue: 125000.50
+                      averageTransactionValue: 100.00
+                      successRate: 98.5
+                      biometricAuthSuccess: 95.2
+                      topPaymentMethods:
+                        - method: card
+                          count: 850
+                          percentage: 68.0
+                        - method: biometric
+                          count: 300
+                          percentage: 24.0
+                        - method: crypto
+                          count: 100
+                          percentage: 8.0
+
+  /payments/analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get payment analytics
+      description: Detailed payment method and processing analytics
+      operationId: getPaymentAnalytics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Payment analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalVolume:
+                    type: number
+                  transactionCount:
+                    type: integer
+                  averageAmount:
+                    type: number
+                  paymentMethodBreakdown:
+                    type: object
+                  successRateByMethod:
+                    type: object
+
+  # Admin Endpoints
+  /admin/security-stats:
+    get:
+      tags:
+        - Admin
+      summary: Get security statistics
+      description: Administrative endpoint for security monitoring (admin only)
+      operationId: getSecurityStats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Security statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  failedLogins:
+                    type: integer
+                  blockedIPs:
+                    type: integer
+                  anomalousActivity:
+                    type: integer
+                  threatLevel:
+                    type: string
+                    enum: [low, medium, high, critical]
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from the login endpoint. Include it in the Authorization header:
+        ```
+        Authorization: Bearer YOUR_JWT_TOKEN
+        ```
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key for external integrations and webhooks
+    
+    BiometricAuth:
+      type: oauth2
+      description: Biometric authentication using WebAuthn
+      flows:
+        authorizationCode:
+          authorizationUrl: /api/webauthn/authenticate/start
+          tokenUrl: /api/webauthn/authenticate/complete
+          scopes:
+            biometric:read: Read biometric authentication data
+            biometric:write: Register and manage biometric credentials
+
+  schemas:
+    # Core Response Schemas
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          additionalProperties: true
+        message:
+          type: string
+          example: Operation completed successfully
+      required:
+        - success
+        - data
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: An error occurred
+        code:
+          type: string
+          example: INTERNAL_ERROR
+        details:
+          type: object
+          additionalProperties: true
+      required:
+        - success
+        - error
+
+    ValidationError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Validation failed
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: email
+              message:
+                type: string
+                example: Email is required
+
+    # User Schemas
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+          example: clp1abc123def456ghi789
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: john.doe@example.com
+        name:
+          type: string
+          description: User full name
+          example: John Doe
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: 2024-01-01T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last profile update timestamp
+          example: 2024-01-01T12:00:00Z
+        lastLogin:
+          type: string
+          format: date-time
+          description: Last login timestamp
+          example: 2024-01-01T12:00:00Z
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            biometricData:
+              type: array
+              items:
+                $ref: '#/components/schemas/BiometricData'
+              description: User's registered biometric data
+            paymentMethods:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentMethod'
+              description: User's payment methods
+            _count:
+              type: object
+              properties:
+                transactions:
+                  type: integer
+                  description: Total number of transactions
+                  example: 42
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: john.doe@example.com
+        password:
+          type: string
+          minLength: 8
+          description: User password
+          example: securepassword123
+      required:
+        - email
+        - password
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: jane.doe@example.com
+        name:
+          type: string
+          minLength: 2
+          description: User full name
+          example: Jane Doe
+        password:
+          type: string
+          minLength: 8
+          description: User password (minimum 8 characters)
+          example: securepassword123
+      required:
+        - email
+        - name
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              description: JWT access token
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            refreshToken:
+              type: string
+              description: JWT refresh token
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            expiresIn:
+              type: integer
+              description: Token expiration time in seconds
+              example: 3600
+        sessionId:
+          type: string
+          description: Unique session identifier
+          example: sess_abc123def456
+
+    # Payment Schemas
+    PaymentMethod:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Payment method identifier
+          example: pm_abc123def456
+        type:
+          type: string
+          enum: [card, bank_account, crypto, biometric]
+          description: Type of payment method
+          example: card
+        provider:
+          type: string
+          enum: [stripe, paypal, crypto, internal]
+          description: Payment provider
+          example: stripe
+        isDefault:
+          type: boolean
+          description: Whether this is the default payment method
+          example: true
+        details:
+          type: object
+          additionalProperties: true
+          description: Provider-specific payment method details
+          example:
+            last4: "4242"
+            brand: visa
+            exp_month: 12
+            exp_year: 2025
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+
+    CreateCheckoutSessionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+          description: Payment amount
+          example: 29.99
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: USD
+          description: Payment currency code
+          example: USD
+        description:
+          type: string
+          description: Payment description
+          example: Premium subscription
+        successUrl:
+          type: string
+          format: uri
+          description: Success redirect URL
+          example: https://example.com/success
+        cancelUrl:
+          type: string
+          format: uri
+          description: Cancel redirect URL
+          example: https://example.com/cancel
+        paymentMethodTypes:
+          type: array
+          items:
+            type: string
+          default: [card]
+          description: Accepted payment method types
+          example: [card]
+        mode:
+          type: string
+          enum: [payment, setup, subscription]
+          default: payment
+          description: Checkout session mode
+          example: payment
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata
+      required:
+        - amount
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: Stripe checkout session ID
+          example: cs_abc123def456
+        sessionUrl:
+          type: string
+          format: uri
+          description: Checkout session URL
+          example: https://checkout.stripe.com/pay/cs_abc123def456
+        transactionId:
+          type: string
+          description: Internal transaction ID
+          example: txn_abc123def456
+        customerId:
+          type: string
+          description: Stripe customer ID
+          example: cus_abc123def456
+
+    # Transaction Schemas
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Transaction identifier
+          example: txn_abc123def456
+        userId:
+          type: string
+          description: User identifier
+          example: usr_abc123def456
+        amount:
+          type: number
+          description: Transaction amount
+          example: 29.99
+        currency:
+          type: string
+          description: Currency code
+          example: USD
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+          description: Transaction status
+          example: completed
+        paymentMethodId:
+          type: string
+          description: Payment method used
+          example: pm_abc123def456
+        description:
+          type: string
+          description: Transaction description
+          example: Premium subscription
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional transaction data
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+
+    CreateTransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 0.01
+          description: Transaction amount
+          example: 49.99
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: USD
+          description: Currency code
+          example: USD
+        paymentMethodId:
+          type: string
+          description: Payment method ID to use
+          example: pm_abc123def456
+        description:
+          type: string
+          description: Transaction description
+          example: Premium feature unlock
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata
+      required:
+        - amount
+        - paymentMethodId
+
+    TransactionListResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              description: Current page number
+              example: 1
+            limit:
+              type: integer
+              description: Items per page
+              example: 20
+            total:
+              type: integer
+              description: Total number of items
+              example: 100
+            totalPages:
+              type: integer
+              description: Total number of pages
+              example: 5
+            hasNext:
+              type: boolean
+              description: Whether there are more pages
+              example: true
+            hasPrev:
+              type: boolean
+              description: Whether there are previous pages
+              example: false
+
+    # Biometric Schemas
+    BiometricData:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Biometric data identifier
+          example: bio_abc123def456
+        type:
+          type: string
+          enum: [face, fingerprint, voice]
+          description: Biometric data type
+          example: face
+        isActive:
+          type: boolean
+          description: Whether the biometric data is active
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: Registration timestamp
+
+    # WebAuthn Schemas
+    WebAuthnCredential:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Credential identifier
+          example: cred_abc123def456
+        name:
+          type: string
+          description: User-friendly credential name
+          example: iPhone Face ID
+        type:
+          type: string
+          enum: [public-key]
+          description: Credential type
+          example: public-key
+        credentialId:
+          type: string
+          description: WebAuthn credential ID
+          example: abc123def456ghi789...
+        createdAt:
+          type: string
+          format: date-time
+          description: Registration timestamp
+
+    PublicKeyCredentialCreationOptions:
+      type: object
+      properties:
+        challenge:
+          type: string
+          description: Cryptographic challenge
+          example: abc123def456ghi789...
+        rp:
+          type: object
+          properties:
+            name:
+              type: string
+              example: FacePay
+            id:
+              type: string
+              example: facepay.com
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              example: user123
+            name:
+              type: string
+              example: john.doe@example.com
+            displayName:
+              type: string
+              example: John Doe
+        pubKeyCredParams:
+          type: array
+          items:
+            type: object
+            properties:
+              alg:
+                type: integer
+                example: -7
+              type:
+                type: string
+                example: public-key
+        timeout:
+          type: integer
+          description: Timeout in milliseconds
+          example: 60000
+        attestation:
+          type: string
+          enum: [none, indirect, direct]
+          example: none
+
+    # Analytics Schemas
+    AnalyticsStats:
+      type: object
+      properties:
+        totalTransactions:
+          type: integer
+          description: Total number of transactions
+          example: 1250
+        totalRevenue:
+          type: number
+          description: Total revenue amount
+          example: 125000.50
+        averageTransactionValue:
+          type: number
+          description: Average transaction value
+          example: 100.00
+        successRate:
+          type: number
+          description: Transaction success rate percentage
+          example: 98.5
+        biometricAuthSuccess:
+          type: number
+          description: Biometric authentication success rate
+          example: 95.2
+        topPaymentMethods:
+          type: array
+          items:
+            type: object
+            properties:
+              method:
+                type: string
+                description: Payment method type
+                example: card
+              count:
+                type: integer
+                description: Number of transactions
+                example: 850
+              percentage:
+                type: number
+                description: Percentage of total transactions
+                example: 68.0
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Authentication required
+            code: UNAUTHORIZED
+
+    ForbiddenError:
+      description: Insufficient permissions to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Insufficient permissions
+            code: FORBIDDEN
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Resource not found
+            code: NOT_FOUND
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            success: false
+            error: Validation failed
+            code: VALIDATION_ERROR
+            details:
+              - field: email
+                message: Email is required
+              - field: password
+                message: Password must be at least 8 characters
+
+    InternalServerError:
+      description: Internal server error occurred
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Internal server error
+            code: INTERNAL_ERROR
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Page number for pagination (starts from 1)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+
+    LimitParam:
+      name: limit
+      in: query
+      description: Number of items per page (maximum 100)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+    SortParam:
+      name: sortBy
+      in: query
+      description: Field to sort results by
+      required: false
+      schema:
+        type: string
+        enum: [createdAt, amount, status, updatedAt]
+        default: createdAt
+      example: createdAt
+
+    SortOrderParam:
+      name: sortOrder
+      in: query
+      description: Sort order direction
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+      example: desc
+
+security:
+  - BearerAuth: []

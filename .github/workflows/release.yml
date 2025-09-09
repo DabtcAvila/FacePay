@@ -1,0 +1,469 @@
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (do not create actual release)'
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: 'Create prerelease'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Analyze commits and determine release
+  analyze:
+    name: Analyze Commits
+    runs-on: ubuntu-latest
+    outputs:
+      new-release-published: ${{ steps.semantic.outputs.new-release-published }}
+      new-release-version: ${{ steps.semantic.outputs.new-release-version }}
+      new-release-major-version: ${{ steps.semantic.outputs.new-release-major-version }}
+      new-release-minor-version: ${{ steps.semantic.outputs.new-release-minor-version }}
+      new-release-patch-version: ${{ steps.semantic.outputs.new-release-patch-version }}
+      release-type: ${{ steps.semantic.outputs.release-type }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/github @semantic-release/npm @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+
+      - name: Create semantic-release config
+        run: |
+          cat > .releaserc.json << 'EOF'
+          {
+            "branches": [
+              "main",
+              {
+                "name": "develop",
+                "prerelease": "beta"
+              }
+            ],
+            "plugins": [
+              [
+                "@semantic-release/commit-analyzer",
+                {
+                  "preset": "angular",
+                  "releaseRules": [
+                    {"type": "docs", "scope": "README", "release": "patch"},
+                    {"type": "refactor", "release": "patch"},
+                    {"type": "style", "release": "patch"},
+                    {"type": "test", "release": "patch"},
+                    {"type": "ci", "release": "patch"},
+                    {"scope": "no-release", "release": false}
+                  ]
+                }
+              ],
+              [
+                "@semantic-release/release-notes-generator",
+                {
+                  "preset": "angular",
+                  "presetConfig": {
+                    "types": [
+                      {"type": "feat", "section": "Features"},
+                      {"type": "fix", "section": "Bug Fixes"},
+                      {"type": "perf", "section": "Performance Improvements"},
+                      {"type": "revert", "section": "Reverts"},
+                      {"type": "docs", "section": "Documentation", "hidden": false},
+                      {"type": "style", "section": "Styles", "hidden": false},
+                      {"type": "chore", "section": "Miscellaneous Chores", "hidden": false},
+                      {"type": "refactor", "section": "Code Refactoring", "hidden": false},
+                      {"type": "test", "section": "Tests", "hidden": false},
+                      {"type": "build", "section": "Build System", "hidden": false},
+                      {"type": "ci", "section": "Continuous Integration", "hidden": false}
+                    ]
+                  }
+                }
+              ],
+              [
+                "@semantic-release/changelog",
+                {
+                  "changelogFile": "CHANGELOG.md"
+                }
+              ],
+              [
+                "@semantic-release/npm",
+                {
+                  "npmPublish": false
+                }
+              ],
+              [
+                "@semantic-release/git",
+                {
+                  "assets": ["package.json", "CHANGELOG.md"],
+                  "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+                }
+              ],
+              "@semantic-release/github"
+            ]
+          }
+          EOF
+
+      - name: Dry run semantic-release
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 Running semantic-release in dry-run mode..."
+          npx semantic-release --dry-run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run semantic-release
+        if: github.event.inputs.dry_run != 'true'
+        id: semantic
+        run: |
+          echo "🚀 Running semantic-release..."
+          npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output release info
+        if: steps.semantic.outputs.new-release-published == 'true'
+        run: |
+          echo "✅ New release published!"
+          echo "Version: ${{ steps.semantic.outputs.new-release-version }}"
+          echo "Type: ${{ steps.semantic.outputs.release-type }}"
+
+  # Job 2: Build release artifacts
+  build-artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    outputs:
+      build-version: ${{ steps.build-info.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Generate build info
+        id: build-info
+        run: |
+          echo "version=${{ needs.analyze.outputs.new-release-version }}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_BUILD_VERSION: ${{ needs.analyze.outputs.new-release-version }}
+          NEXT_PUBLIC_BUILD_TIMESTAMP: ${{ steps.build-info.outputs.timestamp }}
+          NEXT_PUBLIC_ENVIRONMENT: production
+
+      - name: Run production tests
+        run: npm run test:ci
+
+      - name: Create source archive
+        run: |
+          tar -czf facepay-${{ needs.analyze.outputs.new-release-version }}-source.tar.gz \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=coverage \
+            --exclude=.git \
+            .
+
+      - name: Create build archive
+        run: |
+          tar -czf facepay-${{ needs.analyze.outputs.new-release-version }}-build.tar.gz \
+            .next/ package.json package-lock.json prisma/ public/
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.analyze.outputs.new-release-version }}
+          files: |
+            facepay-${{ needs.analyze.outputs.new-release-version }}-source.tar.gz
+            facepay-${{ needs.analyze.outputs.new-release-version }}-build.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 3: Update documentation
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [analyze, build-artifacts]
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Update version badges in README
+        run: |
+          # Update version badge
+          sed -i "s/version-[0-9.]*-/version-${{ needs.analyze.outputs.new-release-version }}-/" README.md || true
+          
+          # Update release date
+          current_date=$(date +%Y-%m-%d)
+          sed -i "s/Released: [0-9-]*/Released: $current_date/" README.md || true
+
+      - name: Create API documentation
+        run: |
+          # Generate API docs if you have API documentation generator
+          echo "# API Documentation v${{ needs.analyze.outputs.new-release-version }}" > API_DOCS.md
+          echo "" >> API_DOCS.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> API_DOCS.md
+          echo "Version: ${{ needs.analyze.outputs.new-release-version }}" >> API_DOCS.md
+
+      - name: Commit documentation updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md API_DOCS.md || true
+          git commit -m "docs: update documentation for v${{ needs.analyze.outputs.new-release-version }}" || true
+          git push || true
+
+  # Job 4: Deploy release to production
+  deploy-production:
+    name: Deploy to Production
+    uses: ./.github/workflows/cd.yml
+    needs: [analyze, build-artifacts]
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    secrets: inherit
+    with:
+      environment: production
+      skip_tests: false
+
+  # Job 5: Create GitHub milestone
+  create-milestone:
+    name: Create Next Milestone
+    runs-on: ubuntu-latest
+    needs: [analyze]
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    steps:
+      - name: Create next version milestone
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const currentVersion = '${{ needs.analyze.outputs.new-release-version }}';
+            const versionParts = currentVersion.split('.').map(Number);
+            
+            // Calculate next minor version
+            const nextVersion = `${versionParts[0]}.${versionParts[1] + 1}.0`;
+            
+            try {
+              await github.rest.issues.createMilestone({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `v${nextVersion}`,
+                description: `Next release milestone - v${nextVersion}`,
+                state: 'open'
+              });
+              console.log(`Created milestone: v${nextVersion}`);
+            } catch (error) {
+              if (error.status === 422) {
+                console.log(`Milestone v${nextVersion} already exists`);
+              } else {
+                throw error;
+              }
+            }
+
+  # Job 6: Security scan for release
+  security-scan-release:
+    name: Security Scan Release
+    uses: ./.github/workflows/security.yml
+    needs: [analyze, build-artifacts]
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    secrets: inherit
+
+  # Job 7: Performance baseline
+  performance-baseline:
+    name: Performance Baseline
+    runs-on: ubuntu-latest
+    needs: [analyze, deploy-production]
+    if: needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.12.x
+
+      - name: Run Lighthouse CI
+        run: |
+          lhci autorun --collect.url=https://facepay.vercel.app \
+                       --collect.numberOfRuns=3 \
+                       --assert.assertions.speed-index.max=3000 \
+                       --assert.assertions.first-contentful-paint.max=2000
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+  # Job 8: Notification and summary
+  notify-release:
+    name: Release Notification
+    runs-on: ubuntu-latest
+    needs: [analyze, build-artifacts, deploy-production, security-scan-release]
+    if: always() && needs.analyze.outputs.new-release-published == 'true' && github.event.inputs.dry_run != 'true'
+    steps:
+      - name: Generate release summary
+        run: |
+          echo "# 🎉 Release v${{ needs.analyze.outputs.new-release-version }} Summary" >> release-summary.md
+          echo "" >> release-summary.md
+          echo "## Release Information" >> release-summary.md
+          echo "- **Version**: v${{ needs.analyze.outputs.new-release-version }}" >> release-summary.md
+          echo "- **Type**: ${{ needs.analyze.outputs.release-type }}" >> release-summary.md
+          echo "- **Released**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> release-summary.md
+          echo "- **Commit**: ${{ github.sha }}" >> release-summary.md
+          echo "" >> release-summary.md
+          echo "## Deployment Status" >> release-summary.md
+          echo "- **Build Artifacts**: ${{ needs.build-artifacts.result }}" >> release-summary.md
+          echo "- **Production Deploy**: ${{ needs.deploy-production.result }}" >> release-summary.md
+          echo "- **Security Scan**: ${{ needs.security-scan-release.result }}" >> release-summary.md
+          echo "" >> release-summary.md
+          
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+            echo "✅ **Release deployed successfully to production!**" >> release-summary.md
+          else
+            echo "❌ **Release deployment failed - requires manual intervention**" >> release-summary.md
+          fi
+          
+          cat release-summary.md
+
+      - name: Comment on related issues
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Find issues that should be closed by this release
+            const query = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open label:released`;
+            const issues = await github.rest.search.issuesAndPullRequests({
+              q: query,
+              per_page: 100
+            });
+            
+            for (const issue of issues.data.items) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `🎉 This issue has been resolved in release v${{ needs.analyze.outputs.new-release-version }}!\n\nYou can view the release notes [here](https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/v${{ needs.analyze.outputs.new-release-version }}).`
+              });
+              
+              // Close the issue
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
+
+      - name: Success notification
+        if: needs.deploy-production.result == 'success' && needs.security-scan-release.result == 'success'
+        run: |
+          echo "🎉 Release v${{ needs.analyze.outputs.new-release-version }} completed successfully!"
+          echo "- All security checks passed"
+          echo "- Production deployment successful"
+          echo "- Documentation updated"
+
+      - name: Failure notification
+        if: needs.deploy-production.result != 'success' || needs.security-scan-release.result != 'success'
+        run: |
+          echo "❌ Release v${{ needs.analyze.outputs.new-release-version }} completed with issues!"
+          echo "- Build Artifacts: ${{ needs.build-artifacts.result }}"
+          echo "- Production Deploy: ${{ needs.deploy-production.result }}"
+          echo "- Security Scan: ${{ needs.security-scan-release.result }}"
+          exit 1
+
+      # Optional: Slack notification
+      # - name: Slack Release Notification
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: ${{ job.status }}
+      #     channel: '#releases'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     fields: repo,message,commit,author,action,eventName,ref,workflow
+      #     custom_payload: |
+      #       {
+      #         attachments: [{
+      #           color: '${{ job.status }}' === 'success' ? 'good' : 'danger',
+      #           title: `🚀 FacePay v${{ needs.analyze.outputs.new-release-version }} Released!`,
+      #           fields: [{
+      #             title: 'Version',
+      #             value: 'v${{ needs.analyze.outputs.new-release-version }}',
+      #             short: true
+      #           }, {
+      #             title: 'Type',
+      #             value: '${{ needs.analyze.outputs.release-type }}',
+      #             short: true
+      #           }, {
+      #             title: 'Status',
+      #             value: '${{ job.status }}' === 'success' ? '✅ Success' : '❌ Failed',
+      #             short: true
+      #           }]
+      #         }]
+      #       }
+      #   if: always()
+
+  # Job 9: Rollback capability
+  setup-rollback-info:
+    name: Setup Rollback Information
+    runs-on: ubuntu-latest
+    needs: [analyze, deploy-production]
+    if: needs.analyze.outputs.new-release-published == 'true' && needs.deploy-production.result == 'success' && github.event.inputs.dry_run != 'true'
+    steps:
+      - name: Store rollback information
+        run: |
+          echo "# Rollback Information for v${{ needs.analyze.outputs.new-release-version }}" > rollback-info.md
+          echo "" >> rollback-info.md
+          echo "## Release Details" >> rollback-info.md
+          echo "- Version: v${{ needs.analyze.outputs.new-release-version }}" >> rollback-info.md
+          echo "- Commit: ${{ github.sha }}" >> rollback-info.md
+          echo "- Deploy Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> rollback-info.md
+          echo "" >> rollback-info.md
+          echo "## Rollback Commands" >> rollback-info.md
+          echo '```bash' >> rollback-info.md
+          echo "# To rollback this release:" >> rollback-info.md
+          echo "git revert ${{ github.sha }}" >> rollback-info.md
+          echo "# Or use GitHub CLI:" >> rollback-info.md
+          echo "gh workflow run cd.yml -f environment=production -f version=previous" >> rollback-info.md
+          echo '```' >> rollback-info.md
+
+      - name: Upload rollback info
+        uses: actions/upload-artifact@v3
+        with:
+          name: rollback-info-v${{ needs.analyze.outputs.new-release-version }}
+          path: rollback-info.md
+          retention-days: 30

@@ -1,0 +1,527 @@
+name: Code Coverage & Quality Metrics
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Weekly coverage report on Sundays at 4 AM UTC
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18.x'
+
+jobs:
+  # Job 1: Generate comprehensive coverage
+  coverage:
+    name: Generate Code Coverage
+    runs-on: ubuntu-latest
+    outputs:
+      coverage-percentage: ${{ steps.coverage.outputs.percentage }}
+      coverage-trend: ${{ steps.coverage.outputs.trend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Generate coverage badges
+        run: |
+          # Install coverage badge generator
+          npm install --no-save istanbul-badges-readme
+          
+          # Generate badges
+          npx istanbul-badges-readme --coverageDir=./coverage
+          
+          # Extract coverage percentage
+          coverage_percent=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "Coverage: $coverage_percent%"
+
+      - name: Calculate coverage trend
+        id: coverage
+        run: |
+          current_coverage=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "percentage=$current_coverage" >> $GITHUB_OUTPUT
+          
+          # Try to get previous coverage from artifacts or API
+          previous_coverage="0"
+          
+          # Calculate trend
+          if (( $(echo "$current_coverage > $previous_coverage" | bc -l) )); then
+            trend="📈 IMPROVED"
+          elif (( $(echo "$current_coverage < $previous_coverage" | bc -l) )); then
+            trend="📉 DECREASED"
+          else
+            trend="➡️ UNCHANGED"
+          fi
+          
+          echo "trend=$trend" >> $GITHUB_OUTPUT
+          echo "Current: $current_coverage%, Previous: $previous_coverage%, Trend: $trend"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: facepay-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            README.md
+          retention-days: 30
+
+  # Job 2: Critical path coverage
+  critical-coverage:
+    name: Critical Path Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Run critical tests with coverage
+        run: npm run test:coverage:critical
+
+      - name: Analyze critical coverage
+        run: |
+          critical_coverage=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          echo "Critical path coverage: $critical_coverage%"
+          
+          # Set minimum threshold for critical paths
+          min_threshold=85
+          
+          if (( $(echo "$critical_coverage >= $min_threshold" | bc -l) )); then
+            echo "✅ Critical coverage meets threshold ($critical_coverage% >= $min_threshold%)"
+          else
+            echo "❌ Critical coverage below threshold ($critical_coverage% < $min_threshold%)"
+            exit 1
+          fi
+
+      - name: Upload critical coverage
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
+          flags: critical
+          name: facepay-critical-coverage
+          fail_ci_if_error: true
+
+  # Job 3: Coverage diff for PRs
+  coverage-diff:
+    name: Coverage Diff Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: coverage
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Run coverage for PR
+        run: npm run test:coverage
+
+      - name: Store PR coverage
+        run: |
+          mkdir -p pr-coverage
+          cp -r coverage/* pr-coverage/
+          pr_coverage=$(jq -r '.total.lines.pct' pr-coverage/coverage-summary.json)
+          echo "PR_COVERAGE=$pr_coverage" >> $GITHUB_ENV
+
+      - name: Checkout base branch
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git checkout origin/${{ github.base_ref }}
+
+      - name: Run coverage for base
+        run: |
+          npm ci
+          npm run db:generate
+          npm run test:coverage
+
+      - name: Compare coverage
+        run: |
+          base_coverage=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+          pr_coverage="${{ env.PR_COVERAGE }}"
+          
+          echo "Base coverage: $base_coverage%"
+          echo "PR coverage: $pr_coverage%"
+          
+          # Calculate difference
+          diff=$(echo "$pr_coverage - $base_coverage" | bc -l)
+          
+          if (( $(echo "$diff > 0" | bc -l) )); then
+            status="📈 Coverage increased by ${diff}%"
+            emoji="✅"
+          elif (( $(echo "$diff < 0" | bc -l) )); then
+            status="📉 Coverage decreased by ${diff#-}%"
+            emoji="⚠️"
+          else
+            status="➡️ Coverage unchanged"
+            emoji="ℹ️"
+          fi
+          
+          echo "COVERAGE_STATUS=$status" >> $GITHUB_ENV
+          echo "COVERAGE_EMOJI=$emoji" >> $GITHUB_ENV
+
+      - name: Comment PR with coverage diff
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let coverageTable = '';
+            try {
+              const prCoverage = JSON.parse(fs.readFileSync('pr-coverage/coverage-summary.json', 'utf8'));
+              const baseCoverage = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              
+              coverageTable = `
+              | Metric | Base | PR | Change |
+              |--------|------|----|---------| 
+              | Lines | ${baseCoverage.total.lines.pct}% | ${prCoverage.total.lines.pct}% | ${(prCoverage.total.lines.pct - baseCoverage.total.lines.pct).toFixed(2)}% |
+              | Statements | ${baseCoverage.total.statements.pct}% | ${prCoverage.total.statements.pct}% | ${(prCoverage.total.statements.pct - baseCoverage.total.statements.pct).toFixed(2)}% |
+              | Functions | ${baseCoverage.total.functions.pct}% | ${prCoverage.total.functions.pct}% | ${(prCoverage.total.functions.pct - baseCoverage.total.functions.pct).toFixed(2)}% |
+              | Branches | ${baseCoverage.total.branches.pct}% | ${prCoverage.total.branches.pct}% | ${(prCoverage.total.branches.pct - baseCoverage.total.branches.pct).toFixed(2)}% |
+              `;
+            } catch (error) {
+              coverageTable = 'Coverage comparison table could not be generated.';
+            }
+            
+            const comment = `${{ env.COVERAGE_EMOJI }} **Code Coverage Report**
+            
+            ${{ env.COVERAGE_STATUS }}
+            
+            ${coverageTable}
+            
+            📊 Detailed coverage report is available in the [Codecov dashboard](https://codecov.io/gh/${{ github.repository }}/pull/${{ github.event.number }}).
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Job 4: Uncovered lines analysis
+  uncovered-analysis:
+    name: Uncovered Lines Analysis
+    runs-on: ubuntu-latest
+    needs: coverage
+    steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@v3
+        with:
+          name: coverage-report
+
+      - name: Analyze uncovered lines
+        run: |
+          echo "# Uncovered Lines Analysis" > uncovered-report.md
+          echo "" >> uncovered-report.md
+          echo "Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> uncovered-report.md
+          echo "" >> uncovered-report.md
+          
+          # Parse coverage report to find uncovered lines
+          if [ -f coverage/lcov.info ]; then
+            echo "## Files with Low Coverage" >> uncovered-report.md
+            echo "" >> uncovered-report.md
+            
+            # Extract files with coverage below 80%
+            awk '/SF:/{file=$0} /LH:/{hit=$2} /LF:/{found=$2; if(found>0 && hit/found<0.8) print file, hit"/"found, "("int(hit/found*100)"%)"}'  coverage/lcov.info | head -20 >> uncovered-report.md
+            
+            echo "" >> uncovered-report.md
+            echo "## Recommendations" >> uncovered-report.md
+            echo "- Focus testing efforts on files with coverage below 80%" >> uncovered-report.md
+            echo "- Prioritize critical path components" >> uncovered-report.md
+            echo "- Consider adding integration tests for complex workflows" >> uncovered-report.md
+          fi
+
+      - name: Upload uncovered analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: uncovered-analysis
+          path: uncovered-report.md
+          retention-days: 30
+
+  # Job 5: Coverage quality gates
+  quality-gates:
+    name: Coverage Quality Gates
+    runs-on: ubuntu-latest
+    needs: [coverage, critical-coverage]
+    steps:
+      - name: Evaluate quality gates
+        run: |
+          overall_coverage="${{ needs.coverage.outputs.coverage-percentage }}"
+          
+          echo "📊 Coverage Quality Gates Evaluation"
+          echo "Overall coverage: $overall_coverage%"
+          
+          # Define quality gates
+          gate_minimum=70
+          gate_good=80
+          gate_excellent=90
+          
+          passed_gates=0
+          total_gates=3
+          
+          if (( $(echo "$overall_coverage >= $gate_minimum" | bc -l) )); then
+            echo "✅ Minimum coverage gate passed ($gate_minimum%)"
+            passed_gates=$((passed_gates + 1))
+          else
+            echo "❌ Minimum coverage gate failed ($gate_minimum%)"
+          fi
+          
+          if (( $(echo "$overall_coverage >= $gate_good" | bc -l) )); then
+            echo "✅ Good coverage gate passed ($gate_good%)"
+            passed_gates=$((passed_gates + 1))
+          else
+            echo "⚠️ Good coverage gate not reached ($gate_good%)"
+          fi
+          
+          if (( $(echo "$overall_coverage >= $gate_excellent" | bc -l) )); then
+            echo "✅ Excellent coverage gate passed ($gate_excellent%)"
+            passed_gates=$((passed_gates + 1))
+          else
+            echo "⚠️ Excellent coverage gate not reached ($gate_excellent%)"
+          fi
+          
+          echo "Quality gates passed: $passed_gates/$total_gates"
+          
+          # Fail if minimum gate not passed
+          if (( $(echo "$overall_coverage < $gate_minimum" | bc -l) )); then
+            echo "❌ Coverage below minimum acceptable threshold"
+            exit 1
+          fi
+
+  # Job 6: Generate comprehensive report
+  generate-report:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+    needs: [coverage, critical-coverage, uncovered-analysis, quality-gates]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create comprehensive report
+        run: |
+          echo "# Code Coverage Comprehensive Report" > COVERAGE_REPORT.md
+          echo "" >> COVERAGE_REPORT.md
+          echo "**Generated on:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> COVERAGE_REPORT.md
+          echo "**Trigger:** ${{ github.event_name }}" >> COVERAGE_REPORT.md
+          echo "" >> COVERAGE_REPORT.md
+          
+          echo "## Summary" >> COVERAGE_REPORT.md
+          echo "- **Overall Coverage:** ${{ needs.coverage.outputs.coverage-percentage }}%" >> COVERAGE_REPORT.md
+          echo "- **Trend:** ${{ needs.coverage.outputs.coverage-trend }}" >> COVERAGE_REPORT.md
+          echo "" >> COVERAGE_REPORT.md
+          
+          echo "## Job Results" >> COVERAGE_REPORT.md
+          echo "- Coverage Generation: ${{ needs.coverage.result }}" >> COVERAGE_REPORT.md
+          echo "- Critical Coverage: ${{ needs.critical-coverage.result }}" >> COVERAGE_REPORT.md
+          echo "- Uncovered Analysis: ${{ needs.uncovered-analysis.result }}" >> COVERAGE_REPORT.md
+          echo "- Quality Gates: ${{ needs.quality-gates.result }}" >> COVERAGE_REPORT.md
+          echo "" >> COVERAGE_REPORT.md
+          
+          # Include detailed coverage data if available
+          if [ -f coverage-report/coverage/coverage-summary.json ]; then
+            echo "## Detailed Metrics" >> COVERAGE_REPORT.md
+            echo '```json' >> COVERAGE_REPORT.md
+            cat coverage-report/coverage/coverage-summary.json >> COVERAGE_REPORT.md
+            echo '```' >> COVERAGE_REPORT.md
+            echo "" >> COVERAGE_REPORT.md
+          fi
+          
+          # Include uncovered analysis if available
+          if [ -f uncovered-analysis/uncovered-report.md ]; then
+            echo "## Uncovered Lines Analysis" >> COVERAGE_REPORT.md
+            tail -n +4 uncovered-analysis/uncovered-report.md >> COVERAGE_REPORT.md
+            echo "" >> COVERAGE_REPORT.md
+          fi
+          
+          echo "## Recommendations" >> COVERAGE_REPORT.md
+          current_coverage=${{ needs.coverage.outputs.coverage-percentage }}
+          
+          if (( $(echo "$current_coverage < 70" | bc -l) )); then
+            echo "🚨 **URGENT:** Coverage is critically low. Immediate action required:" >> COVERAGE_REPORT.md
+            echo "- Add unit tests for core functionality" >> COVERAGE_REPORT.md
+            echo "- Implement integration tests for critical paths" >> COVERAGE_REPORT.md
+            echo "- Consider test-driven development practices" >> COVERAGE_REPORT.md
+          elif (( $(echo "$current_coverage < 80" | bc -l) )); then
+            echo "⚠️ **ACTION NEEDED:** Coverage needs improvement:" >> COVERAGE_REPORT.md
+            echo "- Focus on untested components" >> COVERAGE_REPORT.md
+            echo "- Add edge case testing" >> COVERAGE_REPORT.md
+            echo "- Review and expand existing test suites" >> COVERAGE_REPORT.md
+          else
+            echo "✅ **GOOD:** Coverage is at an acceptable level:" >> COVERAGE_REPORT.md
+            echo "- Maintain current testing standards" >> COVERAGE_REPORT.md
+            echo "- Focus on testing new features thoroughly" >> COVERAGE_REPORT.md
+            echo "- Consider adding performance and E2E tests" >> COVERAGE_REPORT.md
+          fi
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-comprehensive-report
+          path: COVERAGE_REPORT.md
+          retention-days: 90
+
+  # Job 7: Weekly coverage tracking
+  track-coverage:
+    name: Track Coverage Trends
+    runs-on: ubuntu-latest
+    needs: [coverage]
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Store coverage metric
+        run: |
+          # In a real implementation, you would store this in a database or tracking system
+          echo "Storing coverage metric for trend analysis..."
+          echo "Date: $(date -u +%Y-%m-%d)"
+          echo "Coverage: ${{ needs.coverage.outputs.coverage-percentage }}%"
+          echo "Commit: ${{ github.sha }}"
+          
+          # Create a simple JSON record
+          cat > coverage-record.json << EOF
+          {
+            "date": "$(date -u +%Y-%m-%d)",
+            "coverage": ${{ needs.coverage.outputs.coverage-percentage }},
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}"
+          }
+          EOF
+
+      - name: Upload coverage record
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-trend-$(date +%Y%m%d)
+          path: coverage-record.json
+          retention-days: 365
+
+  # Job 8: Notifications
+  notify:
+    name: Coverage Notifications
+    runs-on: ubuntu-latest
+    needs: [generate-report]
+    if: always()
+    steps:
+      - name: Download comprehensive report
+        uses: actions/download-artifact@v3
+        with:
+          name: coverage-comprehensive-report
+
+      - name: Determine notification type
+        run: |
+          coverage_percentage="${{ needs.coverage.outputs.coverage-percentage }}"
+          
+          if (( $(echo "$coverage_percentage < 60" | bc -l) )); then
+            echo "NOTIFICATION_TYPE=critical" >> $GITHUB_ENV
+            echo "NOTIFICATION_COLOR=danger" >> $GITHUB_ENV
+            echo "NOTIFICATION_EMOJI=🚨" >> $GITHUB_ENV
+          elif (( $(echo "$coverage_percentage < 70" | bc -l) )); then
+            echo "NOTIFICATION_TYPE=warning" >> $GITHUB_ENV
+            echo "NOTIFICATION_COLOR=warning" >> $GITHUB_ENV
+            echo "NOTIFICATION_EMOJI=⚠️" >> $GITHUB_ENV
+          else
+            echo "NOTIFICATION_TYPE=info" >> $GITHUB_ENV
+            echo "NOTIFICATION_COLOR=good" >> $GITHUB_ENV
+            echo "NOTIFICATION_EMOJI=📊" >> $GITHUB_ENV
+          fi
+
+      - name: Create GitHub issue for low coverage
+        if: env.NOTIFICATION_TYPE == 'critical'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('COVERAGE_REPORT.md', 'utf8');
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Critical: Code Coverage Below Acceptable Threshold',
+              body: report,
+              labels: ['testing', 'quality', 'critical']
+            });
+
+      - name: Console notification
+        run: |
+          echo "${{ env.NOTIFICATION_EMOJI }} Coverage Report Generated"
+          echo "Type: ${{ env.NOTIFICATION_TYPE }}"
+          echo "Coverage: ${{ needs.coverage.outputs.coverage-percentage }}%"
+          echo "Trend: ${{ needs.coverage.outputs.coverage-trend }}"
+
+      # Optional: Slack notification for coverage changes
+      # - name: Slack Coverage Notification
+      #   if: github.event_name == 'schedule' || env.NOTIFICATION_TYPE == 'critical'
+      #   uses: 8398a7/action-slack@v3
+      #   with:
+      #     status: custom
+      #     channel: '#quality-metrics'
+      #     webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      #     custom_payload: |
+      #       {
+      #         attachments: [{
+      #           color: '${{ env.NOTIFICATION_COLOR }}',
+      #           title: '${{ env.NOTIFICATION_EMOJI }} Code Coverage Report',
+      #           fields: [{
+      #             title: 'Coverage',
+      #             value: '${{ needs.coverage.outputs.coverage-percentage }}%',
+      #             short: true
+      #           }, {
+      #             title: 'Trend',
+      #             value: '${{ needs.coverage.outputs.coverage-trend }}',
+      #             short: true
+      #           }, {
+      #             title: 'Type',
+      #             value: '${{ env.NOTIFICATION_TYPE }}',
+      #             short: true
+      #           }],
+      #           footer: 'FacePay Quality Metrics'
+      #         }]
+      #       }

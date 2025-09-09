@@ -1,0 +1,575 @@
+import { Queue, Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
+import { notificationService, NotificationRecipient, NotificationConfig } from './notifications';
+import { NotificationPayload } from './websocket';
+
+// Redis connection
+const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  maxRetriesPerRequest: 3,
+  retryDelayOnFailover: 100,
+});
+
+// Job types
+export interface NotificationJob {
+  type: 'notification';
+  data: {
+    recipient: NotificationRecipient;
+    notificationType: NotificationPayload['type'];
+    config: NotificationConfig;
+    customData?: Record<string, any>;
+    priority?: 'low' | 'medium' | 'high' | 'critical';
+    retryAttempts?: number;
+  };
+}
+
+export interface BulkNotificationJob {
+  type: 'bulk-notification';
+  data: {
+    recipients: NotificationRecipient[];
+    notificationType: NotificationPayload['type'];
+    config: NotificationConfig;
+    customData?: Record<string, any>;
+    batchSize?: number;
+  };
+}
+
+export interface EmailJob {
+  type: 'email';
+  data: {
+    to: string | string[];
+    subject: string;
+    template?: string;
+    templateData?: Record<string, any>;
+    attachments?: Array<{
+      filename: string;
+      content: Buffer | string;
+      contentType?: string;
+    }>;
+    priority?: 'low' | 'medium' | 'high';
+  };
+}
+
+export interface SMSJob {
+  type: 'sms';
+  data: {
+    to: string;
+    message: string;
+    mediaUrls?: string[];
+    priority?: 'low' | 'medium' | 'high';
+  };
+}
+
+export interface PushJob {
+  type: 'push';
+  data: {
+    tokens: string[];
+    title: string;
+    body: string;
+    icon?: string;
+    image?: string;
+    data?: Record<string, any>;
+    priority?: 'low' | 'medium' | 'high';
+  };
+}
+
+export interface CleanupJob {
+  type: 'cleanup';
+  data: {
+    cleanupType: 'old-notifications' | 'failed-jobs' | 'logs';
+    olderThanDays?: number;
+  };
+}
+
+export type QueueJobData = NotificationJob | BulkNotificationJob | EmailJob | SMSJob | PushJob | CleanupJob;
+
+// Queue configuration
+const queueConfig = {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: 100,
+    removeOnFail: 50,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+  },
+};
+
+// Create queues
+export const notificationQueue = new Queue('notifications', queueConfig);
+export const emailQueue = new Queue('emails', queueConfig);
+export const smsQueue = new Queue('sms', queueConfig);
+export const pushQueue = new Queue('push', queueConfig);
+export const cleanupQueue = new Queue('cleanup', queueConfig);
+
+// Queue service class
+export class QueueService {
+  private static instance: QueueService;
+  private workers: Worker[] = [];
+
+  constructor() {
+    this.setupWorkers();
+    this.setupScheduledJobs();
+  }
+
+  static getInstance(): QueueService {
+    if (!QueueService.instance) {
+      QueueService.instance = new QueueService();
+    }
+    return QueueService.instance;
+  }
+
+  private setupWorkers() {
+    // Notification worker
+    const notificationWorker = new Worker(
+      'notifications',
+      async (job: Job<NotificationJob['data']>) => {
+        console.log(`Processing notification job ${job.id}`);
+        
+        const { recipient, notificationType, config, customData } = job.data;
+        
+        const result = await notificationService.sendNotification(
+          recipient,
+          notificationType,
+          config,
+          customData
+        );
+
+        if (!result.success) {
+          throw new Error(`Notification failed: ${result.errors.join(', ')}`);
+        }
+
+        return result;
+      },
+      { 
+        connection,
+        concurrency: 10,
+        removeOnComplete: 100,
+        removeOnFail: 50,
+      }
+    );
+
+    // Bulk notification worker
+    const bulkNotificationWorker = new Worker(
+      'notifications',
+      async (job: Job<BulkNotificationJob['data']>) => {
+        console.log(`Processing bulk notification job ${job.id}`);
+        
+        const { recipients, notificationType, config, customData, batchSize = 10 } = job.data;
+        
+        // Process in batches
+        const results = [];
+        for (let i = 0; i < recipients.length; i += batchSize) {
+          const batch = recipients.slice(i, i + batchSize);
+          
+          const batchResults = await Promise.allSettled(
+            batch.map(recipient => 
+              notificationService.sendNotification(recipient, notificationType, config, customData)
+            )
+          );
+
+          results.push(...batchResults);
+          
+          // Small delay between batches
+          if (i + batchSize < recipients.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+
+        const successful = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+
+        return { successful, failed, total: recipients.length };
+      },
+      { 
+        connection,
+        concurrency: 5,
+      }
+    );
+
+    // Email worker
+    const emailWorker = new Worker(
+      'emails',
+      async (job: Job<EmailJob['data']>) => {
+        console.log(`Processing email job ${job.id}`);
+        
+        const { to, subject, template, templateData, attachments, priority } = job.data;
+        
+        // Import email service dynamically to avoid circular dependencies
+        const { createEmailService } = await import('../services/email-service');
+        const emailService = createEmailService();
+
+        const result = await emailService.send(
+          {
+            to,
+            subject,
+            html: template ? '' : subject, // Template will override this
+            text: template ? '' : subject,
+            attachments,
+          },
+          {
+            template,
+            templateData,
+            priority,
+          }
+        );
+
+        if (!result) {
+          throw new Error('Failed to send email');
+        }
+
+        return { success: true, recipient: to };
+      },
+      { 
+        connection,
+        concurrency: 20,
+      }
+    );
+
+    // SMS worker
+    const smsWorker = new Worker(
+      'sms',
+      async (job: Job<SMSJob['data']>) => {
+        console.log(`Processing SMS job ${job.id}`);
+        
+        const { to, message, mediaUrls, priority } = job.data;
+        
+        const { createSMSService } = await import('../services/sms-service');
+        const smsService = createSMSService();
+
+        const result = await smsService.send(
+          { to, message, mediaUrls },
+          { priority }
+        );
+
+        if (!result.success) {
+          throw new Error(`SMS failed: ${result.error}`);
+        }
+
+        return result;
+      },
+      { 
+        connection,
+        concurrency: 5, // Respect rate limits
+      }
+    );
+
+    // Push notification worker
+    const pushWorker = new Worker(
+      'push',
+      async (job: Job<PushJob['data']>) => {
+        console.log(`Processing push notification job ${job.id}`);
+        
+        const { tokens, title, body, icon, image, data, priority } = job.data;
+        
+        const { createPushService } = await import('../services/push-notifications');
+        const pushService = createPushService();
+
+        const result = await pushService.send(
+          { tokens, title, body, icon, image, data },
+          { priority }
+        );
+
+        if (!result.success) {
+          throw new Error(`Push notification failed: ${result.failedTokens?.map(f => f.error).join(', ')}`);
+        }
+
+        return result;
+      },
+      { 
+        connection,
+        concurrency: 15,
+      }
+    );
+
+    // Cleanup worker
+    const cleanupWorker = new Worker(
+      'cleanup',
+      async (job: Job<CleanupJob['data']>) => {
+        console.log(`Processing cleanup job ${job.id}`);
+        
+        const { cleanupType, olderThanDays = 30 } = job.data;
+        
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+        
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+        let deletedCount = 0;
+
+        switch (cleanupType) {
+          case 'old-notifications':
+            const result = await prisma.notification.deleteMany({
+              where: {
+                createdAt: { lt: cutoffDate },
+                read: true,
+              },
+            });
+            deletedCount = result.count;
+            break;
+
+          case 'failed-jobs':
+            // Clean up failed jobs from Bull queues
+            await Promise.all([
+              notificationQueue.clean(olderThanDays * 24 * 60 * 60 * 1000, 100, 'failed'),
+              emailQueue.clean(olderThanDays * 24 * 60 * 60 * 1000, 100, 'failed'),
+              smsQueue.clean(olderThanDays * 24 * 60 * 60 * 1000, 100, 'failed'),
+              pushQueue.clean(olderThanDays * 24 * 60 * 60 * 1000, 100, 'failed'),
+            ]);
+            break;
+
+          case 'logs':
+            const logResult = await prisma.notificationLog.deleteMany({
+              where: { timestamp: { lt: cutoffDate } },
+            });
+            deletedCount = logResult.count;
+            break;
+        }
+
+        return { cleanupType, deletedCount, cutoffDate: cutoffDate.toISOString() };
+      },
+      { 
+        connection,
+        concurrency: 1, // Run cleanup jobs one at a time
+      }
+    );
+
+    this.workers = [
+      notificationWorker,
+      bulkNotificationWorker,
+      emailWorker,
+      smsWorker,
+      pushWorker,
+      cleanupWorker,
+    ];
+
+    // Add error handling for all workers
+    this.workers.forEach(worker => {
+      worker.on('completed', (job) => {
+        console.log(`Job ${job.id} completed successfully`);
+      });
+
+      worker.on('failed', (job, err) => {
+        console.error(`Job ${job?.id} failed:`, err);
+      });
+
+      worker.on('error', (err) => {
+        console.error('Worker error:', err);
+      });
+    });
+  }
+
+  private setupScheduledJobs() {
+    // Schedule daily cleanup job
+    const cleanupJobData: CleanupJob['data'] = {
+      cleanupType: 'old-notifications',
+      olderThanDays: 30,
+    };
+
+    cleanupQueue.add('daily-cleanup', cleanupJobData, {
+      repeat: { pattern: '0 2 * * *' }, // Run at 2 AM daily
+      removeOnComplete: 5,
+      removeOnFail: 5,
+    });
+
+    // Schedule weekly failed jobs cleanup
+    const failedJobsCleanupData: CleanupJob['data'] = {
+      cleanupType: 'failed-jobs',
+      olderThanDays: 7,
+    };
+
+    cleanupQueue.add('weekly-failed-jobs-cleanup', failedJobsCleanupData, {
+      repeat: { pattern: '0 3 * * 0' }, // Run at 3 AM every Sunday
+      removeOnComplete: 5,
+      removeOnFail: 5,
+    });
+
+    // Schedule monthly log cleanup
+    const logCleanupData: CleanupJob['data'] = {
+      cleanupType: 'logs',
+      olderThanDays: 90,
+    };
+
+    cleanupQueue.add('monthly-log-cleanup', logCleanupData, {
+      repeat: { pattern: '0 4 1 * *' }, // Run at 4 AM on the 1st of each month
+      removeOnComplete: 5,
+      removeOnFail: 5,
+    });
+  }
+
+  // Public methods for adding jobs
+  async addNotification(data: NotificationJob['data'], options: any = {}) {
+    const priority = this.getPriority(data.priority);
+    return notificationQueue.add('send-notification', data, {
+      priority,
+      ...options,
+    });
+  }
+
+  async addBulkNotification(data: BulkNotificationJob['data'], options: any = {}) {
+    return notificationQueue.add('send-bulk-notification', data, {
+      priority: 5, // Medium priority for bulk
+      ...options,
+    });
+  }
+
+  async addEmail(data: EmailJob['data'], options: any = {}) {
+    const priority = this.getPriority(data.priority);
+    return emailQueue.add('send-email', data, {
+      priority,
+      ...options,
+    });
+  }
+
+  async addSMS(data: SMSJob['data'], options: any = {}) {
+    const priority = this.getPriority(data.priority);
+    return smsQueue.add('send-sms', data, {
+      priority,
+      ...options,
+    });
+  }
+
+  async addPush(data: PushJob['data'], options: any = {}) {
+    const priority = this.getPriority(data.priority);
+    return pushQueue.add('send-push', data, {
+      priority,
+      ...options,
+    });
+  }
+
+  async schedule(
+    jobType: 'notification' | 'email' | 'sms' | 'push',
+    data: any,
+    scheduledAt: Date,
+    options: any = {}
+  ) {
+    const delay = scheduledAt.getTime() - Date.now();
+    
+    if (delay <= 0) {
+      throw new Error('Scheduled time must be in the future');
+    }
+
+    const jobOptions = {
+      delay,
+      ...options,
+    };
+
+    switch (jobType) {
+      case 'notification':
+        return this.addNotification(data, jobOptions);
+      case 'email':
+        return this.addEmail(data, jobOptions);
+      case 'sms':
+        return this.addSMS(data, jobOptions);
+      case 'push':
+        return this.addPush(data, jobOptions);
+      default:
+        throw new Error(`Unsupported job type: ${jobType}`);
+    }
+  }
+
+  private getPriority(priority?: 'low' | 'medium' | 'high' | 'critical'): number {
+    switch (priority) {
+      case 'critical': return 1;
+      case 'high': return 3;
+      case 'medium': return 5;
+      case 'low': return 7;
+      default: return 5;
+    }
+  }
+
+  // Queue monitoring methods
+  async getQueueStats() {
+    const queues = [
+      { name: 'notifications', queue: notificationQueue },
+      { name: 'emails', queue: emailQueue },
+      { name: 'sms', queue: smsQueue },
+      { name: 'push', queue: pushQueue },
+      { name: 'cleanup', queue: cleanupQueue },
+    ];
+
+    const stats = await Promise.all(
+      queues.map(async ({ name, queue }) => {
+        const [waiting, active, completed, failed, delayed] = await Promise.all([
+          queue.getWaiting(),
+          queue.getActive(),
+          queue.getCompleted(),
+          queue.getFailed(),
+          queue.getDelayed(),
+        ]);
+
+        return {
+          name,
+          waiting: waiting.length,
+          active: active.length,
+          completed: completed.length,
+          failed: failed.length,
+          delayed: delayed.length,
+        };
+      })
+    );
+
+    return stats;
+  }
+
+  async pauseQueue(queueName: string) {
+    const queue = this.getQueue(queueName);
+    await queue.pause();
+  }
+
+  async resumeQueue(queueName: string) {
+    const queue = this.getQueue(queueName);
+    await queue.resume();
+  }
+
+  private getQueue(name: string): Queue {
+    switch (name) {
+      case 'notifications': return notificationQueue;
+      case 'emails': return emailQueue;
+      case 'sms': return smsQueue;
+      case 'push': return pushQueue;
+      case 'cleanup': return cleanupQueue;
+      default: throw new Error(`Unknown queue: ${name}`);
+    }
+  }
+
+  // Graceful shutdown
+  async close() {
+    console.log('Closing queue service...');
+    
+    // Close all workers
+    await Promise.all(this.workers.map(worker => worker.close()));
+    
+    // Close queues
+    await Promise.all([
+      notificationQueue.close(),
+      emailQueue.close(),
+      smsQueue.close(),
+      pushQueue.close(),
+      cleanupQueue.close(),
+    ]);
+
+    // Close Redis connection
+    connection.disconnect();
+    
+    console.log('Queue service closed successfully');
+  }
+}
+
+// Singleton instance
+export const queueService = QueueService.getInstance();
+
+// Graceful shutdown handling
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down queue service...');
+  await queueService.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down queue service...');
+  await queueService.close();
+  process.exit(0);
+});

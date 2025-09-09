@@ -185,8 +185,28 @@ describe('/api/auth/register', () => {
       expect(data.message).toBe('Password must be at least 8 characters')
     })
 
-    it('should handle database errors', async () => {
-      mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'))
+    it('should return error for missing required fields', async () => {
+      const request = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'test@example.com'
+          // Missing name and password
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.success).toBe(false)
+      expect(data.message).toContain('required')
+    })
+
+    it('should handle database errors during user lookup', async () => {
+      mockPrisma.user.findUnique.mockRejectedValue(new Error('Database connection error'))
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -195,6 +215,72 @@ describe('/api/auth/register', () => {
           name: 'Test User',
           password: 'password123',
         }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.message).toBe('Internal server error')
+    })
+
+    it('should handle database errors during user creation', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null)
+      mockHashPassword.mockResolvedValue('hashed-password')
+      mockPrisma.user.create.mockRejectedValue(new Error('Database insert error'))
+
+      const request = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'test@example.com',
+          name: 'Test User',
+          password: 'password123',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.message).toBe('Internal server error')
+    })
+
+    it('should handle password hashing errors', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null)
+      mockHashPassword.mockRejectedValue(new Error('Hashing failed'))
+
+      const request = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: 'test@example.com',
+          name: 'Test User',
+          password: 'password123',
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.message).toBe('Internal server error')
+    })
+
+    it('should handle malformed JSON', async () => {
+      const request = new NextRequest('http://localhost:3000/api/auth/register', {
+        method: 'POST',
+        body: 'invalid-json',
         headers: {
           'Content-Type': 'application/json',
         },
