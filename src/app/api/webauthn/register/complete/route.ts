@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { WebAuthnService } from '@/services/webauthn'
 import { verifyRegistrationResponse } from '@simplewebauthn/server'
+import type { RegistrationResponseJSON } from '@simplewebauthn/types'
 import { z } from 'zod'
 
 const completeRegistrationSchema = z.object({
@@ -40,16 +41,18 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('No active registration challenge found. Please restart registration.', 400)
     }
 
-    // Use WebAuthn service for additional processing if needed
-    const serviceResponse = await WebAuthnService.completeRegistration(credential, user.id)
-    
-    if (!serviceResponse.success) {
-      return createErrorResponse('WebAuthn service validation failed', 400)
-    }
+    // Log registration completion attempt
+    console.log('[WebAuthn Registration Complete] Processing registration completion:', {
+      userId: user.id,
+      email: user.email,
+      credentialId: credential.id,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
 
     // Verify the registration response using SimpleWebAuthn
     const verification = await verifyRegistrationResponse({
-      response: credential,
+      response: credential as RegistrationResponseJSON,
       expectedChallenge: user.currentChallenge,
       expectedOrigin: process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000',
       expectedRPID: process.env.WEBAUTHN_RP_ID || 'localhost',
@@ -60,7 +63,38 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('WebAuthn registration verification failed', 400)
     }
 
-    const { credentialID, credentialPublicKey, counter, credentialBackedUp, credentialDeviceType } = verification.registrationInfo
+    const { credentialID, credentialPublicKey, counter, credentialBackedUp, credentialDeviceType, userVerified } = verification.registrationInfo
+
+    // Validate biometric authentication using WebAuthn service
+    const deviceInfo = {
+      userAgent: request.headers.get('user-agent') || '',
+      platform: 'unknown'
+    }
+    
+    const biometricValidation = WebAuthnService.validateBiometricAuthentication({
+      credentialDeviceType,
+      credentialBackedUp,
+      userVerified
+    }, deviceInfo)
+
+    if (!biometricValidation.isValid) {
+      console.error('[WebAuthn Registration Complete] Biometric validation failed:', {
+        userId: user.id,
+        reason: biometricValidation.reason,
+        credentialDeviceType,
+        credentialBackedUp,
+        userVerified
+      })
+      return createErrorResponse(biometricValidation.reason || 'Biometric authentication validation failed', 400)
+    }
+
+    // Log successful biometric validation
+    WebAuthnService.logBiometricAuthentication(user.id, {
+      verified: true,
+      credentialDeviceType,
+      credentialBackedUp,
+      userVerified
+    }, deviceInfo)
 
     // Check if credential already exists
     const existingCredential = await prisma.webauthnCredential.findUnique({
@@ -96,18 +130,49 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
-    // Create biometric data entry for tracking
+    // Create biometric data entry for tracking with detailed metadata
+    const biometricAnalysis = WebAuthnService.analyzeBiometricAuthentication({
+      credentialDeviceType,
+      credentialBackedUp,
+      userVerified
+    }, deviceInfo)
+
     await prisma.biometricData.create({
       data: {
         userId: user.id,
         type: 'webauthn_passkey',
-        data: 'registered', // Encrypted placeholder - in production would store relevant metadata
+        data: JSON.stringify({
+          registered: true,
+          authenticatorType: biometricAnalysis.authenticatorType,
+          biometricUsed: biometricAnalysis.biometricUsed,
+          deviceType: biometricAnalysis.deviceType,
+          credentialType: biometricAnalysis.credentialType,
+          platform: biometricAnalysis.platformInfo,
+          registrationDate: new Date().toISOString()
+        }),
         isActive: true,
       },
     })
 
+    // Log detailed registration completion
+    console.log('[WebAuthn Registration Complete] Biometric registration completed successfully:', {
+      userId: user.id,
+      email: user.email,
+      credentialId: Buffer.from(credentialID).toString('base64url'),
+      deviceType: credentialDeviceType,
+      backedUp: credentialBackedUp,
+      userVerified,
+      authenticatorType: biometricAnalysis.authenticatorType,
+      biometricUsed: biometricAnalysis.biometricUsed,
+      platform: biometricAnalysis.platformInfo,
+      timestamp: new Date().toISOString()
+    })
+
     return createSuccessResponse({
       verified: true,
+      biometricVerified: userVerified,
+      authenticatorType: biometricAnalysis.authenticatorType,
+      biometricUsed: biometricAnalysis.biometricUsed,
       credential: {
         id: webauthnCredential.id,
         credentialId: webauthnCredential.credentialId,
@@ -115,15 +180,22 @@ export async function POST(request: NextRequest) {
         backedUp: webauthnCredential.backedUp,
         createdAt: webauthnCredential.createdAt,
       },
-      message: 'Registration completed successfully'
-    }, 'WebAuthn registration completed')
+      deviceInfo: biometricAnalysis.platformInfo,
+      message: 'Biometric registration completed successfully - platform authenticator verified'
+    }, 'WebAuthn biometric registration completed')
 
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('[WebAuthn Registration Complete] Invalid request format:', error.errors)
       return createErrorResponse('Invalid request format: ' + error.errors[0].message, 400)
     }
     
-    console.error('WebAuthn registration complete error:', error)
-    return createErrorResponse('Failed to complete WebAuthn registration', 500)
+    console.error('[WebAuthn Registration Complete] Registration completion failed:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
+    return createErrorResponse('Failed to complete biometric registration', 500)
   }
 }

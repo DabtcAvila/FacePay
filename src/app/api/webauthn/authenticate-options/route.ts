@@ -1,52 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
+import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
-import { z } from 'zod'
-
-const authenticateOptionsSchema = z.object({
-  email: z.string().email('Invalid email address').optional(),
-})
+import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email } = authenticateOptionsSchema.parse(body)
+    // Require authentication to get user's credentials
+    const auth = await requireAuth(request)
+    if (auth.error) return auth.error
 
-    let allowCredentials = undefined
+    // Get user's credentials
+    const user = await prisma.user.findUnique({
+      where: { id: auth.user.userId },
+      include: {
+        webauthnCredentials: true,
+      },
+    })
 
-    if (email) {
-      // Get user's credentials for specific user authentication
-      const user = await prisma.user.findUnique({
-        where: { email },
-        include: {
-          webauthnCredentials: true,
-        },
-      })
-
-      if (user && user.webauthnCredentials.length > 0) {
-        allowCredentials = user.webauthnCredentials.map(cred => ({
-          id: cred.credentialId,
-          type: 'public-key' as const,
-        }))
-      }
+    if (!user) {
+      return createErrorResponse('User not found', 404)
     }
+
+    // Only allow credentials owned by this user - force internal transport for platform authenticators
+    const allowCredentials = user.webauthnCredentials.map(cred => ({
+      id: cred.credentialId, // Use string directly as stored in base64url format
+      transports: ['internal'] as AuthenticatorTransportFuture[], // Force platform authenticator transport
+    }))
+
+    // Log authentication options generation
+    console.log('[WebAuthn Authentication Options] Generating options for user:', {
+      userId: user.id,
+      email: user.email,
+      credentialCount: allowCredentials.length,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
 
     const options = await generateAuthenticationOptions({
       timeout: 60000,
       allowCredentials,
-      userVerification: 'preferred',
+      userVerification: 'required', // CRITICAL: Force biometric verification
       rpID: process.env.WEBAUTHN_RP_ID || 'localhost',
     })
 
-    return createSuccessResponse(options)
+    // Log generated options
+    console.log('[WebAuthn Authentication Options] Options generated successfully:', {
+      userId: user.id,
+      userVerification: 'required',
+      biometricRequired: true,
+      challengeLength: options.challenge.length,
+      timestamp: new Date().toISOString()
+    })
+
+    // Store challenge temporarily for verification
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        currentChallenge: options.challenge,
+      },
+    })
+
+    return createSuccessResponse({
+      ...options,
+      biometricRequired: true,
+      platformAuthenticatorRequired: true,
+      message: 'Biometric authentication options generated successfully'
+    })
 
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return createErrorResponse(error.errors[0].message, 400)
-    }
-    
-    console.error('WebAuthn authentication options error:', error)
-    return createErrorResponse('Failed to generate authentication options', 500)
+    console.error('[WebAuthn Authentication Options] Failed to generate options:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
+    return createErrorResponse('Failed to generate biometric authentication options', 500)
   }
 }

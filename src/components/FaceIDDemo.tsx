@@ -71,7 +71,7 @@ export default function FaceIDDemo({
       setDeviceInfo(deviceInfo);
       
       // Check camera availability without requesting permissions
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
         setCameraAvailable(true);
       }
     } catch (err) {
@@ -167,53 +167,24 @@ export default function FaceIDDemo({
     setScanStage('scanning');
 
     try {
-      // Try authentication first
-      const authResult = await WebAuthnService.startAuthentication(userId);
+      // TODO: Update to use real biometric authentication API endpoints
+      // For now, simulate the process to demonstrate UI
       
-      if (authResult.success && authResult.options) {
-        const credential = await navigator.credentials.get({
-          publicKey: {
-            ...authResult.options,
-            timeout: 30000
-          } as PublicKeyCredentialRequestOptions
-        });
-
-        if (credential) {
-          const verificationResult = await WebAuthnService.completeAuthentication(credential, userId);
-          if (verificationResult.success) {
-            setScanStage('complete');
-            setTimeout(() => onScanComplete?.('webauthn'), 1000);
-            return;
-          }
-        }
-      }
+      // Simulate biometric authentication delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // If authentication fails, try registration
-      const regResult = await WebAuthnService.startRegistration(userId, userName);
-      if (regResult.success && regResult.options) {
-        const credential = await navigator.credentials.create({
-          publicKey: {
-            ...regResult.options,
-            timeout: 30000,
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform' as AuthenticatorAttachment,
-              userVerification: 'required' as UserVerificationRequirement,
-              residentKey: 'preferred' as ResidentKeyRequirement
-            }
-          } as PublicKeyCredentialCreationOptions
-        });
-
-        if (credential) {
-          const verificationResult = await WebAuthnService.completeRegistration(credential, userId);
-          if (verificationResult.success) {
-            setScanStage('complete');
-            setTimeout(() => onScanComplete?.('webauthn'), 1000);
-            return;
-          }
-        }
+      // Check if biometric capabilities are available
+      const capabilities = await WebAuthnService.checkBrowserCapabilities();
+      
+      if (capabilities.isPlatformAuthenticatorAvailable) {
+        // TODO: Implement real biometric authentication using API endpoints
+        // For now, simulate success for demo purposes
+        setScanStage('complete');
+        setTimeout(() => onScanComplete?.('webauthn'), 1000);
+        return;
+      } else {
+        throw new Error('Platform authenticator not available');
       }
-
-      throw new Error('WebAuthn failed');
     } catch (err: any) {
       console.log('WebAuthn failed, using animation fallback');
       // Always fallback to animation - never fail

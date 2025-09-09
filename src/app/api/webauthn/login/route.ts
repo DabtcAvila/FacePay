@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateTokens } from '@/lib/jwt'
-import { verifyAuthenticationResponse } from '@simplewebauthn/server'
+import { verifyAuthenticationResponse, generateAuthenticationOptions } from '@simplewebauthn/server'
+import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { z } from 'zod'
 
 // Schema for the login request
@@ -162,13 +163,11 @@ export async function GET(request: NextRequest) {
       allowCredentials = user.webauthnCredentials.map(cred => ({
         id: cred.credentialId,
         type: 'public-key' as const,
-        transports: ['internal', 'hybrid'],
+        transports: ['internal', 'hybrid'] as AuthenticatorTransportFuture[],
       }))
     }
 
     // Generate authentication options with biometric preferences
-    const { generateAuthenticationOptions } = await import('@simplewebauthn/server')
-    
     const options = await generateAuthenticationOptions({
       timeout: 60000, // 60 seconds
       allowCredentials,

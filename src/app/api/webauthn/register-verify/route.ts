@@ -28,15 +28,24 @@ export async function POST(request: NextRequest) {
     // Get user details
     const user = await prisma.user.findUnique({
       where: { id: auth.user.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        currentChallenge: true,
+      },
     })
 
     if (!user) {
       return createErrorResponse('User not found', 404)
     }
 
-    // In production, retrieve the challenge from secure storage
-    // For this demo, we'll use a placeholder
-    const expectedChallenge = 'placeholder-challenge'
+    // Get the challenge from the user record
+    const expectedChallenge = user.currentChallenge
+    
+    if (!expectedChallenge) {
+      return createErrorResponse('No registration challenge found', 400)
+    }
 
     const verification = await verifyRegistrationResponse({
       response: credential as any, // Simplified for demo
@@ -60,7 +69,7 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Credential already exists', 409)
     }
 
-    // Save the credential
+    // Save the credential and clear the challenge
     const webauthnCredential = await prisma.webauthnCredential.create({
       data: {
         userId: user.id,
@@ -72,6 +81,14 @@ export async function POST(request: NextRequest) {
         id: true,
         credentialId: true,
         createdAt: true,
+      },
+    })
+
+    // Clear the challenge after successful registration
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        currentChallenge: null,
       },
     })
 

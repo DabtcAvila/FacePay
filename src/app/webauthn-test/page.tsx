@@ -75,20 +75,28 @@ export default function WebAuthnTestPage() {
     addLog('info', `Starting WebAuthn registration for user: ${userName}`)
 
     try {
-      // Step 1: Get registration options
-      addLog('info', 'Step 1: Requesting registration options from server...')
-      const startResult = await WebAuthnService.startRegistration(userId, userName)
+      // Step 1: Get registration options from API
+      addLog('info', 'Step 1: Requesting biometric registration options from API...')
+      const response = await fetch('/api/webauthn/register/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Note: This test would need proper authentication headers in a real implementation
+        }
+      })
       
-      if (!startResult.success) {
-        throw new Error('Registration start failed')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Registration start failed: ${error.error}`)
       }
 
-      addLog('success', 'Registration options received', startResult.options)
+      const startResult = await response.json()
+      addLog('success', 'Biometric registration options received (platform authenticator required)', startResult.data.options)
 
-      // Step 2: Create credential
-      addLog('info', 'Step 2: Creating WebAuthn credential...')
+      // Step 2: Create credential with biometric verification
+      addLog('info', 'Step 2: Creating biometric credential (platform authenticator required)...')
       const credential = await navigator.credentials.create({
-        publicKey: startResult.options as PublicKeyCredentialCreationOptions
+        publicKey: startResult.data.options as PublicKeyCredentialCreationOptions
       })
 
       if (!credential) {
@@ -100,15 +108,34 @@ export default function WebAuthnTestPage() {
         type: credential.type
       })
 
-      // Step 3: Verify registration
-      addLog('info', 'Step 3: Verifying registration with server...')
-      const completeResult = await WebAuthnService.completeRegistration(credential, userId)
+      // Step 3: Verify biometric registration
+      addLog('info', 'Step 3: Verifying biometric registration with server...')
+      const completeResponse = await fetch('/api/webauthn/register/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Note: This test would need proper authentication headers in a real implementation
+        },
+        body: JSON.stringify({
+          credential: {
+            id: credential.id,
+            rawId: credential.id, // Simplified for test
+            response: {
+              attestationObject: (credential as any).response.attestationObject,
+              clientDataJSON: (credential as any).response.clientDataJSON,
+            },
+            type: credential.type,
+          }
+        })
+      })
       
-      if (!completeResult.success) {
-        throw new Error('Registration completion failed')
+      if (!completeResponse.ok) {
+        const error = await completeResponse.json()
+        throw new Error(`Registration completion failed: ${error.error}`)
       }
 
-      addLog('success', 'Registration completed successfully!', completeResult)
+      const completeResult = await completeResponse.json()
+      addLog('success', 'Biometric registration completed successfully! Platform authenticator verified.', completeResult)
     } catch (error) {
       const webAuthnError = WebAuthnService.handleWebAuthnError(error)
       addLog('error', `Registration failed: ${webAuthnError.message}`, webAuthnError)
@@ -128,20 +155,28 @@ export default function WebAuthnTestPage() {
     addLog('info', `Starting WebAuthn authentication for user: ${userId}`)
 
     try {
-      // Step 1: Get authentication options
-      addLog('info', 'Step 1: Requesting authentication options from server...')
-      const startResult = await WebAuthnService.startAuthentication(userId)
+      // Step 1: Get biometric authentication options
+      addLog('info', 'Step 1: Requesting biometric authentication options from API...')
+      const response = await fetch('/api/webauthn/authenticate/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId })
+      })
       
-      if (!startResult.success) {
-        throw new Error('Authentication start failed')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Authentication start failed: ${error.error}`)
       }
 
-      addLog('success', 'Authentication options received', startResult.options)
+      const startResult = await response.json()
+      addLog('success', 'Biometric authentication options received (user verification required)', startResult.data.options)
 
-      // Step 2: Get credential
-      addLog('info', 'Step 2: Getting WebAuthn credential...')
+      // Step 2: Get biometric credential
+      addLog('info', 'Step 2: Getting biometric credential (user verification required)...')
       const credential = await navigator.credentials.get({
-        publicKey: startResult.options as PublicKeyCredentialRequestOptions
+        publicKey: startResult.data.options as PublicKeyCredentialRequestOptions
       })
 
       if (!credential) {
@@ -153,15 +188,34 @@ export default function WebAuthnTestPage() {
         type: credential.type
       })
 
-      // Step 3: Verify authentication
-      addLog('info', 'Step 3: Verifying authentication with server...')
-      const completeResult = await WebAuthnService.completeAuthentication(credential, userId)
+      // Step 3: Verify biometric authentication
+      addLog('info', 'Step 3: Verifying biometric authentication with server...')
+      const completeResponse = await fetch('/api/webauthn/authenticate/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          credential: {
+            id: credential.id,
+            rawId: credential.id, // Simplified for test
+            response: {
+              authenticatorData: (credential as any).response.authenticatorData,
+              clientDataJSON: (credential as any).response.clientDataJSON,
+              signature: (credential as any).response.signature,
+            },
+            type: credential.type,
+          }
+        })
+      })
       
-      if (!completeResult.success) {
-        throw new Error('Authentication completion failed')
+      if (!completeResponse.ok) {
+        const error = await completeResponse.json()
+        throw new Error(`Authentication completion failed: ${error.error}`)
       }
 
-      addLog('success', 'Authentication completed successfully!', completeResult)
+      const completeResult = await completeResponse.json()
+      addLog('success', 'Biometric authentication completed successfully! Platform authenticator verified.', completeResult)
     } catch (error) {
       const webAuthnError = WebAuthnService.handleWebAuthnError(error)
       addLog('error', `Authentication failed: ${webAuthnError.message}`, webAuthnError)

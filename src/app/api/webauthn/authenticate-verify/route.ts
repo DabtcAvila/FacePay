@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
             name: true,
             createdAt: true,
             updatedAt: true,
+            currentChallenge: true,
           },
         },
       },
@@ -45,8 +46,12 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Credential not found', 404)
     }
 
-    // In production, retrieve the challenge from secure storage
-    const expectedChallenge = 'placeholder-challenge'
+    // Get the challenge from the user record
+    const expectedChallenge = webauthnCredential.user.currentChallenge
+    
+    if (!expectedChallenge) {
+      return createErrorResponse('No authentication challenge found', 400)
+    }
 
     const verification = await verifyAuthenticationResponse({
       response: credential as any, // Simplified for demo
@@ -64,10 +69,18 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('WebAuthn authentication verification failed', 401)
     }
 
-    // Update counter
+    // Update counter and clear challenge
     await prisma.webauthnCredential.update({
       where: { id: webauthnCredential.id },
       data: { counter: verification.authenticationInfo.newCounter },
+    })
+
+    // Clear the challenge after successful authentication
+    await prisma.user.update({
+      where: { id: webauthnCredential.userId },
+      data: {
+        currentChallenge: null,
+      },
     })
 
     // Generate tokens for the user

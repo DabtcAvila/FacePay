@@ -109,6 +109,7 @@ export default function DashboardLayout({
     { id: 'dashboard', name: 'Dashboard', icon: Home, href: '/dashboard' },
     { id: 'payments', name: 'Payments', icon: CreditCard, href: '/payments' },
     { id: 'history', name: 'History', icon: History, href: '/history' },
+    { id: 'biometric', name: 'Biometric Demo', icon: Fingerprint, href: '/biometric' },
     { id: 'security', name: 'Security', icon: Shield, href: '/security' },
     { id: 'profile', name: 'Profile', icon: User, href: '/profile' },
     { id: 'settings', name: 'Settings', icon: Settings, href: '/settings' }

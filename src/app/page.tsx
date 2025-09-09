@@ -9,11 +9,12 @@ import PaymentForm from '@/components/PaymentForm';
 import RegistrationFlow from '@/components/RegistrationFlow';
 import WebAuthnDemo from '@/components/WebAuthnDemo';
 import SimpleFaceIDDemo from '@/components/SimpleFaceIDDemo';
+import NativeBiometric from '@/components/NativeBiometric';
 import { WebAuthnService, type WebAuthnCapabilities } from '@/services/webauthn';
 
 export default function LandingPage() {
   const [showDemo, setShowDemo] = useState(false);
-  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid'>('scan');
+  const [demoMode, setDemoMode] = useState<'scan' | 'payment' | 'register' | 'webauthn' | 'faceid' | 'native'>('scan');
   const [isScanning, setIsScanning] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [webAuthnCapabilities, setWebAuthnCapabilities] = useState<WebAuthnCapabilities | null>(null);
@@ -43,7 +44,7 @@ export default function LandingPage() {
     setShowDemo(true);
     // Choose the best available demo mode based on capabilities
     if (biometricReady) {
-      setDemoMode('webauthn');
+      setDemoMode('native');
     } else {
       setDemoMode('scan');
       setIsScanning(true);
@@ -64,6 +65,12 @@ export default function LandingPage() {
     setDemoError(''); // Clear any previous errors
     setShowDemo(true);
     setDemoMode('webauthn');
+  };
+
+  const handleNativeBiometricDemo = () => {
+    setDemoError(''); // Clear any previous errors
+    setShowDemo(true);
+    setDemoMode('native');
   };
 
   const handleScanComplete = () => {
@@ -210,7 +217,8 @@ export default function LandingPage() {
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold">
-                    {demoMode === 'webauthn' ? 'Biometric Authentication' :
+                    {demoMode === 'native' ? 'Real Biometric Authentication' :
+                     demoMode === 'webauthn' ? 'WebAuthn Demo' :
                      demoMode === 'faceid' ? 'Face Recognition Demo' :
                      demoMode === 'register' ? 'Create Account' :
                      'FacePay Demo'}
@@ -218,7 +226,8 @@ export default function LandingPage() {
                   
                   {/* Demo instructions */}
                   <p className="text-sm text-gray-600 mt-1">
-                    {demoMode === 'webauthn' ? 'Use your device\'s biometric authentication' :
+                    {demoMode === 'native' ? 'Use your device\'s REAL Face ID, Touch ID, or Windows Hello' :
+                     demoMode === 'webauthn' ? 'WebAuthn authentication demo' :
                      demoMode === 'faceid' ? 'Test our face recognition technology with your camera' :
                      demoMode === 'scan' ? 'Experience our face scanning animation' :
                      demoMode === 'register' ? 'Create your FacePay account' :
@@ -233,6 +242,17 @@ export default function LandingPage() {
                   ✕
                 </button>
               </div>
+
+              {demoMode === 'native' && (
+                <NativeBiometric 
+                  userId={`demo-user-${Date.now()}`}
+                  userName="demo@facepay.com"
+                  mode="demo"
+                  onSuccess={handleBiometricSuccess}
+                  onError={(error) => console.error('Native biometric error:', error)}
+                  onCancel={closeModal}
+                />
+              )}
 
               {demoMode === 'webauthn' && (
                 <WebAuthnDemo 
@@ -270,7 +290,7 @@ export default function LandingPage() {
                       <Button 
                         onClick={() => {
                           setDemoError('');
-                          setDemoMode('webauthn');
+                          setDemoMode('native');
                         }}
                         variant="outline" 
                         size="sm"
@@ -346,8 +366,8 @@ export default function LandingPage() {
                   )}
                   <span className="font-medium">
                     {biometricReady 
-                      ? `${webAuthnCapabilities?.deviceInfo?.isMobile ? 'Mobile' : 'Desktop'} Biometric Authentication Ready`
-                      : 'Biometric Authentication Not Available'
+                      ? `Real ${webAuthnCapabilities?.deviceInfo?.isMobile ? 'Mobile' : 'Desktop'} Biometric Authentication Ready`
+                      : 'Real Biometric Authentication Not Available - Demo Mode Available'
                     }
                   </span>
                 </div>
@@ -388,11 +408,11 @@ export default function LandingPage() {
               {biometricReady ? (
                 <>
                   <Button
-                    onClick={handleWebAuthnDemo}
+                    onClick={handleNativeBiometricDemo}
                     className="bg-blue-600 hover:bg-blue-700 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 payment-flow-glow w-full sm:w-auto"
                   >
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Try Biometric Auth
+                    Use Real {webAuthnCapabilities?.biometricTypes.includes('face') ? 'Face ID' : webAuthnCapabilities?.biometricTypes.includes('fingerprint') ? 'Touch ID' : 'Biometrics'}
                   </Button>
                   
                   <Button
@@ -481,7 +501,7 @@ export default function LandingPage() {
                         <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
                       )}
                       <span className="text-sm sm:text-base">
-                        {biometricReady ? 'Biometric verification active' : 'Biometric demo mode available'}
+                        {biometricReady ? 'REAL biometric verification active' : 'Demo mode available - no real biometrics'}
                       </span>
                     </div>
                     <div className="flex items-center text-green-600">
@@ -601,14 +621,14 @@ export default function LandingPage() {
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
               <Button
-                onClick={biometricReady ? handleWebAuthnDemo : handleDemoClick}
+                onClick={biometricReady ? handleNativeBiometricDemo : handleDemoClick}
                 variant="outline"
                 className="border-white text-white hover:bg-white hover:text-blue-600 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3"
               >
                 {biometricReady ? (
                   <>
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Try Biometric Auth
+                    Real {webAuthnCapabilities?.biometricTypes.includes('face') ? 'Face ID' : webAuthnCapabilities?.biometricTypes.includes('fingerprint') ? 'Touch ID' : 'Biometrics'}
                   </>
                 ) : (
                   <>

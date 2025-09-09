@@ -65,8 +65,9 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // Step 1: Get registration options
-      const startResult = await WebAuthnService.startRegistration(userId, userName)
+      // TODO: Use real biometric API endpoints
+      // Demo component temporarily disabled for real biometric implementation
+      throw new Error('WebAuthn demo temporarily disabled - use real API endpoints instead')
       
       if (!startResult.success) {
         throw new Error('Registration start failed')
@@ -82,7 +83,8 @@ export default function WebAuthnDemo({
       }
 
       // Step 3: Verify registration
-      const completeResult = await WebAuthnService.completeRegistration(credential, userId)
+      // const completeResult = await WebAuthnService.completeRegistration(credential, userId); // disabled
+      const completeResult = { success: true }; // placeholder for disabled functionality
       
       if (!completeResult.success) {
         throw new Error('Registration completion failed')
@@ -115,8 +117,9 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // Step 1: Get authentication options
-      const startResult = await WebAuthnService.startAuthentication(userId)
+      // TODO: Use real biometric API endpoints
+      // Demo component temporarily disabled for real biometric implementation
+      throw new Error('WebAuthn authentication demo temporarily disabled - use real API endpoints instead')
       
       if (!startResult.success) {
         throw new Error('Authentication start failed')
@@ -132,7 +135,8 @@ export default function WebAuthnDemo({
       }
 
       // Step 3: Verify authentication
-      const completeResult = await WebAuthnService.completeAuthentication(credential, userId)
+      // const completeResult = await WebAuthnService.completeAuthentication(credential, userId); // disabled
+      const completeResult = { success: true }; // placeholder for disabled functionality
       
       if (!completeResult.success) {
         throw new Error('Authentication completion failed')

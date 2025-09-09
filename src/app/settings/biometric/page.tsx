@@ -195,10 +195,14 @@ export default function BiometricSettingsPage() {
       // Simulate WebAuthn registration
       await new Promise(resolve => setTimeout(resolve, 2000));
       
+      // Map biometric types to supported device types
+      const biometricType = capabilities?.biometricTypes[0]
+      const deviceType = (biometricType === 'iris' || biometricType === 'voice') ? 'unknown' : (biometricType || 'unknown')
+      
       const newDevice: BiometricDevice = {
         id: Date.now().toString(),
         name: `${capabilities?.deviceInfo.platform} Device`,
-        type: capabilities?.biometricTypes[0] || 'unknown',
+        type: deviceType as 'face' | 'fingerprint' | 'voice' | 'unknown',
         platform: capabilities?.deviceInfo.platform || 'Unknown',
         registeredAt: new Date(),
         lastUsed: new Date(),

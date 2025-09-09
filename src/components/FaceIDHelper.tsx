@@ -221,11 +221,11 @@ export default function FaceIDHelper({ error, tips = false, className }: FaceIDH
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`${colorClasses[errorContent.color]} border rounded-lg p-4 space-y-3 ${className || ''}`}
+      className={`${colorClasses[errorContent.color as keyof typeof colorClasses]} border rounded-lg p-4 space-y-3 ${className || ''}`}
     >
       {/* Error Header */}
       <div className="flex items-center space-x-2">
-        <errorContent.icon className={`w-5 h-5 ${iconColorClasses[errorContent.color]}`} />
+        <errorContent.icon className={`w-5 h-5 ${iconColorClasses[errorContent.color as keyof typeof iconColorClasses]}`} />
         <div>
           <h4 className="text-sm font-medium">{errorContent.title}</h4>
           <p className="text-xs opacity-90">{errorContent.message}</p>

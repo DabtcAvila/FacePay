@@ -53,12 +53,14 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Credential does not match the provided email', 403)
     }
 
-    // Use WebAuthn service for additional processing if needed
-    const serviceResponse = await WebAuthnService.completeAuthentication(credential, webauthnCredential.user.id)
-    
-    if (!serviceResponse.success) {
-      return createErrorResponse('WebAuthn service validation failed', 400)
-    }
+    // Log authentication completion attempt
+    console.log('[WebAuthn Authentication Complete] Processing authentication completion:', {
+      userId: webauthnCredential.user.id,
+      email: webauthnCredential.user.email,
+      credentialId: credential.id,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
 
     // Get the expected challenge - try from stored challenge first, then decode from client data
     let expectedChallenge = webauthnCredential.user.currentChallenge
@@ -95,8 +97,51 @@ export async function POST(request: NextRequest) {
     })
 
     if (!verification.verified) {
+      console.error('[WebAuthn Authentication Complete] Verification failed:', {
+        userId: webauthnCredential.user.id,
+        credentialId: credential.id,
+        timestamp: new Date().toISOString()
+      })
       return createErrorResponse('WebAuthn authentication verification failed', 401)
     }
+
+    // Validate biometric authentication using WebAuthn service
+    const deviceInfo = {
+      userAgent: request.headers.get('user-agent') || '',
+      platform: 'unknown'
+    }
+    
+    const biometricValidation = WebAuthnService.validateBiometricAuthentication({
+      credentialDeviceType: webauthnCredential.deviceType,
+      credentialBackedUp: webauthnCredential.backedUp,
+      userVerified: verification.authenticationInfo.userVerified
+    }, deviceInfo)
+
+    if (!biometricValidation.isValid) {
+      console.error('[WebAuthn Authentication Complete] Biometric validation failed:', {
+        userId: webauthnCredential.user.id,
+        reason: biometricValidation.reason,
+        credentialDeviceType: webauthnCredential.deviceType,
+        credentialBackedUp: webauthnCredential.backedUp,
+        userVerified: verification.authenticationInfo.userVerified
+      })
+      return createErrorResponse(biometricValidation.reason || 'Biometric authentication validation failed', 401)
+    }
+
+    // Log successful biometric validation
+    WebAuthnService.logBiometricAuthentication(webauthnCredential.user.id, {
+      verified: true,
+      credentialDeviceType: webauthnCredential.deviceType,
+      credentialBackedUp: webauthnCredential.backedUp,
+      userVerified: verification.authenticationInfo.userVerified
+    }, deviceInfo)
+
+    // Analyze biometric authentication for response data
+    const biometricAnalysis = WebAuthnService.analyzeBiometricAuthentication({
+      credentialDeviceType: webauthnCredential.deviceType,
+      credentialBackedUp: webauthnCredential.backedUp,
+      userVerified: verification.authenticationInfo.userVerified
+    }, deviceInfo)
 
     // Update the credential counter to prevent replay attacks and clear challenge
     await prisma.$transaction([
@@ -115,11 +160,28 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
+    // Log detailed authentication completion
+    console.log('[WebAuthn Authentication Complete] Biometric authentication completed successfully:', {
+      userId: webauthnCredential.user.id,
+      email: webauthnCredential.user.email,
+      credentialId: credential.id,
+      deviceType: webauthnCredential.deviceType,
+      backedUp: webauthnCredential.backedUp,
+      userVerified: verification.authenticationInfo.userVerified,
+      authenticatorType: biometricAnalysis.authenticatorType,
+      biometricUsed: biometricAnalysis.biometricUsed,
+      platform: biometricAnalysis.platformInfo,
+      timestamp: new Date().toISOString()
+    })
+
     // Generate JWT tokens for the authenticated user
     const tokens = generateTokens(webauthnCredential.user)
 
     return createSuccessResponse({
       verified: true,
+      biometricVerified: verification.authenticationInfo.userVerified,
+      authenticatorType: biometricAnalysis.authenticatorType,
+      biometricUsed: biometricAnalysis.biometricUsed,
       user: {
         id: webauthnCredential.user.id,
         email: webauthnCredential.user.email,
@@ -130,16 +192,23 @@ export async function POST(request: NextRequest) {
         refreshToken: tokens.refreshToken,
         expiresIn: tokens.expiresIn,
       },
+      deviceInfo: biometricAnalysis.platformInfo,
       loginMethod: 'webauthn_biometric',
-      message: 'Authentication completed successfully'
-    }, 'WebAuthn authentication completed')
+      message: 'Biometric authentication completed successfully - platform authenticator verified'
+    }, 'WebAuthn biometric authentication completed')
 
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('[WebAuthn Authentication Complete] Invalid request format:', error.errors)
       return createErrorResponse('Invalid request format: ' + error.errors[0].message, 400)
     }
     
-    console.error('WebAuthn authentication complete error:', error)
-    return createErrorResponse('Failed to complete WebAuthn authentication', 500)
+    console.error('[WebAuthn Authentication Complete] Authentication completion failed:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent')
+    })
+    return createErrorResponse('Failed to complete biometric authentication', 500)
   }
 }

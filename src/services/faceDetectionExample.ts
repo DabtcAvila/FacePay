@@ -370,6 +370,8 @@ export class FaceDetectionComponent {
     faces.forEach(face => {
       const { box, keypoints } = face
 
+      if (!this.ctx) return
+
       // Draw bounding box
       this.ctx.strokeStyle = '#00ff00'
       this.ctx.lineWidth = 2
@@ -378,6 +380,7 @@ export class FaceDetectionComponent {
       // Draw keypoints
       this.ctx.fillStyle = '#ff0000'
       keypoints.forEach(point => {
+        if (!this.ctx) return
         this.ctx.beginPath()
         this.ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI)
         this.ctx.fill()

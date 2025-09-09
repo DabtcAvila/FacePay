@@ -20,8 +20,9 @@ import {
   Globe,
   Lock
 } from 'lucide-react';
+import NativeBiometric from '@/components/NativeBiometric';
 
-type DemoMode = 'landing' | 'face-id' | 'simple-face-id' | 'biometric' | 'success';
+type DemoMode = 'landing' | 'face-id' | 'simple-face-id' | 'biometric' | 'real-biometric' | 'success';
 
 // Simple Button Component
 const SimpleButton = ({ 
@@ -278,6 +279,46 @@ export default function DemoPage() {
     );
   }
 
+  // Real Biometric Demo Screen
+  if (currentDemo === 'real-biometric') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 p-4">
+        <div className="container mx-auto max-w-4xl">
+          <SimpleButton 
+            onClick={handleBackToLanding}
+            variant="outline"
+            className="mb-4"
+          >
+            ← Back to Demo
+          </SimpleButton>
+          
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
+            <div className="mb-6 text-center">
+              <h2 className="text-3xl font-bold text-white mb-2">Real Device Biometric Authentication</h2>
+              <p className="text-green-200">Use your REAL Face ID, Touch ID, or Windows Hello</p>
+              <div className="mt-2 inline-flex items-center space-x-2 bg-green-500/20 px-3 py-1 rounded-full text-green-300 text-sm">
+                <Shield className="w-4 h-4" />
+                <span>REAL BIOMETRICS - NOT SIMULATION</span>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl">
+              <NativeBiometric
+                userId={`demo-real-${Date.now()}`}
+                userName="demo@facepay.com"
+                mode="demo"
+                onSuccess={handleDemoComplete}
+                onError={(error) => console.error('Real biometric error:', error)}
+                onCancel={handleBackToLanding}
+                showFallbackOptions={true}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Success Screen
   if (currentDemo === 'success') {
     return (
@@ -404,42 +445,42 @@ export default function DemoPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.8 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-4xl mx-auto"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 max-w-6xl mx-auto"
           >
             <motion.div
-              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-white/20"
+              className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl cursor-pointer border border-white/20"
               onClick={() => handleDemoStart('simple-face-id')}
               whileHover={{ y: -5, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <BrainCircuit className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold mb-2">Advanced Face ID</h3>
-              <p className="text-gray-300 mb-4">Experience AI-powered face detection with real-time analysis</p>
-              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-blue-300">
-                <Camera className="w-4 h-4" />
-                <span>AI-Powered Detection</span>
+              <BrainCircuit className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+              <h3 className="text-xl font-bold mb-2">Advanced Face ID</h3>
+              <p className="text-gray-300 mb-3 text-sm">AI-powered face detection simulation</p>
+              <div className="flex items-center justify-center space-x-2 mb-3 text-xs text-blue-300">
+                <Camera className="w-3 h-3" />
+                <span>AI Demo</span>
               </div>
-              <SimpleButton className="w-full">
-                <Play className="w-4 h-4 mr-2" />
-                Try Advanced Face ID
+              <SimpleButton className="w-full text-sm py-2">
+                <Play className="w-3 h-3 mr-2" />
+                Try AI Face ID
               </SimpleButton>
             </motion.div>
             
             <motion.div
-              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-white/20"
+              className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl cursor-pointer border border-white/20"
               onClick={() => handleDemoStart('face-id')}
               whileHover={{ y: -5, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Eye className="w-16 h-16 text-purple-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold mb-2">Simple Face ID</h3>
-              <p className="text-gray-300 mb-4">Experience basic facial recognition with automatic fallback</p>
-              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-purple-300">
-                <Camera className="w-4 h-4" />
-                <span>Camera Recognition</span>
+              <Eye className="w-12 h-12 text-purple-400 mx-auto mb-3" />
+              <h3 className="text-xl font-bold mb-2">Simple Face ID</h3>
+              <p className="text-gray-300 mb-3 text-sm">Basic facial recognition simulation</p>
+              <div className="flex items-center justify-center space-x-2 mb-3 text-xs text-purple-300">
+                <Camera className="w-3 h-3" />
+                <span>Camera Demo</span>
               </div>
-              <SimpleButton className="w-full">
-                <Play className="w-4 h-4 mr-2" />
+              <SimpleButton className="w-full text-sm py-2">
+                <Play className="w-3 h-3 mr-2" />
                 Try Simple Face ID
               </SimpleButton>
             </motion.div>
@@ -452,14 +493,38 @@ export default function DemoPage() {
             >
               <Fingerprint className="w-16 h-16 text-green-400 mx-auto mb-4" />
               <h3 className="text-2xl font-bold mb-2">Biometric Demo</h3>
-              <p className="text-gray-300 mb-4">Use Touch ID, Face ID, or Windows Hello for secure authentication</p>
+              <p className="text-gray-300 mb-4">Simulated Touch ID, Face ID, or Windows Hello authentication</p>
               <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
-                <Shield className="w-4 h-4" />
-                <span>Platform Biometrics</span>
+                <Activity className="w-4 h-4" />
+                <span>Simulated Demo</span>
               </div>
               <SimpleButton className="w-full">
                 <Play className="w-4 h-4 mr-2" />
-                Try Biometrics
+                Try Simulated Auth
+              </SimpleButton>
+            </motion.div>
+            
+            <motion.div
+              className="bg-white/10 backdrop-blur-sm p-8 rounded-2xl cursor-pointer border border-green-400/30 relative"
+              onClick={() => handleDemoStart('real-biometric')}
+              whileHover={{ y: -5, scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {/* "REAL" badge */}
+              <div className="absolute -top-2 -right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold animate-pulse">
+                REAL
+              </div>
+              
+              <Shield className="w-16 h-16 text-green-400 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold mb-2 text-green-100">Real Face ID / Touch ID</h3>
+              <p className="text-gray-300 mb-4">Use your device's ACTUAL biometric authentication system</p>
+              <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
+                <Shield className="w-4 h-4" />
+                <span>Real Device Biometrics</span>
+              </div>
+              <SimpleButton className="w-full bg-green-600 hover:bg-green-700">
+                <Shield className="w-4 h-4 mr-2" />
+                Use Real Biometrics
               </SimpleButton>
             </motion.div>
           </motion.div>
