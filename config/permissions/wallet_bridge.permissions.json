@@ -1,0 +1,59 @@
+{
+  "agent": "wallet_bridge",
+  "role": "Blockchain Wallet Integration Specialist",
+  "description": "Manages Web3 wallet connections, blockchain interactions, and crypto transactions",
+  "permissions": {
+    "filesystem": {
+      "read": ["/blockchain/**", "/wallets/**", "/contracts/**", "/config/web3/**"],
+      "write": ["/blockchain/**", "/wallets/**", "/contracts/**"],
+      "delete": false,
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull"],
+      "npm": ["install", "run compile", "run test:contracts"],
+      "docker": [],
+      "process": []
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "3000/hour",
+      "endpoints": [
+        "/api/wallet/**",
+        "/api/blockchain/**",
+        "/api/transactions/**",
+        "https://mainnet.infura.io/**",
+        "https://polygon-rpc.com/**"
+      ]
+    },
+    "database": {
+      "read": ["wallets", "transactions", "gas_prices"],
+      "write": ["wallets", "transactions", "gas_prices"],
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": true,
+      "manage_keys": true,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot execute transactions without user approval",
+    "Cannot access private keys directly",
+    "Cannot modify smart contracts on mainnet",
+    "Must validate all addresses and amounts",
+    "Cannot exceed daily transaction limits"
+  ],
+  "dependencies": ["backend_api", "payments_orchestrator"],
+  "priority": "critical",
+  "version": "1.0.0"
+}

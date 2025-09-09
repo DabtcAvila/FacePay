@@ -1,0 +1,52 @@
+{
+  "agent": "mobile_app",
+  "role": "Mobile Application Developer",
+  "description": "Develops and maintains React Native mobile applications for iOS and Android",
+  "permissions": {
+    "filesystem": {
+      "read": ["/mobile/**", "/shared/**", "/assets/**", "/config/**"],
+      "write": ["/mobile/**", "/shared/**", "/assets/**"],
+      "delete": ["/mobile/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull", "push"],
+      "npm": ["install", "run ios", "run android", "run test", "run build"],
+      "docker": [],
+      "process": ["spawn"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "5000/hour",
+      "endpoints": ["/api/**"]
+    },
+    "database": {
+      "read": false,
+      "write": false,
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": false,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot directly access database",
+    "Cannot modify backend services",
+    "Cannot access server environment variables",
+    "Cannot publish to app stores without approval"
+  ],
+  "dependencies": ["design_ux", "backend_api"],
+  "priority": "high",
+  "version": "1.0.0"
+}

@@ -1,0 +1,51 @@
+{
+  "agent": "frontend_web",
+  "role": "Frontend Web Developer",
+  "description": "Develops and maintains the web application frontend using React/Next.js",
+  "permissions": {
+    "filesystem": {
+      "read": ["/src/**", "/pages/**", "/components/**", "/styles/**", "/public/**", "/config/**"],
+      "write": ["/src/**", "/pages/**", "/components/**", "/styles/**", "/public/**"],
+      "delete": ["/src/**", "/pages/**", "/components/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull", "push"],
+      "npm": ["install", "run dev", "run build", "run test", "run lint"],
+      "docker": [],
+      "process": ["spawn"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "5000/hour",
+      "endpoints": ["/api/**"]
+    },
+    "database": {
+      "read": false,
+      "write": false,
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": false,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot directly access database",
+    "Cannot modify backend services",
+    "Cannot access server environment variables"
+  ],
+  "dependencies": ["design_ux", "backend_api"],
+  "priority": "high",
+  "version": "1.0.0"
+}

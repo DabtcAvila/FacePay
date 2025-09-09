@@ -1,0 +1,52 @@
+{
+  "agent": "webauthn_passkeys",
+  "role": "WebAuthn & Passkeys Security Specialist",
+  "description": "Implements and manages WebAuthn authentication, passkeys, and biometric security",
+  "permissions": {
+    "filesystem": {
+      "read": ["/auth/**", "/security/**", "/config/security/**", "/backend/auth/**"],
+      "write": ["/auth/**", "/security/**", "/config/security/**"],
+      "delete": ["/auth/sessions/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull"],
+      "npm": ["install", "run test:security"],
+      "docker": [],
+      "process": []
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "2000/hour",
+      "endpoints": ["/api/auth/**", "/api/webauthn/**", "/api/passkeys/**"]
+    },
+    "database": {
+      "read": ["users", "credentials", "sessions", "devices"],
+      "write": ["credentials", "sessions", "devices"],
+      "create": false,
+      "delete": ["sessions"],
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": true,
+      "manage_keys": true,
+      "configure_auth": true
+    }
+  },
+  "restrictions": [
+    "Cannot access payment data",
+    "Cannot modify user roles without approval",
+    "Cannot disable security features",
+    "Must log all authentication attempts"
+  ],
+  "dependencies": ["backend_api"],
+  "priority": "critical",
+  "version": "1.0.0"
+}

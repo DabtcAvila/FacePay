@@ -1,0 +1,57 @@
+{
+  "agent": "qa_ci_cd",
+  "role": "Quality Assurance & CI/CD Engineer",
+  "description": "Manages testing, quality assurance, continuous integration, and deployment pipelines",
+  "permissions": {
+    "filesystem": {
+      "read": ["/**"],
+      "write": ["/tests/**", "/.github/**", "/.circleci/**", "/cypress/**", "/jest/**"],
+      "delete": ["/tests/**", "/coverage/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": true
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull", "push", "branch", "merge"],
+      "npm": ["install", "run test", "run lint", "run build", "run coverage", "audit"],
+      "docker": ["build", "run", "compose", "push"],
+      "process": ["spawn", "monitor", "kill"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "5000/hour",
+      "endpoints": [
+        "/api/health/**",
+        "/api/metrics/**",
+        "https://api.github.com/**",
+        "https://circleci.com/api/**"
+      ]
+    },
+    "database": {
+      "read": ["test_data"],
+      "write": ["test_data"],
+      "create": false,
+      "delete": ["test_data"],
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": false,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot deploy to production without approval",
+    "Cannot access production secrets",
+    "Cannot modify production database",
+    "Must run all tests before deployment"
+  ],
+  "dependencies": ["all_agents"],
+  "priority": "high",
+  "version": "1.0.0"
+}

@@ -1,0 +1,51 @@
+{
+  "agent": "backend_api",
+  "role": "Backend API Developer",
+  "description": "Develops and maintains backend services, APIs, and database operations",
+  "permissions": {
+    "filesystem": {
+      "read": ["/backend/**", "/api/**", "/services/**", "/models/**", "/migrations/**", "/config/**"],
+      "write": ["/backend/**", "/api/**", "/services/**", "/models/**", "/migrations/**"],
+      "delete": ["/backend/**", "/api/**", "/services/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull", "push"],
+      "npm": ["install", "run dev", "run build", "run test", "run migrate"],
+      "docker": ["build", "run", "compose", "logs"],
+      "process": ["spawn", "monitor"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "10000/hour",
+      "endpoints": ["*"]
+    },
+    "database": {
+      "read": true,
+      "write": true,
+      "create": true,
+      "delete": false,
+      "migrate": true
+    },
+    "security": {
+      "access_secrets": true,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot delete production database",
+    "Cannot access payment processor credentials directly",
+    "Cannot modify security configurations without approval"
+  ],
+  "dependencies": ["webauthn_passkeys", "wallet_bridge", "payments_orchestrator"],
+  "priority": "high",
+  "version": "1.0.0"
+}

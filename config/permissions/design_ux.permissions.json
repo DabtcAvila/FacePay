@@ -1,0 +1,51 @@
+{
+  "agent": "design_ux",
+  "role": "Design & User Experience Specialist",
+  "description": "Handles UI/UX design, user flows, accessibility, and design system management",
+  "permissions": {
+    "filesystem": {
+      "read": ["/design/**", "/assets/**", "/styles/**", "/components/**", "/public/**"],
+      "write": ["/design/**", "/assets/**", "/styles/**", "/components/**/styles.*", "/public/images/**"],
+      "delete": ["/design/**", "/assets/**"],
+      "execute": false
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": false
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull"],
+      "npm": ["run storybook", "run build-styles"],
+      "docker": [],
+      "process": []
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "1000/hour",
+      "endpoints": ["/api/assets/**", "/api/themes/**", "/api/analytics/ux/**"]
+    },
+    "database": {
+      "read": ["themes", "user_preferences", "analytics"],
+      "write": ["themes", "user_preferences"],
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": false,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot modify backend logic",
+    "Cannot access payment data",
+    "Cannot access user credentials"
+  ],
+  "dependencies": ["frontend_web", "mobile_app"],
+  "priority": "high",
+  "version": "1.0.0"
+}

@@ -1,0 +1,61 @@
+{
+  "agent": "growth_ops",
+  "role": "Growth & Operations Manager",
+  "description": "Manages analytics, user growth, marketing automation, and operational metrics",
+  "permissions": {
+    "filesystem": {
+      "read": ["/analytics/**", "/reports/**", "/marketing/**", "/config/**"],
+      "write": ["/analytics/**", "/reports/**", "/marketing/**"],
+      "delete": ["/reports/**"],
+      "execute": false
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": false,
+      "monitor": true
+    },
+    "system": {
+      "git": ["status", "pull"],
+      "npm": ["run analytics", "run reports"],
+      "docker": [],
+      "process": []
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "10000/hour",
+      "endpoints": [
+        "/api/analytics/**",
+        "/api/metrics/**",
+        "/api/users/stats/**",
+        "https://analytics.google.com/**",
+        "https://api.mixpanel.com/**",
+        "https://api.segment.io/**",
+        "https://api.mailchimp.com/**"
+      ]
+    },
+    "database": {
+      "read": ["users", "analytics", "events", "campaigns", "metrics"],
+      "write": ["analytics", "events", "campaigns"],
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": false,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot access personal user data without anonymization",
+    "Cannot modify user accounts",
+    "Cannot access payment information",
+    "Must comply with GDPR/privacy regulations",
+    "Cannot send marketing without user consent"
+  ],
+  "dependencies": ["backend_api"],
+  "priority": "medium",
+  "version": "1.0.0"
+}

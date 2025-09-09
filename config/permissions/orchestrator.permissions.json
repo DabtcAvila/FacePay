@@ -1,0 +1,47 @@
+{
+  "agent": "orchestrator",
+  "role": "System Orchestrator & Project Manager",
+  "description": "Main controller that coordinates all agents and manages the project workflow",
+  "permissions": {
+    "filesystem": {
+      "read": ["/**"],
+      "write": ["/**"],
+      "delete": ["/**"],
+      "execute": true
+    },
+    "agents": {
+      "create": true,
+      "manage": true,
+      "terminate": true,
+      "delegate": true,
+      "monitor": true
+    },
+    "system": {
+      "git": ["init", "add", "commit", "push", "pull", "branch", "merge", "status", "log"],
+      "npm": ["install", "run", "test", "build", "audit"],
+      "docker": ["build", "run", "compose", "stop", "rm"],
+      "process": ["spawn", "kill", "monitor"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "unlimited",
+      "endpoints": ["*"]
+    },
+    "database": {
+      "read": true,
+      "write": true,
+      "create": true,
+      "delete": true,
+      "migrate": true
+    },
+    "security": {
+      "access_secrets": true,
+      "manage_keys": true,
+      "configure_auth": true
+    }
+  },
+  "restrictions": [],
+  "dependencies": ["all_agents"],
+  "priority": "highest",
+  "version": "1.0.0"
+}

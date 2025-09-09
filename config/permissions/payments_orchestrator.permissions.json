@@ -1,0 +1,61 @@
+{
+  "agent": "payments_orchestrator",
+  "role": "Payments System Orchestrator",
+  "description": "Manages all payment flows, integrations with payment processors, and transaction orchestration",
+  "permissions": {
+    "filesystem": {
+      "read": ["/payments/**", "/billing/**", "/invoices/**", "/config/payments/**"],
+      "write": ["/payments/**", "/billing/**", "/invoices/**"],
+      "delete": false,
+      "execute": true
+    },
+    "agents": {
+      "create": false,
+      "manage": false,
+      "terminate": false,
+      "delegate": true,
+      "monitor": true
+    },
+    "system": {
+      "git": ["status", "add", "commit", "pull"],
+      "npm": ["install", "run test:payments"],
+      "docker": [],
+      "process": ["monitor"]
+    },
+    "api": {
+      "external_requests": true,
+      "rate_limit": "10000/hour",
+      "endpoints": [
+        "/api/payments/**",
+        "/api/checkout/**",
+        "/api/subscriptions/**",
+        "https://api.stripe.com/**",
+        "https://api.paypal.com/**",
+        "https://api.square.com/**"
+      ]
+    },
+    "database": {
+      "read": ["payments", "subscriptions", "invoices", "customers", "products"],
+      "write": ["payments", "subscriptions", "invoices"],
+      "create": false,
+      "delete": false,
+      "migrate": false
+    },
+    "security": {
+      "access_secrets": true,
+      "manage_keys": false,
+      "configure_auth": false
+    }
+  },
+  "restrictions": [
+    "Cannot process payments without proper authorization",
+    "Cannot modify payment amounts after creation",
+    "Cannot access full card numbers",
+    "Must comply with PCI-DSS standards",
+    "Cannot delete payment records",
+    "Must log all payment operations"
+  ],
+  "dependencies": ["backend_api", "wallet_bridge"],
+  "priority": "critical",
+  "version": "1.0.0"
+}
