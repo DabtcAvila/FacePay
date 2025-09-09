@@ -18,10 +18,17 @@ import {
   Loader2,
   AlertTriangle,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Camera,
+  UserCheck,
+  UserPlus,
+  Eye,
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { WebAuthnService, type WebAuthnCapabilities, type WebAuthnError } from '@/services/webauthn';
+import { RealFaceID, type FaceVerificationResult, type FaceEnrollmentResult, type FaceIDError } from '@/services/realFaceID';
+import FaceIDHelper from '@/components/FaceIDHelper';
 import { cn, formatCurrency, sleep } from '@/lib/utils';
 
 interface PaymentDetails {
@@ -44,12 +51,22 @@ interface PaymentFlowProps {
   className?: string;
 }
 
-type PaymentState = 'initial' | 'authenticating' | 'processing' | 'success' | 'error';
+type PaymentState = 'initial' | 'checking_enrollment' | 'enrolling' | 'authenticating' | 'processing' | 'success' | 'error';
+
+type FaceIDMode = 'webauthn' | 'faceid' | 'fallback';
 
 interface BiometricStatus {
   isAvailable: boolean;
   deviceInfo?: WebAuthnCapabilities;
   error?: WebAuthnError;
+}
+
+interface FaceIDStatus {
+  isInitialized: boolean;
+  isUserEnrolled: boolean;
+  error?: FaceIDError;
+  confidence?: number;
+  lastVerification?: Date;
 }
 
 const PaymentFlow: React.FC<PaymentFlowProps> = ({
@@ -65,19 +82,42 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const [biometricStatus, setBiometricStatus] = useState<BiometricStatus>({
     isAvailable: false
   });
+  const [faceIDStatus, setFaceIDStatus] = useState<FaceIDStatus>({
+    isInitialized: false,
+    isUserEnrolled: false
+  });
+  const [authMode, setAuthMode] = useState<FaceIDMode>('faceid');
   const [isCheckingCapabilities, setIsCheckingCapabilities] = useState(true);
   const [countdown, setCountdown] = useState(0);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [enrollmentProgress, setEnrollmentProgress] = useState(0);
+  const [verificationProgress, setVerificationProgress] = useState(0);
+  const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [faceIDError, setFaceIDError] = useState<FaceIDError | null>(null);
+  const [detectionAttempts, setDetectionAttempts] = useState(0);
+  const [maxDetectionAttempts] = useState(5);
 
   // Check biometric capabilities when component mounts
   useEffect(() => {
     if (isOpen) {
-      checkBiometricCapabilities();
+      initializeBiometricSystems();
       setPaymentState('initial');
       setProcessingProgress(0);
+      setEnrollmentProgress(0);
+      setVerificationProgress(0);
       setCountdown(0);
+      setConfidenceScore(null);
+      setFaceIDError(null);
+      setDetectionAttempts(0);
     }
-  }, [isOpen]);
+    
+    return () => {
+      if (!isOpen) {
+        cleanupFaceID();
+      }
+    };
+  }, [isOpen, initializeBiometricSystems, cleanupFaceID]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -87,7 +127,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   }, [countdown]);
 
-  const checkBiometricCapabilities = useCallback(async () => {
+  const initializeBiometricSystems = useCallback(async () => {
     setIsCheckingCapabilities(true);
     try {
       if (demoMode) {
@@ -111,22 +151,49 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             }
           }
         });
+        
+        setFaceIDStatus({
+          isInitialized: true,
+          isUserEnrolled: Math.random() > 0.3 // 70% chance user is enrolled in demo
+        });
       } else {
+        // Check WebAuthn capabilities
         const capabilities = await WebAuthnService.checkBrowserCapabilities();
         setBiometricStatus({
           isAvailable: capabilities.isSupported && capabilities.isPlatformAuthenticatorAvailable,
           deviceInfo: capabilities
         });
+        
+        // Initialize Face ID service
+        const faceIDInitialized = await RealFaceID.initialize();
+        const userId = 'user_' + Date.now(); // In real app, get from auth context
+        
+        setFaceIDStatus({
+          isInitialized: faceIDInitialized,
+          isUserEnrolled: faceIDInitialized ? RealFaceID.isUserEnrolled(userId) : false
+        });
       }
     } catch (error) {
-      const webAuthnError = WebAuthnService.handleWebAuthnError(error);
+      console.error('Biometric initialization failed:', error);
       setBiometricStatus({
         isAvailable: false,
-        error: webAuthnError
+        error: WebAuthnService.handleWebAuthnError(error)
+      });
+      setFaceIDStatus({
+        isInitialized: false,
+        isUserEnrolled: false,
+        error: 'UNKNOWN_ERROR' as FaceIDError
       });
     } finally {
       setIsCheckingCapabilities(false);
     }
+  }, [demoMode]);
+  
+  const cleanupFaceID = useCallback(() => {
+    if (!demoMode) {
+      RealFaceID.cleanup();
+    }
+    setShowCamera(false);
   }, [demoMode]);
 
   const getBiometricIcon = useCallback(() => {
@@ -169,44 +236,216 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
     }
   }, []);
 
-  const handleAuthentication = useCallback(async () => {
-    if (!biometricStatus.isAvailable) return;
+  const handleEnrollment = useCallback(async () => {
+    if (!faceIDStatus.isInitialized) return;
+    
+    setPaymentState('enrolling');
+    setShowCamera(true);
+    setCountdown(30);
+    setFaceIDError(null);
+    setDetectionAttempts(0);
+    
+    try {
+      const userId = 'user_' + Date.now();
+      
+      if (demoMode) {
+        // Demo enrollment simulation with realistic edge cases
+        const shouldSucceed = Math.random() > 0.2; // 80% success rate
+        
+        if (!shouldSucceed) {
+          const errors: FaceIDError[] = ['NO_FACE_DETECTED', 'MULTIPLE_FACES_DETECTED', 'POOR_IMAGE_QUALITY'];
+          const randomError = errors[Math.floor(Math.random() * errors.length)];
+          setFaceIDError(randomError);
+          throw new Error(`Demo: ${randomError}`);
+        }
+        
+        await simulateProgress(setEnrollmentProgress);
+        await sleep(1000);
+        
+        setFaceIDStatus(prev => ({ ...prev, isUserEnrolled: true }));
+        setPaymentState('initial');
+        setEnrollmentProgress(0);
+      } else {
+        const result: FaceEnrollmentResult = await RealFaceID.enrollUser(userId, setEnrollmentProgress);
+        
+        if (result.success) {
+          setFaceIDStatus(prev => ({ ...prev, isUserEnrolled: true }));
+          setConfidenceScore(result.confidence);
+          setPaymentState('initial');
+        } else {
+          // Map specific errors
+          if (result.error?.includes('face')) {
+            setFaceIDError('NO_FACE_DETECTED');
+          } else if (result.error?.includes('quality')) {
+            setFaceIDError('POOR_IMAGE_QUALITY');
+          } else {
+            setFaceIDError('UNKNOWN_ERROR');
+          }
+          throw new Error(result.error || 'Enrollment failed');
+        }
+      }
+    } catch (error) {
+      setPaymentState('error');
+      setFaceIDStatus(prev => ({ 
+        ...prev, 
+        error: faceIDError || 'UNKNOWN_ERROR' as FaceIDError 
+      }));
+      onError?.(WebAuthnService.handleWebAuthnError(error));
+    } finally {
+      setShowCamera(false);
+      setCountdown(0);
+      setEnrollmentProgress(0);
+    }
+  }, [faceIDStatus.isInitialized, demoMode, onError, simulateProgress, faceIDError]);
+
+  const handleFaceIDAuthentication = useCallback(async () => {
+    if (!faceIDStatus.isInitialized || !faceIDStatus.isUserEnrolled) return;
 
     setPaymentState('authenticating');
-    setCountdown(30); // 30 second timeout
+    setShowCamera(true);
+    setCountdown(30);
+    setFaceIDError(null);
+    setDetectionAttempts(prev => prev + 1);
 
     try {
+      const userId = 'user_' + Date.now();
+      
       if (demoMode) {
-        // Demo mode simulation
-        await sleep(2000 + Math.random() * 1000);
+        // Demo mode simulation with edge cases
+        await simulateProgress(setVerificationProgress);
         
-        // Simulate random success/failure for demo
-        if (Math.random() > 0.1) { // 90% success rate in demo
+        // Simulate various scenarios based on attempts
+        let mockConfidence: number;
+        let shouldFail = false;
+        
+        if (detectionAttempts === 0) {
+          // First attempt - higher success rate
+          mockConfidence = 0.88 + Math.random() * 0.1;
+        } else if (detectionAttempts < 3) {
+          // Subsequent attempts - moderate success
+          mockConfidence = 0.75 + Math.random() * 0.15;
+          shouldFail = Math.random() < 0.3; // 30% chance of failure
+        } else {
+          // Too many attempts - lower success
+          mockConfidence = 0.6 + Math.random() * 0.2;
+          shouldFail = Math.random() < 0.5; // 50% chance of failure
+        }
+        
+        // Simulate specific errors
+        if (shouldFail) {
+          const errors: FaceIDError[] = [
+            'NO_FACE_DETECTED', 
+            'LOW_CONFIDENCE', 
+            'MULTIPLE_FACES_DETECTED',
+            'POOR_IMAGE_QUALITY'
+          ];
+          const randomError = errors[Math.floor(Math.random() * errors.length)];
+          setFaceIDError(randomError);
+          throw new Error(`Demo: ${randomError}`);
+        }
+        
+        setConfidenceScore(mockConfidence);
+        
+        if (mockConfidence >= 0.85) {
           setPaymentState('processing');
           setCountdown(0);
           
-          // Simulate processing with progress
+          await simulateProgress(setProcessingProgress);
+          await sleep(500);
+          
+          setPaymentState('success');
+          setDetectionAttempts(0); // Reset on success
+          onSuccess?.({
+            verified: true,
+            confidence: mockConfidence,
+            transactionId: `faceid_demo_${Date.now()}`,
+            timestamp: new Date(),
+            method: 'face_id',
+            demo: true
+          });
+        } else {
+          setFaceIDError('LOW_CONFIDENCE');
+          throw new Error('Face verification failed - confidence too low');
+        }
+      } else {
+        const result: FaceVerificationResult = await RealFaceID.verifyUser(userId, setVerificationProgress);
+        
+        if (result.success && result.isMatch) {
+          setConfidenceScore(result.confidence);
+          setPaymentState('processing');
+          setCountdown(0);
+          setDetectionAttempts(0); // Reset on success
+          
           await simulateProgress(setProcessingProgress);
           await sleep(500);
           
           setPaymentState('success');
           onSuccess?.({
             verified: true,
-            transactionId: `demo_${Date.now()}`,
+            confidence: result.confidence,
+            transactionId: `faceid_${Date.now()}`,
+            timestamp: result.timestamp,
+            method: 'face_id',
+            userId: result.userId
+          });
+        } else {
+          // Map specific errors based on result
+          if (result.error?.includes('face')) {
+            setFaceIDError('NO_FACE_DETECTED');
+          } else if (result.error?.includes('confidence')) {
+            setFaceIDError('LOW_CONFIDENCE');
+          } else if (result.error?.includes('multiple')) {
+            setFaceIDError('MULTIPLE_FACES_DETECTED');
+          } else {
+            setFaceIDError('UNKNOWN_ERROR');
+          }
+          throw new Error(result.error || 'Face verification failed');
+        }
+      }
+    } catch (error) {
+      setPaymentState('error');
+      setCountdown(0);
+      onError?.(WebAuthnService.handleWebAuthnError(error));
+    } finally {
+      setShowCamera(false);
+      setVerificationProgress(0);
+    }
+  }, [faceIDStatus.isInitialized, faceIDStatus.isUserEnrolled, demoMode, detectionAttempts, onSuccess, onError, simulateProgress]);
+
+  const handleWebAuthnAuthentication = useCallback(async () => {
+    if (!biometricStatus.isAvailable) return;
+
+    setPaymentState('authenticating');
+    setCountdown(30);
+
+    try {
+      if (demoMode) {
+        await sleep(2000 + Math.random() * 1000);
+        
+        if (Math.random() > 0.1) {
+          setPaymentState('processing');
+          setCountdown(0);
+          
+          await simulateProgress(setProcessingProgress);
+          await sleep(500);
+          
+          setPaymentState('success');
+          onSuccess?.({
+            verified: true,
+            transactionId: `webauthn_demo_${Date.now()}`,
             timestamp: new Date(),
+            method: 'webauthn',
             demo: true
           });
         } else {
           throw new Error('Demo authentication failed');
         }
       } else {
-        // Real WebAuthn flow
         const authStart = await WebAuthnService.startAuthentication('user_' + Date.now());
         if (!authStart.success) {
           throw new Error('Failed to start authentication');
         }
 
-        // Create credential request
         const credential = await navigator.credentials.get({
           publicKey: authStart.options as PublicKeyCredentialRequestOptions
         });
@@ -218,7 +457,6 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
         setPaymentState('processing');
         setCountdown(0);
 
-        // Complete authentication
         const authComplete = await WebAuthnService.completeAuthentication(credential, 'user');
         
         if (authComplete.success && authComplete.result.verified) {
@@ -242,7 +480,27 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   const handleRetry = useCallback(() => {
     setPaymentState('initial');
     setProcessingProgress(0);
+    setEnrollmentProgress(0);
+    setVerificationProgress(0);
     setCountdown(0);
+    setConfidenceScore(null);
+    setShowCamera(false);
+    setFaceIDError(null);
+    // Don't reset detection attempts to track retry count
+  }, []);
+  
+  const handleSwitchToFallback = useCallback(() => {
+    setAuthMode('webauthn');
+    setPaymentState('initial');
+    setFaceIDError(null);
+    setDetectionAttempts(0);
+    setConfidenceScore(null);
+  }, []);
+  
+  const switchAuthMode = useCallback((mode: FaceIDMode) => {
+    setAuthMode(mode);
+    setPaymentState('initial');
+    setConfidenceScore(null);
   }, []);
 
   const renderPaymentDetails = () => (
@@ -297,6 +555,151 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
     </motion.div>
   );
 
+  const renderFaceIDPrompt = () => {
+    const isEnrolling = paymentState === 'enrolling';
+    const isAuthenticating = paymentState === 'authenticating';
+    const progress = isEnrolling ? enrollmentProgress : verificationProgress;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="text-center space-y-6"
+      >
+        {/* Face ID Icon with Camera Preview */}
+        <div className="relative">
+          <motion.div
+            className="w-32 h-32 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center relative overflow-hidden"
+            animate={{ 
+              boxShadow: (isEnrolling || isAuthenticating)
+                ? ['0 0 0 0 rgba(59, 130, 246, 0.4)', '0 0 0 20px rgba(59, 130, 246, 0)']
+                : '0 4px 20px rgba(0, 0, 0, 0.1)'
+            }}
+            transition={{ 
+              boxShadow: { 
+                duration: 1.5, 
+                repeat: (isEnrolling || isAuthenticating) ? Infinity : 0 
+              } 
+            }}
+          >
+            {showCamera && !demoMode && RealFaceID.getVideoElement() ? (
+              <video
+                ref={node => {
+                  if (node && RealFaceID.getVideoElement()) {
+                    node.srcObject = RealFaceID.getVideoElement()!.srcObject;
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              <Scan className="w-16 h-16 text-blue-600" />
+            )}
+            
+            {(isEnrolling || isAuthenticating) && progress > 0 && (
+              <div className="absolute inset-2">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r="45%"
+                    fill="none"
+                    stroke="rgba(59, 130, 246, 0.2)"
+                    strokeWidth="3"
+                  />
+                  <motion.circle
+                    cx="50%"
+                    cy="50%"
+                    r="45%"
+                    fill="none"
+                    stroke="#3B82F6"
+                    strokeWidth="3"
+                    strokeDasharray="283"
+                    initial={{ strokeDashoffset: 283 }}
+                    animate={{ strokeDashoffset: 283 - (283 * progress) / 100 }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </svg>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Security Badge */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="absolute -bottom-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center space-x-1"
+          >
+            <ShieldCheck className="w-3 h-3" />
+            <span>SECURE</span>
+          </motion.div>
+
+          {demoMode && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute -top-2 -left-2 bg-yellow-400 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full flex items-center space-x-1"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>DEMO</span>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Status Text */}
+        <div className="space-y-2">
+          <h3 className="text-xl font-semibold text-gray-900">
+            {isEnrolling ? 'Enrolling Face ID...' : 
+             isAuthenticating ? 'Verifying Face ID...' :
+             !faceIDStatus.isUserEnrolled ? 'Enroll Face ID' :
+             'Face ID Ready'}
+          </h3>
+          <p className="text-gray-600">
+            {isEnrolling ? 'Position your face in the camera and hold steady' :
+             isAuthenticating ? 'Look directly at the camera to verify your identity' :
+             !faceIDStatus.isUserEnrolled ? 'Set up Face ID to secure your payments' :
+             'Confirm your payment with Face ID'}
+          </p>
+          
+          {(isEnrolling || isAuthenticating) && progress > 0 && (
+            <p className="text-sm text-blue-600 font-medium">
+              {progress}% complete
+            </p>
+          )}
+        </div>
+
+        {/* Confidence Score */}
+        {confidenceScore && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-green-50 border border-green-200 rounded-lg p-3"
+          >
+            <div className="flex items-center space-x-2">
+              <Eye className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-medium text-green-800">
+                Confidence: {Math.round(confidenceScore * 100)}%
+              </span>
+            </div>
+          </motion.div>
+        )}
+
+        {countdown > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-center justify-center space-x-2 text-sm text-gray-500"
+          >
+            <Clock className="w-4 h-4" />
+            <span>Timeout in {countdown}s</span>
+          </motion.div>
+        )}
+      </motion.div>
+    );
+  };
+  
   const renderBiometricPrompt = () => {
     const BiometricIcon = getBiometricIcon();
     
@@ -560,8 +963,44 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             {/* Payment Details */}
             {renderPaymentDetails()}
 
+            {/* Auth Mode Selector */}
+            {!isCheckingCapabilities && (biometricStatus.isAvailable || faceIDStatus.isInitialized) && paymentState === 'initial' && (
+              <div className="flex bg-gray-100 rounded-lg p-1 space-x-1">
+                <button
+                  onClick={() => switchAuthMode('faceid')}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors",
+                    authMode === 'faceid' 
+                      ? "bg-white text-blue-600 shadow-sm" 
+                      : "text-gray-600 hover:text-gray-900"
+                  )}
+                  disabled={!faceIDStatus.isInitialized}
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <Scan className="w-4 h-4" />
+                    <span>Face ID</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => switchAuthMode('webauthn')}
+                  className={cn(
+                    "flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors",
+                    authMode === 'webauthn' 
+                      ? "bg-white text-blue-600 shadow-sm" 
+                      : "text-gray-600 hover:text-gray-900"
+                  )}
+                  disabled={!biometricStatus.isAvailable}
+                >
+                  <div className="flex items-center justify-center space-x-1">
+                    <Fingerprint className="w-4 h-4" />
+                    <span>Biometric</span>
+                  </div>
+                </button>
+              </div>
+            )}
+
             {/* Authentication Content */}
-            <div className="relative min-h-[200px] flex items-center justify-center">
+            <div className="relative min-h-[280px] flex items-center justify-center">
               {isCheckingCapabilities ? (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -575,7 +1014,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
                   />
                   <p className="text-gray-600">Checking device capabilities...</p>
                 </motion.div>
-              ) : !biometricStatus.isAvailable ? (
+              ) : (!biometricStatus.isAvailable && !faceIDStatus.isInitialized) ? (
                 renderUnsupported()
               ) : paymentState === 'success' ? (
                 renderSuccess()
@@ -583,6 +1022,18 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
                 renderError()
               ) : paymentState === 'processing' ? (
                 renderProcessing()
+              ) : (paymentState === 'enrolling' || paymentState === 'authenticating') && authMode === 'faceid' ? (
+                renderFaceIDPrompt()
+              ) : authMode === 'faceid' && faceIDStatus.isInitialized ? (
+                <div className="space-y-4">
+                  {renderFaceIDPrompt()}
+                  {faceIDError && (
+                    <FaceIDHelper error={faceIDError} className="mt-4" />
+                  )}
+                  {paymentState === 'initial' && !faceIDError && (
+                    <FaceIDHelper tips className="mt-4" />
+                  )}
+                </div>
               ) : (
                 renderBiometricPrompt()
               )}
@@ -590,13 +1041,40 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-4">
-              {paymentState === 'initial' && biometricStatus.isAvailable && (
+              {paymentState === 'initial' && authMode === 'faceid' && faceIDStatus.isInitialized && !faceIDStatus.isUserEnrolled && (
                 <Button
-                  onClick={handleAuthentication}
+                  onClick={handleEnrollment}
+                  className="w-full h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium rounded-xl"
+                  size="lg"
+                >
+                  <span className="flex items-center justify-center space-x-2">
+                    <UserPlus className="w-4 h-4" />
+                    <span>Enroll Face ID</span>
+                  </span>
+                </Button>
+              )}
+              
+              {paymentState === 'initial' && authMode === 'faceid' && faceIDStatus.isInitialized && faceIDStatus.isUserEnrolled && (
+                <Button
+                  onClick={handleFaceIDAuthentication}
                   className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-xl"
                   size="lg"
                 >
-                  <span className="flex items-center space-x-2">
+                  <span className="flex items-center justify-center space-x-2">
+                    <Scan className="w-4 h-4" />
+                    <span>Pay with Face ID</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                </Button>
+              )}
+              
+              {paymentState === 'initial' && authMode === 'webauthn' && biometricStatus.isAvailable && (
+                <Button
+                  onClick={handleWebAuthnAuthentication}
+                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-xl"
+                  size="lg"
+                >
+                  <span className="flex items-center justify-center space-x-2">
                     <span>Pay with {getBiometricName()}</span>
                     <ArrowRight className="w-4 h-4" />
                   </span>
@@ -609,9 +1087,22 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
                     onClick={handleRetry}
                     className="w-full h-12"
                     size="lg"
+                    disabled={detectionAttempts >= maxDetectionAttempts}
                   >
-                    Try Again
+                    {detectionAttempts >= maxDetectionAttempts ? 'Max Attempts Reached' : 'Try Again'}
                   </Button>
+                  
+                  {authMode === 'faceid' && detectionAttempts >= 2 && biometricStatus.isAvailable && (
+                    <Button
+                      onClick={handleSwitchToFallback}
+                      variant="outline"
+                      className="w-full h-12"
+                      size="lg"
+                    >
+                      Use {getBiometricName()} Instead
+                    </Button>
+                  )}
+                  
                   <Button
                     onClick={onClose}
                     variant="outline"
@@ -633,13 +1124,13 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
                 </Button>
               )}
 
-              {(paymentState === 'initial' || paymentState === 'authenticating') && (
+              {(paymentState === 'initial' || paymentState === 'authenticating' || paymentState === 'enrolling') && (
                 <Button
                   onClick={onClose}
                   variant="outline"
                   className="w-full h-12"
                   size="lg"
-                  disabled={paymentState === 'authenticating'}
+                  disabled={paymentState === 'authenticating' || paymentState === 'enrolling'}
                 >
                   Cancel
                 </Button>
@@ -654,8 +1145,29 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
               className="flex items-center justify-center space-x-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-3"
             >
               <Shield className="w-4 h-4" />
-              <span>Secured with end-to-end encryption</span>
+              <span>
+                {authMode === 'faceid' 
+                  ? 'Biometric data encrypted locally'
+                  : 'Secured with end-to-end encryption'
+                }
+              </span>
             </motion.div>
+            
+            {/* Detection Attempts Counter */}
+            {authMode === 'faceid' && detectionAttempts > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-xs text-gray-500 text-center bg-gray-50 rounded-lg p-2"
+              >
+                <p>Attempts: {detectionAttempts}/{maxDetectionAttempts}</p>
+                {detectionAttempts >= 2 && (
+                  <p className="text-amber-600 mt-1">
+                    Having trouble? Try using biometric authentication instead.
+                  </p>
+                )}
+              </motion.div>
+            )}
           </div>
         </motion.div>
       </motion.div>
