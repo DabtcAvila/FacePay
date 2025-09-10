@@ -7,8 +7,7 @@ import { monitoring } from '@/lib/monitoring'
  * Runs every 5 minutes to monitor system health and alert on issues
  * 
  * This endpoint should only be called by Vercel Cron or trusted sources
- * Configure in vercel.json:
- * "crons": [{ "path": "/api/cron/health-check", "schedule": "*/5 * * * *" }]
+ * Configure in vercel.json
  */
 
 // Verify this is a legitimate cron request

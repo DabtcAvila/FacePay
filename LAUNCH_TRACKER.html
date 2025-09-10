@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FacePay Launch Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .launch-time {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+        }
+
+        .dashboard {
+            padding: 30px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #f8faff, #ffffff);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 5px solid;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .metric-card.users { border-left-color: #4f46e5; }
+        .metric-card.clicks { border-left-color: #06b6d4; }
+        .metric-card.conversions { border-left-color: #10b981; }
+        .metric-card.revenue { border-left-color: #f59e0b; }
+
+        .metric-title {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+
+        .metric-change {
+            font-size: 0.9rem;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .metric-change.positive {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .metric-change.negative {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #f3f4f6;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .social-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .social-card {
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .social-card:hover {
+            border-color: #4f46e5;
+            background: #f0f4ff;
+        }
+
+        .social-card .platform {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .social-card .followers {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #4f46e5;
+            margin-bottom: 5px;
+        }
+
+        .social-card .engagement {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #4f46e5, #7c3aed);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 30px;
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 20px;
+            margin-left: 20px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -35px;
+            top: 25px;
+            width: 12px;
+            height: 12px;
+            background: #4f46e5;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .timeline-time {
+            font-weight: 600;
+            color: #4f46e5;
+            margin-bottom: 8px;
+        }
+
+        .timeline-event {
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .timeline-details {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .revenue-projections {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .projection-card {
+            background: linear-gradient(135deg, #fef3c7, #fbbf24);
+            border-radius: 10px;
+            padding: 20px;
+            color: #92400e;
+        }
+
+        .projection-period {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .projection-amount {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .projection-details {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-btn {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        }
+
+        .control-btn:hover {
+            background: #3730a3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+        }
+
+        .input-section {
+            background: #f8faff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        .input-group input {
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .update-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 15px;
+            transition: background 0.3s ease;
+        }
+
+        .update-btn:hover {
+            background: #059669;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .launch-time {
+                position: static;
+                margin-top: 15px;
+                display: inline-block;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                position: static;
+                justify-content: center;
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="launch-time" id="launchTime">Launch: T+0h 0m</div>
+            <h1>FacePay Launch Tracker</h1>
+            <div class="subtitle">Real-time monitoring dashboard for product launch</div>
+        </div>
+
+        <div class="dashboard">
+            <!-- Input Section -->
+            <div class="input-section">
+                <h3 style="margin-bottom: 15px; color: #374151;">Update Metrics</h3>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="usersInput">Total Users</label>
+                        <input type="number" id="usersInput" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label for="clicksInput">Total Clicks</label>
+                        <input type="number" id="clicksInput" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label for="conversionsInput">Conversions</label>
+                        <input type="number" id="conversionsInput" placeholder="0">
+                    </div>
+                    <div class="input-group">
+                        <label for="revenueInput">Revenue ($)</label>
+                        <input type="number" id="revenueInput" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+                <button class="update-btn" onclick="updateMetrics()">Update Metrics</button>
+            </div>
+
+            <!-- Main Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card users">
+                    <div class="metric-title">Total Users</div>
+                    <div class="metric-value" id="totalUsers">0</div>
+                    <div class="metric-change positive" id="usersChange">+0 (0%)</div>
+                </div>
+                <div class="metric-card clicks">
+                    <div class="metric-title">Total Clicks</div>
+                    <div class="metric-value" id="totalClicks">0</div>
+                    <div class="metric-change positive" id="clicksChange">+0 (0%)</div>
+                </div>
+                <div class="metric-card conversions">
+                    <div class="metric-title">Conversions</div>
+                    <div class="metric-value" id="totalConversions">0</div>
+                    <div class="metric-change positive" id="conversionsChange">+0 (0%)</div>
+                </div>
+                <div class="metric-card revenue">
+                    <div class="metric-title">Revenue</div>
+                    <div class="metric-value" id="totalRevenue">$0.00</div>
+                    <div class="metric-change positive" id="revenueChange">+$0.00 (0%)</div>
+                </div>
+            </div>
+
+            <!-- Social Media Performance -->
+            <div class="section">
+                <div class="section-title">
+                    📱 Social Media Performance
+                </div>
+                <div class="social-grid">
+                    <div class="social-card">
+                        <div class="platform">Twitter/X</div>
+                        <div class="followers" id="twitterFollowers">1.2K</div>
+                        <div class="engagement">Engagement: <span id="twitterEngagement">4.2%</span></div>
+                    </div>
+                    <div class="social-card">
+                        <div class="platform">LinkedIn</div>
+                        <div class="followers" id="linkedinFollowers">856</div>
+                        <div class="engagement">Engagement: <span id="linkedinEngagement">6.8%</span></div>
+                    </div>
+                    <div class="social-card">
+                        <div class="platform">Instagram</div>
+                        <div class="followers" id="instagramFollowers">2.4K</div>
+                        <div class="engagement">Engagement: <span id="instagramEngagement">3.7%</span></div>
+                    </div>
+                    <div class="social-card">
+                        <div class="platform">Product Hunt</div>
+                        <div class="followers" id="phVotes">47</div>
+                        <div class="engagement">Rank: <span id="phRank">#12</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- First 48 Hours Timeline -->
+            <div class="section">
+                <div class="section-title">
+                    ⏰ Launch Timeline (First 48 Hours)
+                </div>
+                <div class="timeline" id="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-time">T+0h (Launch)</div>
+                        <div class="timeline-event">FacePay officially launched</div>
+                        <div class="timeline-details">Initial deployment complete, monitoring systems active</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-time">T+2h</div>
+                        <div class="timeline-event">First 100 users registered</div>
+                        <div class="timeline-details">Strong initial adoption, social media buzz building</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-time">T+6h</div>
+                        <div class="timeline-event">Featured on Product Hunt</div>
+                        <div class="timeline-details">Community response positive, climbing leaderboard</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-time">T+12h</div>
+                        <div class="timeline-event">First revenue milestone</div>
+                        <div class="timeline-details">$500+ in early conversions, user feedback excellent</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Revenue Projections -->
+            <div class="section">
+                <div class="section-title">
+                    💰 Revenue Projections
+                </div>
+                <div class="revenue-projections">
+                    <div class="projection-card">
+                        <div class="projection-period">24 Hours</div>
+                        <div class="projection-amount" id="proj24h">$2,500</div>
+                        <div class="projection-details">Based on current conversion rate</div>
+                    </div>
+                    <div class="projection-card">
+                        <div class="projection-period">7 Days</div>
+                        <div class="projection-amount" id="proj7d">$18,000</div>
+                        <div class="projection-details">Conservative growth estimate</div>
+                    </div>
+                    <div class="projection-card">
+                        <div class="projection-period">30 Days</div>
+                        <div class="projection-amount" id="proj30d">$75,000</div>
+                        <div class="projection-details">Optimistic scaling scenario</div>
+                    </div>
+                    <div class="projection-card">
+                        <div class="projection-period">90 Days</div>
+                        <div class="projection-amount" id="proj90d">$250,000</div>
+                        <div class="projection-details">Full market penetration</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="control-btn" onclick="exportData()">Export Data</button>
+        <button class="control-btn" onclick="resetData()">Reset</button>
+        <button class="control-btn" onclick="addTimelineEvent()">Add Event</button>
+    </div>
+
+    <script>
+        // Launch tracking variables
+        let launchTime = new Date();
+        let currentMetrics = {
+            users: 0,
+            clicks: 0,
+            conversions: 0,
+            revenue: 0
+        };
+        let previousMetrics = { ...currentMetrics };
+        let timelineEvents = [];
+
+        // Initialize dashboard
+        function initDashboard() {
+            // Load saved data
+            loadSavedData();
+            
+            // Update time counter every second
+            setInterval(updateLaunchTime, 1000);
+            
+            // Auto-save every 30 seconds
+            setInterval(saveData, 30000);
+            
+            // Update projections
+            updateProjections();
+        }
+
+        function updateLaunchTime() {
+            const now = new Date();
+            const diff = now - launchTime;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            document.getElementById('launchTime').textContent = `Launch: T+${hours}h ${minutes}m`;
+        }
+
+        function updateMetrics() {
+            // Get input values
+            const users = parseInt(document.getElementById('usersInput').value) || currentMetrics.users;
+            const clicks = parseInt(document.getElementById('clicksInput').value) || currentMetrics.clicks;
+            const conversions = parseInt(document.getElementById('conversionsInput').value) || currentMetrics.conversions;
+            const revenue = parseFloat(document.getElementById('revenueInput').value) || currentMetrics.revenue;
+
+            // Store previous values for change calculation
+            previousMetrics = { ...currentMetrics };
+
+            // Update current metrics
+            currentMetrics = { users, clicks, conversions, revenue };
+
+            // Update display
+            updateMetricsDisplay();
+            updateProjections();
+            saveData();
+
+            // Clear inputs
+            document.getElementById('usersInput').value = '';
+            document.getElementById('clicksInput').value = '';
+            document.getElementById('conversionsInput').value = '';
+            document.getElementById('revenueInput').value = '';
+        }
+
+        function updateMetricsDisplay() {
+            // Update main metrics
+            document.getElementById('totalUsers').textContent = currentMetrics.users.toLocaleString();
+            document.getElementById('totalClicks').textContent = currentMetrics.clicks.toLocaleString();
+            document.getElementById('totalConversions').textContent = currentMetrics.conversions.toLocaleString();
+            document.getElementById('totalRevenue').textContent = `$${currentMetrics.revenue.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+
+            // Update changes
+            updateChangeDisplay('users', currentMetrics.users, previousMetrics.users);
+            updateChangeDisplay('clicks', currentMetrics.clicks, previousMetrics.clicks);
+            updateChangeDisplay('conversions', currentMetrics.conversions, previousMetrics.conversions);
+            updateChangeDisplay('revenue', currentMetrics.revenue, previousMetrics.revenue, true);
+        }
+
+        function updateChangeDisplay(metric, current, previous, isCurrency = false) {
+            const change = current - previous;
+            const percentChange = previous > 0 ? ((change / previous) * 100).toFixed(1) : 0;
+            const prefix = isCurrency ? '$' : '';
+            const suffix = isCurrency ? '' : '';
+            
+            const changeText = `${change >= 0 ? '+' : ''}${prefix}${change.toLocaleString()}${suffix} (${percentChange}%)`;
+            const changeElement = document.getElementById(`${metric}Change`);
+            
+            changeElement.textContent = changeText;
+            changeElement.className = `metric-change ${change >= 0 ? 'positive' : 'negative'}`;
+        }
+
+        function updateProjections() {
+            const conversionRate = currentMetrics.clicks > 0 ? currentMetrics.conversions / currentMetrics.clicks : 0.02;
+            const avgRevenuePerUser = currentMetrics.users > 0 ? currentMetrics.revenue / currentMetrics.users : 25;
+            
+            // Calculate projections based on current trends
+            const dailyGrowthRate = 1.5; // Assuming 50% daily growth initially
+            const weeklyGrowthRate = 1.3; // 30% weekly growth
+            const monthlyGrowthRate = 1.2; // 20% monthly growth
+            
+            const proj24h = currentMetrics.revenue * dailyGrowthRate;
+            const proj7d = proj24h * Math.pow(weeklyGrowthRate, 7);
+            const proj30d = proj7d * Math.pow(monthlyGrowthRate, 30);
+            const proj90d = proj30d * Math.pow(1.1, 90);
+            
+            document.getElementById('proj24h').textContent = `$${Math.round(proj24h).toLocaleString()}`;
+            document.getElementById('proj7d').textContent = `$${Math.round(proj7d).toLocaleString()}`;
+            document.getElementById('proj30d').textContent = `$${Math.round(proj30d).toLocaleString()}`;
+            document.getElementById('proj90d').textContent = `$${Math.round(proj90d).toLocaleString()}`;
+        }
+
+        function addTimelineEvent() {
+            const event = prompt('Enter timeline event:');
+            const details = prompt('Enter event details (optional):') || '';
+            
+            if (event) {
+                const now = new Date();
+                const diff = now - launchTime;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                
+                const timelineEvent = {
+                    time: `T+${hours}h ${minutes}m`,
+                    event: event,
+                    details: details,
+                    timestamp: now
+                };
+                
+                timelineEvents.push(timelineEvent);
+                renderTimeline();
+                saveData();
+            }
+        }
+
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline');
+            
+            // Keep original events and add new ones
+            const customEvents = timelineEvents.map(evt => `
+                <div class="timeline-item">
+                    <div class="timeline-time">${evt.time}</div>
+                    <div class="timeline-event">${evt.event}</div>
+                    <div class="timeline-details">${evt.details}</div>
+                </div>
+            `).join('');
+            
+            // Add custom events after the initial ones
+            const existingItems = timeline.querySelectorAll('.timeline-item');
+            timeline.innerHTML = timeline.innerHTML + customEvents;
+        }
+
+        function exportData() {
+            const data = {
+                launchTime: launchTime,
+                metrics: currentMetrics,
+                timelineEvents: timelineEvents,
+                exportTime: new Date()
+            };
+            
+            const dataStr = JSON.stringify(data, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `facepay-launch-data-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        }
+
+        function resetData() {
+            if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
+                localStorage.removeItem('facePayLaunchData');
+                location.reload();
+            }
+        }
+
+        function saveData() {
+            const data = {
+                launchTime: launchTime,
+                currentMetrics: currentMetrics,
+                previousMetrics: previousMetrics,
+                timelineEvents: timelineEvents
+            };
+            localStorage.setItem('facePayLaunchData', JSON.stringify(data));
+        }
+
+        function loadSavedData() {
+            const saved = localStorage.getItem('facePayLaunchData');
+            if (saved) {
+                const data = JSON.parse(saved);
+                launchTime = new Date(data.launchTime);
+                currentMetrics = data.currentMetrics || { users: 0, clicks: 0, conversions: 0, revenue: 0 };
+                previousMetrics = data.previousMetrics || { ...currentMetrics };
+                timelineEvents = data.timelineEvents || [];
+                
+                updateMetricsDisplay();
+                renderTimeline();
+            }
+        }
+
+        // Simulate real-time updates (for demo purposes)
+        function simulateActivity() {
+            const random = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+            
+            setInterval(() => {
+                // Small random increments to simulate real activity
+                if (Math.random() > 0.7) { // 30% chance every 10 seconds
+                    previousMetrics = { ...currentMetrics };
+                    currentMetrics.users += random(1, 5);
+                    currentMetrics.clicks += random(2, 10);
+                    currentMetrics.conversions += random(0, 2);
+                    currentMetrics.revenue += random(0, 50);
+                    
+                    updateMetricsDisplay();
+                    updateProjections();
+                }
+            }, 10000); // Every 10 seconds
+        }
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initDashboard();
+            // Uncomment the line below to enable automatic simulation
+            // simulateActivity();
+        });
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 's':
+                        e.preventDefault();
+                        saveData();
+                        alert('Data saved!');
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        exportData();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
