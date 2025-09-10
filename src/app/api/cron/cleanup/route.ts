@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { monitoring } from '@/lib/monitoring'
+import { Prisma } from '@prisma/client'
 
 /**
  * Production cleanup cron job
@@ -60,30 +61,35 @@ export async function POST(request: NextRequest) {
     console.log('[Cron] Starting daily cleanup job...')
     const results: CleanupResult[] = []
 
-    // 1. Clean up expired sessions (older than 30 days)
-    const sessionCleanupStart = Date.now()
+    // 1. Clean up expired WebAuthn challenges (older than 1 hour)
+    const challengeCleanupStart = Date.now()
     try {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
       
-      const expiredSessionsCount = await prisma.session.deleteMany({
+      // Clean up expired WebAuthn challenges stored in user records
+      const expiredChallengesCount = await prisma.user.updateMany({
         where: {
-          createdAt: {
-            lt: thirtyDaysAgo
+          currentChallenge: { not: null },
+          updatedAt: {
+            lt: oneHourAgo
           }
+        },
+        data: {
+          currentChallenge: null
         }
       })
 
       results.push({
-        task: 'expired_sessions',
-        itemsDeleted: expiredSessionsCount.count,
-        timeTakenMs: Date.now() - sessionCleanupStart,
+        task: 'expired_webauthn_challenges',
+        itemsDeleted: expiredChallengesCount.count,
+        timeTakenMs: Date.now() - challengeCleanupStart,
         success: true
       })
     } catch (error) {
       results.push({
-        task: 'expired_sessions',
+        task: 'expired_webauthn_challenges',
         itemsDeleted: 0,
-        timeTakenMs: Date.now() - sessionCleanupStart,
+        timeTakenMs: Date.now() - challengeCleanupStart,
         success: false,
         error: (error as Error).message
       })
@@ -148,12 +154,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 4. Clean up orphaned WebAuthn credentials (no associated user)
+    // 4. Clean up orphaned WebAuthn credentials (where user was soft-deleted)
     const orphanedCredsCleanupStart = Date.now()
     try {
       const orphanedCredentials = await prisma.webauthnCredential.deleteMany({
         where: {
-          user: null
+          user: {
+            isActive: false,
+            deletedAt: { not: null }
+          }
         }
       })
 
@@ -173,37 +182,33 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 5. Archive old completed transactions (older than 1 year)
+    // 5. Clean up old completed transactions metadata (older than 1 year)
     const archiveCleanupStart = Date.now()
     try {
       const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
       
-      // In a real implementation, you might move these to an archive table
-      // For now, we'll just mark them as archived
-      const archivedTransactions = await prisma.transaction.updateMany({
+      // Clear metadata from old completed transactions to save space
+      const clearedTransactions = await prisma.transaction.updateMany({
         where: {
           status: 'completed',
           completedAt: {
             lt: oneYearAgo
-          },
-          // Only archive if not already archived
-          archived: { not: true }
+          }
         },
         data: {
-          archived: true,
-          archivedAt: new Date()
+          metadata: Prisma.DbNull
         }
       })
 
       results.push({
-        task: 'archive_old_transactions',
-        itemsDeleted: archivedTransactions.count,
+        task: 'clear_old_transaction_metadata',
+        itemsDeleted: clearedTransactions.count,
         timeTakenMs: Date.now() - archiveCleanupStart,
         success: true
       })
     } catch (error) {
       results.push({
-        task: 'archive_old_transactions',
+        task: 'clear_old_transaction_metadata',
         itemsDeleted: 0,
         timeTakenMs: Date.now() - archiveCleanupStart,
         success: false,

@@ -1,269 +1,149 @@
-# FacePay Deployment Guide - Zero Cost Infrastructure
+# 🚀 Guía de Deployment Definitiva para FacePay
 
-This guide will help you deploy FacePay using completely free services: Vercel (frontend/API) and Supabase (database).
+## Opción 1: Deployment Web (MÁS FÁCIL - 5 minutos)
 
-## Prerequisites
+### Paso 1: Importar desde GitHub
+1. Ve a: **https://vercel.com/new**
+2. Click en **"Import Git Repository"**
+3. Conecta tu GitHub (Dabtcavila)
+4. Busca y selecciona **"FacePay"**
+5. Click en **"Import"**
 
-- Node.js 18+ installed
-- Git installed
-- GitHub account
-- Email address for account creation
+### Paso 2: Configuración Automática
+Vercel detectará automáticamente:
+- Framework: Next.js
+- Build Command: `npm run build`
+- Output Directory: `.next`
 
-## 1. Supabase Setup (Free PostgreSQL Database)
+### Paso 3: Variables de Entorno (ANTES de deployar)
+Click en "Environment Variables" y agrega:
 
-### Create Supabase Project
-1. Go to [supabase.com](https://supabase.com)
-2. Click "Start your project" → "Sign up" (use GitHub for faster setup)
-3. Click "New project"
-4. Fill in:
-   - **Name**: `facepay-production` (or your preferred name)
-   - **Database Password**: Generate a strong password (save it!)
-   - **Region**: Choose closest to your users
-5. Click "Create new project"
-6. Wait 2-3 minutes for setup to complete
+```env
+# SUPABASE (reemplaza con tus valores)
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres
+NEXT_PUBLIC_SUPABASE_URL=https://[PROJECT-ID].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[TU-ANON-KEY]
 
-### Get Database Connection Details
-1. In your Supabase dashboard, go to **Settings** → **Database**
-2. Scroll down to "Connection string" section
-3. Copy the **URI** connection string (it looks like):
-   ```
-   postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
-   ```
-4. Replace `[YOUR-PASSWORD]` with the password you created
+# SEGURIDAD (copia tal cual)
+NEXTAUTH_URL=https://[TU-PROYECTO].vercel.app
+NEXTAUTH_SECRET=k9Xf3mNp7Qr2sVw5yBc8dGh1jLn4oTa6
+JWT_SECRET=aZ3xC5vB7nM9qW2eR4tY6uI8oP1sD3fG
+JWT_REFRESH_SECRET=hJ5kL7mN9pQ2rT4vW6xY8zB1cD3eF5gH
 
-### Configure Database Security
-1. Go to **Authentication** → **Settings**
-2. Under "Site URL", add your domain (we'll update this after Vercel deployment)
-3. Go to **SQL Editor**
-4. Create a new query and run our database initialization (we'll provide the script)
+# WEBAUTHN (ajusta el dominio)
+WEBAUTHN_RP_NAME=FacePay
+WEBAUTHN_RP_ID=[TU-PROYECTO].vercel.app
+WEBAUTHN_ORIGIN=https://[TU-PROYECTO].vercel.app
 
-## 2. Vercel Deployment (Free Hosting)
-
-### Prepare Your Repository
-1. Ensure your code is pushed to GitHub
-2. Make sure your `package.json` has the correct build scripts
-
-### Deploy to Vercel
-1. Go to [vercel.com](https://vercel.com)
-2. Click "Start Deploying" → "Continue with GitHub"
-3. Import your FacePay repository
-4. Configure the project:
-   - **Framework Preset**: Next.js
-   - **Root Directory**: `./` (default)
-   - **Build Command**: `npm run build` (should auto-detect)
-   - **Output Directory**: `.next` (should auto-detect)
-
-### Environment Variables Configuration
-In the Vercel deployment settings, add these environment variables:
-
-#### Required Database Variables
-```bash
-# Supabase Database
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
-DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+# SISTEMA (copia tal cual)
+INITIAL_CREDIT_BONUS=100
+REFERRAL_BONUS=50
+CETES_ANNUAL_RATE=0.105
+INVESTMENT_ENABLED=true
+ENABLE_REFERRAL_SYSTEM=true
+VIRAL_SHARING_BONUS=10
+NODE_ENV=production
+NEXT_PUBLIC_APP_URL=https://[TU-PROYECTO].vercel.app
 ```
 
-#### Authentication & Security
-```bash
-# JWT Secret (generate a random 64-character string)
-JWT_SECRET="your-super-secure-random-string-64-chars-minimum-here-make-it-complex"
-
-# NextAuth Secret (generate with: openssl rand -base64 32)
-NEXTAUTH_SECRET="your-nextauth-secret-32-chars-minimum"
-
-# App URLs (update after deployment)
-NEXTAUTH_URL="https://your-app.vercel.app"
-NEXT_PUBLIC_APP_URL="https://your-app.vercel.app"
-```
-
-#### Payment Providers (Optional - Free Tiers)
-```bash
-# Stripe (create free account at stripe.com)
-STRIPE_SECRET_KEY="sk_test_..."
-STRIPE_PUBLISHABLE_KEY="pk_test_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-
-# MercadoPago (for Latin America - create free account)
-MERCADOPAGO_ACCESS_TOKEN="your-mp-token"
-MERCADOPAGO_PUBLIC_KEY="your-mp-public-key"
-```
-
-#### WebAuthn Configuration
-```bash
-# WebAuthn settings
-WEBAUTHN_RP_NAME="FacePay"
-WEBAUTHN_RP_ID="your-app.vercel.app"  # Update with your domain
-WEBAUTHN_ORIGIN="https://your-app.vercel.app"  # Update with your domain
-```
-
-#### Optional Monitoring (Free Tiers)
-```bash
-# Sentry (free tier: 5K errors/month)
-NEXT_PUBLIC_SENTRY_DSN="https://your-sentry-dsn"
-
-# Mixpanel (free tier: 20M events/month)
-NEXT_PUBLIC_MIXPANEL_TOKEN="your-mixpanel-token"
-```
-
-### Deploy!
-1. Click "Deploy"
-2. Wait 2-5 minutes for build completion
-3. Your app will be available at `https://your-project.vercel.app`
-
-## 3. Post-Deployment Configuration
-
-### Update Environment Variables
-1. Copy your Vercel app URL (e.g., `https://facepay-xyz.vercel.app`)
-2. Update these environment variables in Vercel:
-   ```bash
-   NEXTAUTH_URL="https://your-actual-vercel-url.vercel.app"
-   NEXT_PUBLIC_APP_URL="https://your-actual-vercel-url.vercel.app"
-   WEBAUTHN_RP_ID="your-actual-vercel-url.vercel.app"
-   WEBAUTHN_ORIGIN="https://your-actual-vercel-url.vercel.app"
-   ```
-
-### Update Supabase Settings
-1. In Supabase dashboard → **Authentication** → **Settings**
-2. Update "Site URL" to your Vercel URL
-3. Add your Vercel URL to "Additional Redirect URLs"
-
-### Initialize Database
-1. Run the database initialization script (see below)
-2. Or use the Vercel CLI: `vercel env pull .env.local && npm run db:init`
-
-## 4. Domain Configuration
-
-### Option A: Free Subdomain (Recommended for Testing)
-- Use your Vercel URL: `https://your-project.vercel.app`
-- No additional cost
-- SSL certificate included
-- Perfect for development and demos
-
-### Option B: Custom Domain (Optional)
-1. **Buy a domain** (costs $10-15/year):
-   - Namecheap, GoDaddy, or Cloudflare Registrar
-   - Recommended: `.com`, `.app`, or `.dev`
-
-2. **Configure in Vercel**:
-   - Go to your project → **Settings** → **Domains**
-   - Add your custom domain
-   - Follow DNS configuration instructions
-
-3. **Update Environment Variables**:
-   - Replace all Vercel URLs with your custom domain
-   - Redeploy the application
-
-## 5. Security Setup
-
-### SSL/HTTPS
-- Automatically provided by Vercel (free)
-- Includes wildcard certificates
-- Auto-renewal handled
-
-### Environment Security
-- Never commit `.env` files to Git
-- Use Vercel's environment variable dashboard
-- Rotate secrets regularly
-
-### Database Security
-- Supabase includes automatic backups
-- Row Level Security (RLS) policies configured
-- Connection pooling included
-
-## 6. Monitoring & Analytics
-
-### Free Monitoring Options
-1. **Vercel Analytics** (free tier):
-   - Enable in Vercel dashboard
-   - Basic page views and performance metrics
-
-2. **Supabase Dashboard**:
-   - Database metrics and logs
-   - Real-time data viewer
-   - Performance insights
-
-3. **Browser DevTools**:
-   - Console for error tracking
-   - Network tab for performance
-   - Lighthouse for audits
-
-## 7. Backup & Recovery
-
-### Automatic Backups
-- Supabase: Daily automatic backups (free tier: 7 days retention)
-- Vercel: Automatic deployments from Git
-- Git: Version control for code
-
-### Manual Backup
-```bash
-# Database backup (run locally)
-pg_dump $DATABASE_URL > backup-$(date +%Y%m%d).sql
-
-# Code backup (already in Git)
-git push origin main
-```
-
-## 8. Scaling Considerations
-
-### Free Tier Limits
-- **Vercel**: 100GB bandwidth, 100 deployments/day
-- **Supabase**: 500MB database, 2GB bandwidth
-- **Stripe**: Unlimited test transactions, $0 fees on first $1M
-
-### Upgrade Path
-When you're ready to scale:
-1. Vercel Pro: $20/month (more bandwidth, better performance)
-2. Supabase Pro: $25/month (8GB database, 250GB bandwidth)
-3. Custom domain: $10-15/year
-4. Stripe: 2.9% + 30¢ per transaction
-
-## 9. Troubleshooting
-
-### Common Issues
-1. **Build Failures**:
-   - Check build logs in Vercel
-   - Ensure all dependencies are in `package.json`
-   - Verify environment variables are set
-
-2. **Database Connection Issues**:
-   - Verify DATABASE_URL format
-   - Check Supabase project status
-   - Ensure IP whitelist includes 0.0.0.0/0 for Vercel
-
-3. **WebAuthn Issues**:
-   - Verify HTTPS is working
-   - Check RP_ID matches your domain exactly
-   - Ensure origin URL is correct
-
-### Support Resources
-- Vercel: [vercel.com/support](https://vercel.com/support)
-- Supabase: [supabase.com/docs](https://supabase.com/docs)
-- FacePay: Check GitHub issues or create a new one
-
-## 10. Success Checklist
-
-- [ ] Supabase project created and configured
-- [ ] Database initialized with tables and sample data
-- [ ] Vercel deployment completed successfully
-- [ ] Environment variables configured
-- [ ] HTTPS working properly
-- [ ] Authentication flow tested
-- [ ] Payment integration tested (if configured)
-- [ ] WebAuthn/biometric authentication working
-- [ ] Mobile responsive design verified
-
-## Next Steps
-
-1. Test all functionality thoroughly
-2. Set up monitoring and alerts
-3. Configure payment providers
-4. Implement proper error tracking
-5. Plan for production scaling
-
-Your FacePay application is now deployed with zero upfront costs! 🚀
+### Paso 4: Deploy
+Click en **"Deploy"** y espera 2-3 minutos.
 
 ---
 
-**Total Monthly Cost: $0** (within free tier limits)
-**Total Setup Time: 30-60 minutes**
-**Ongoing Maintenance: Minimal**
+## Opción 2: GitHub Actions (Automático en cada push)
+
+### Configurar Secrets en GitHub:
+1. Ve a tu repo: https://github.com/DabtcAvila/FacePay
+2. Settings → Secrets and variables → Actions
+3. Agrega estos secrets:
+
+#### Para obtener estos valores:
+1. **VERCEL_TOKEN**: 
+   - Ve a https://vercel.com/account/tokens
+   - Create Token → Name: "FacePay Deploy"
+   
+2. **VERCEL_ORG_ID** y **VERCEL_PROJECT_ID**:
+   - Después de crear el proyecto en Vercel
+   - Ve a Project Settings → General
+   - Copia los IDs
+
+### Activar el workflow:
+```bash
+cd "/Users/davicho/MASTER proyectos/FacePay"
+git add .github/workflows/deploy.yml
+git commit -m "Add automatic deployment workflow"
+git push origin agent/backend_api
+```
+
+---
+
+## Opción 3: CLI Local (requiere login)
+
+```bash
+# 1. Login
+vercel login
+
+# 2. Link proyecto
+cd "/Users/davicho/MASTER proyectos/FacePay"
+vercel link
+
+# 3. Deploy
+vercel --prod
+```
+
+---
+
+## 🎯 URLs Posibles para tu Proyecto:
+
+Dependiendo del nombre que elijas:
+- https://facepay-mx.vercel.app
+- https://facepayai.vercel.app
+- https://facepay-app.vercel.app
+- https://facepay-dabtcavila.vercel.app
+
+---
+
+## ✅ Verificación Post-Deploy:
+
+```bash
+# Ejecuta este script para verificar
+cd "/Users/davicho/MASTER proyectos/FacePay"
+./verificar-deployment.sh
+```
+
+---
+
+## 🆘 Troubleshooting:
+
+### Si el build falla:
+- Verifica que todas las variables de entorno estén configuradas
+- Revisa los logs en Vercel Dashboard
+
+### Si la página no carga:
+- Verifica que DATABASE_URL sea accesible
+- Confirma que las variables de Supabase sean correctas
+
+### Si WebAuthn no funciona:
+- Asegúrate que WEBAUTHN_RP_ID coincida con tu dominio
+- Verifica HTTPS está activo (automático en Vercel)
+
+---
+
+## 📱 Test Final:
+
+1. **Desktop**: Abre en Chrome/Safari/Firefox
+2. **Mobile**: Prueba Face ID en iPhone / Fingerprint en Android
+3. **Demo**: Click en "Probar Demo" en la homepage
+4. **API**: Verifica https://[tu-dominio].vercel.app/api/health
+
+---
+
+## 🎉 ¡Listo!
+
+Tu proyecto FacePay estará live y funcionando con:
+- ✅ Autenticación biométrica (Face ID/Touch ID)
+- ✅ Sistema de créditos 0% comisión
+- ✅ WebAuthn seguro
+- ✅ Base de datos Supabase
+- ✅ Deploy automático en cada push
