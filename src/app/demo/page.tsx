@@ -21,6 +21,7 @@ import {
   Lock
 } from 'lucide-react';
 import BiometricWithFallback from '@/components/BiometricWithFallback';
+import { useToast } from '@/hooks/useToast';
 // Legacy import - use BiometricWithFallback instead
 import NativeBiometric from '@/components/NativeBiometric';
 
@@ -165,6 +166,7 @@ export default function DemoPage() {
   const [currentDemo, setCurrentDemo] = useState<DemoMode>('landing');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { success, error, warning, info } = useToast();
 
   useEffect(() => {
     setMounted(true);

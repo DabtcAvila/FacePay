@@ -72,10 +72,16 @@ export default function LandingPage() {
     }, 1000);
   };
 
-  const handleBiometricSuccess = () => {
+  const handleBiometricSuccess = (result?: any) => {
+    console.log('[LandingPage] handleBiometricSuccess called with result:', result);
+    
+    // Show success animation first
+    console.log('[LandingPage] Transitioning to payment mode...');
+    
     setTimeout(() => {
+      console.log('[LandingPage] Setting demo mode to payment');
       setDemoMode('payment');
-    }, 1000);
+    }, 1500); // Slightly longer delay to allow success animation
   };
 
   // Reset states when closing modal
@@ -243,10 +249,12 @@ export default function LandingPage() {
                   title="Smart Biometric Authentication"
                   subtitle="Automatically selects the best authentication method"
                   onSuccess={(result) => {
-                    console.log('Biometric success:', result)
-                    handleBiometricSuccess()
+                    console.log('[LandingPage] BiometricWithFallback onSuccess called with result:', result)
+                    handleBiometricSuccess(result)
                   }}
-                  onError={(error) => console.error('Biometric error:', error)}
+                  onError={(error) => {
+                    console.error('[LandingPage] BiometricWithFallback onError called:', error)
+                  }}
                   onCancel={closeModal}
                   showFallbackOptions={true}
                 />
@@ -257,8 +265,13 @@ export default function LandingPage() {
                   userId={`demo-user-${Date.now()}`}
                   userName="demo@facepay.com"
                   mode="demo"
-                  onSuccess={handleBiometricSuccess}
-                  onError={(error) => console.error('Native biometric error:', error)}
+                  onSuccess={(result) => {
+                    console.log('[LandingPage] NativeBiometric onSuccess called with result:', result)
+                    handleBiometricSuccess(result)
+                  }}
+                  onError={(error) => {
+                    console.error('[LandingPage] Native biometric error:', error)
+                  }}
                   onCancel={closeModal}
                 />
               )}
@@ -268,14 +281,22 @@ export default function LandingPage() {
                   userId={`demo-user-${Date.now()}`}
                   userName="demo@facepay.com"
                   mode="demo"
-                  onSuccess={handleBiometricSuccess}
-                  onError={(error) => console.error('WebAuthn error:', error)}
+                  onSuccess={(result) => {
+                    console.log('[LandingPage] WebAuthnDemo onSuccess called with result:', result)
+                    handleBiometricSuccess(result)
+                  }}
+                  onError={(error) => {
+                    console.error('[LandingPage] WebAuthn error:', error)
+                  }}
                 />
               )}
 
               {demoMode === 'faceid' && (
                 <SimpleFaceIDDemo 
-                  onScanComplete={handleBiometricSuccess}
+                  onScanComplete={(result) => {
+                    console.log('[LandingPage] SimpleFaceIDDemo onScanComplete called with result:', result)
+                    handleBiometricSuccess(result)
+                  }}
                   onCancel={closeModal}
                 />
               )}

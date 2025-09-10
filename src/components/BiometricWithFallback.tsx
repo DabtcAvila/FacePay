@@ -13,10 +13,21 @@ import {
   X, 
   Loader2,
   RefreshCw,
-  WifiOff
+  WifiOff,
+  Timer,
+  StopCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WebAuthnService, type WebAuthnCapabilities, type WebAuthnError } from '@/services/webauthn'
+import { useToast, toastPatterns } from '@/hooks/useToast'
+import { 
+  withTimeout, 
+  TimeoutError, 
+  TimeoutHandler, 
+  TIMEOUTS, 
+  isTimeoutError, 
+  getTimeoutMessage 
+} from '@/utils/timeout'
 
 export interface BiometricAuthResult {
   success: boolean
@@ -69,19 +80,37 @@ export default function BiometricWithFallback({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<WebAuthnError | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isTakingLonger, setIsTakingLonger] = useState(false)
+  const [showCancelButton, setShowCancelButton] = useState(false)
+  const [timeoutMessage, setTimeoutMessage] = useState<string>('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [debugMode, setDebugMode] = useState(process.env.NODE_ENV === 'development')
+  
+  const { toast, success, error: showError, warning, info, loading, dismiss, update } = useToast()
+  const currentToastRef = useRef<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutHandlerRef = useRef<TimeoutHandler | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   // Inicialización automática - detecta capacidades y selecciona el mejor método
   const initializeAuth = useCallback(async () => {
     try {
       setAuthStage('ready')
       setError(null)
+      setIsTakingLonger(false)
+      setShowCancelButton(false)
       
-      // Verificar capacidades del dispositivo
-      const caps = await WebAuthnService.checkBrowserCapabilities()
+      // Verificar capacidades del dispositivo con timeout
+      const caps = await withTimeout(
+        WebAuthnService.checkBrowserCapabilities(),
+        TIMEOUTS.QUICK_OPERATION,
+        'Device capability check timed out',
+        'capabilities-check'
+      )
       setCapabilities(caps)
       
       // Seleccionar el mejor método automáticamente
@@ -115,31 +144,80 @@ export default function BiometricWithFallback({
         device: caps.deviceInfo
       })
     } catch (err) {
-      console.warn('[BiometricWithFallback] Initialization failed, using demo fallback:', err)
+      if (isTimeoutError(err)) {
+        console.warn('[BiometricWithFallback] Initialization timed out, using demo fallback');
+        setTimeoutMessage('Device check took too long. Using demo mode.');
+      } else {
+        console.warn('[BiometricWithFallback] Initialization failed, using demo fallback:', err);
+      }
       setCurrentMethod('demo')
       setIsInitialized(true)
     }
   }, [])
 
-  // Limpieza de recursos
+  // Limpieza robusta de recursos
   const cleanup = useCallback(() => {
+    console.log('[BiometricWithFallback] Starting cleanup')
+    
+    // Limpiar stream de cámara
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
+      console.log('[BiometricWithFallback] Stopping camera stream')
+      streamRef.current.getTracks().forEach(track => {
+        track.stop()
+        console.log('[BiometricWithFallback] Stopped track:', track.kind, track.readyState)
+      })
       streamRef.current = null
     }
+    
+    // Limpiar video element
+    if (videoRef.current) {
+      console.log('[BiometricWithFallback] Clearing video element')
+      videoRef.current.srcObject = null
+      videoRef.current.pause()
+    }
+    
+    // Limpiar timers
     if (progressTimerRef.current) {
+      console.log('[BiometricWithFallback] Clearing progress timer')
       clearTimeout(progressTimerRef.current)
       progressTimerRef.current = null
     }
+    
+    // Clean up timeout handler
+    if (timeoutHandlerRef.current) {
+      console.log('[BiometricWithFallback] Cancelling timeout handler')
+      timeoutHandlerRef.current.cancel()
+      timeoutHandlerRef.current = null
+    }
+    
+    // Clean up abort controller
+    if (abortControllerRef.current) {
+      console.log('[BiometricWithFallback] Aborting operations')
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
+    // Reset timeout states
+    setIsTakingLonger(false)
+    setShowCancelButton(false)
+    setTimeoutMessage('')
+    
+    console.log('[BiometricWithFallback] Cleanup completed')
   }, [])
 
   useEffect(() => {
     initializeAuth()
-    return cleanup
+    
+    // CRÍTICO: Cleanup robusto en unmount
+    return () => {
+      console.log('[BiometricWithFallback] Component unmounting, running cleanup')
+      cleanup()
+    }
   }, [initializeAuth, cleanup])
 
   // Animación de progreso universal
   const startProgressAnimation = useCallback((duration: number = 3000) => {
+    console.log('[BiometricWithFallback] Starting progress animation, duration:', duration)
     setProgress(0)
     const startTime = Date.now()
     const animate = () => {
@@ -150,26 +228,44 @@ export default function BiometricWithFallback({
       if (newProgress < 100) {
         progressTimerRef.current = setTimeout(animate, 50)
       } else {
+        console.log('[BiometricWithFallback] Progress animation completed, setting success state')
         setAuthStage('success')
       }
     }
     animate()
   }, [])
 
-  // Autenticación biométrica real
+  // Autenticación biométrica real con timeout handling
   const performBiometricAuth = useCallback(async () => {
     if (!capabilities?.isPlatformAuthenticatorAvailable) {
       throw new Error('Biometric authentication not available')
     }
 
+    console.log('[BiometricWithFallback] Starting biometric authentication')
     setAuthStage('processing')
     setError(null)
+    setIsTakingLonger(false)
+    setShowCancelButton(false)
+    
+    // Create abort controller for this operation
+    abortControllerRef.current = new AbortController()
+    
+    // Set up timeout handler
+    timeoutHandlerRef.current = new TimeoutHandler(
+      () => {
+        setIsTakingLonger(true)
+        setShowCancelButton(true)
+        setTimeoutMessage(getTimeoutMessage('Biometric authentication', TIMEOUTS.WEBAUTHN_OPERATION))
+      },
+      (progress) => setProgress(progress)
+    )
 
     try {
       let result
       
       if (mode === 'demo') {
         // Demo mode - simulate biometric process
+        console.log('[BiometricWithFallback] Running in demo mode')
         await new Promise(resolve => setTimeout(resolve, 2000))
         const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
         
@@ -184,19 +280,27 @@ export default function BiometricWithFallback({
               isMobile: capabilities.deviceInfo.isMobile,
               platform: capabilities.deviceInfo.platform
             },
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            verified: true,
+            type: 'demo' as const
           }
         } else {
           throw new Error('Biometric verification failed')
         }
       } else {
         // Real biometric authentication
+        console.log('[BiometricWithFallback] Running real biometric authentication, mode:', mode)
         if (mode === 'registration') {
-          const webAuthnResult = await WebAuthnService.register({
-            userId,
-            userName,
-            userDisplayName: userName
-          })
+          const webAuthnResult = await timeoutHandlerRef.current!.execute(
+            () => WebAuthnService.register({
+              userId,
+              userName,
+              userDisplayName: userName
+            }, abortControllerRef.current?.signal),
+            TIMEOUTS.WEBAUTHN_OPERATION,
+            'Biometric registration timed out. Please try again.',
+            'webauthn-registration'
+          )
           
           startProgressAnimation(1500)
           result = {
@@ -209,10 +313,17 @@ export default function BiometricWithFallback({
               platform: capabilities.deviceInfo.platform
             },
             timestamp: Date.now(),
-            credentialId: webAuthnResult.id
+            credentialId: webAuthnResult.id,
+            verified: true,
+            type: 'registration' as const
           }
         } else {
-          const webAuthnResult = await WebAuthnService.authenticate()
+          const webAuthnResult = await timeoutHandlerRef.current!.execute(
+            () => WebAuthnService.authenticate(abortControllerRef.current?.signal),
+            TIMEOUTS.WEBAUTHN_OPERATION,
+            'Biometric authentication timed out. Please try again.',
+            'webauthn-authentication'
+          )
           
           startProgressAnimation(1500)
           result = {
@@ -225,44 +336,131 @@ export default function BiometricWithFallback({
               platform: capabilities.deviceInfo.platform
             },
             timestamp: Date.now(),
-            credentialId: webAuthnResult.id
+            credentialId: webAuthnResult.id,
+            verified: true,
+            type: 'authentication' as const
           }
         }
       }
       
+      console.log('[BiometricWithFallback] Biometric authentication completed successfully:', result)
       return result
     } catch (err) {
+      console.error('[BiometricWithFallback] Biometric authentication failed:', err)
       const webAuthnError = WebAuthnService.handleWebAuthnError(err)
       setError(webAuthnError)
       throw webAuthnError
     }
   }, [capabilities, startProgressAnimation, mode, userId, userName])
 
-  // Autenticación con cámara
+  // Autenticación con cámara con timeout handling mejorado
   const performCameraAuth = useCallback(async () => {
+    console.log('[BiometricWithFallback] Starting camera authentication')
     setAuthStage('processing')
     setError(null)
+    setIsTakingLonger(false)
+    setShowCancelButton(false)
+
+    // CRÍTICO: Limpiar cualquier stream existente antes de crear uno nuevo
+    if (streamRef.current) {
+      console.log('[BiometricWithFallback] Cleaning up existing camera stream')
+      streamRef.current.getTracks().forEach(track => {
+        track.stop()
+        console.log('[BiometricWithFallback] Stopped track:', track.kind, track.readyState)
+      })
+      streamRef.current = null
+    }
+
+    // Create abort controller for this operation
+    abortControllerRef.current = new AbortController()
+    
+    // Set up timeout handler for camera initialization
+    timeoutHandlerRef.current = new TimeoutHandler(
+      () => {
+        setIsTakingLonger(true)
+        setShowCancelButton(true)
+        setTimeoutMessage(getTimeoutMessage('Camera initialization', TIMEOUTS.CAMERA_INIT))
+      },
+      (progress) => setProgress(progress)
+    )
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera not supported')
+        throw new Error('Camera not supported on this device')
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-        audio: false
-      })
-
-      if (videoRef.current) {
+      console.log('[BiometricWithFallback] Requesting camera access')
+      
+      // Use timeout handler for camera initialization
+      const stream = await timeoutHandlerRef.current!.execute(
+        async () => {
+          const mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480, facingMode: 'user' },
+            audio: false
+          })
+          
+          // Check if operation was aborted
+          if (abortControllerRef.current?.signal.aborted) {
+            mediaStream.getTracks().forEach(track => track.stop())
+            throw new Error('Camera initialization was cancelled')
+          }
+          
+          return mediaStream
+        },
+        TIMEOUTS.CAMERA_INIT,
+        'Camera initialization timed out. Please check camera permissions.',
+        'camera-initialization'
+      )
+      
+      if (videoRef.current && stream) {
+        console.log('[BiometricWithFallback] Setting up video element')
         videoRef.current.srcObject = stream
         streamRef.current = stream
         videoRef.current.playsInline = true
         videoRef.current.muted = true
-        await videoRef.current.play()
+        
+        // Esperar a que el video esté listo antes de continuar
+        await new Promise((resolve, reject) => {
+          const video = videoRef.current!
+          const onLoadedMetadata = () => {
+            console.log('[BiometricWithFallback] Video metadata loaded')
+            video.removeEventListener('loadedmetadata', onLoadedMetadata)
+            video.removeEventListener('error', onError)
+            resolve(true)
+          }
+          const onError = (e: Event) => {
+            console.error('[BiometricWithFallback] Video error:', e)
+            video.removeEventListener('loadedmetadata', onLoadedMetadata)
+            video.removeEventListener('error', onError)
+            reject(new Error('Video failed to load'))
+          }
+          
+          video.addEventListener('loadedmetadata', onLoadedMetadata)
+          video.addEventListener('error', onError)
+          
+          video.play().catch(reject)
+        })
+        
+        console.log('[BiometricWithFallback] Camera successfully initialized, starting face detection')
+      } else {
+        throw new Error('Video element not available')
       }
 
-      // Simular detección facial
-      startProgressAnimation(4000)
+      // Simular detección facial con timeout manejado
+      console.log('[BiometricWithFallback] Starting face detection simulation')
+      
+      // Use timeout handler for face detection
+      await timeoutHandlerRef.current!.execute(
+        async () => {
+          return new Promise<void>((resolve) => {
+            startProgressAnimation(4000)
+            setTimeout(resolve, 4000)
+          })
+        },
+        TIMEOUTS.FACE_DETECTION,
+        'Face detection timed out. Please ensure your face is visible and well-lit.',
+        'face-detection'
+      )
       
       return {
         success: true,
@@ -275,24 +473,67 @@ export default function BiometricWithFallback({
         timestamp: Date.now()
       }
     } catch (err) {
-      const error: WebAuthnError = {
-        code: 'CAMERA_ERROR',
-        message: 'Camera access failed',
-        isRecoverable: true,
-        suggestedAction: 'Please allow camera access or try another method'
+      console.error('[BiometricWithFallback] Camera authentication failed:', err)
+      
+      // CRÍTICO: Limpiar siempre en caso de error
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
+      
+      let error: WebAuthnError
+      if (isTimeoutError(err)) {
+        error = {
+          code: 'CAMERA_TIMEOUT',
+          message: err.message,
+          isRecoverable: true,
+          suggestedAction: 'Camera operation timed out. Please try again or use demo mode.'
+        }
+      } else {
+        error = {
+          code: 'CAMERA_ERROR',
+          message: err instanceof Error ? err.message : 'Camera access failed',
+          isRecoverable: true,
+          suggestedAction: 'Please allow camera access or try demo mode'
+        }
       }
       setError(error)
       throw error
     }
-  }, [capabilities, startProgressAnimation])
+  }, [capabilities, startProgressAnimation, cleanup])
 
-  // Demo animado (siempre funciona)
+  // Demo animado con timeout (siempre funciona)
   const performDemoAuth = useCallback(async () => {
     setAuthStage('processing')
     setError(null)
+    setIsTakingLonger(false)
+    setShowCancelButton(false)
 
-    // Simular autenticación
-    startProgressAnimation(3500)
+    // Create abort controller for this operation
+    abortControllerRef.current = new AbortController()
+    
+    // Set up timeout handler for demo
+    timeoutHandlerRef.current = new TimeoutHandler(
+      () => {
+        setIsTakingLonger(true)
+        setShowCancelButton(true)
+        setTimeoutMessage('Demo is taking longer than usual...')
+      },
+      (progress) => setProgress(progress)
+    )
+
+    // Simulate authentication with timeout
+    await timeoutHandlerRef.current.execute(
+      async () => {
+        return new Promise<void>((resolve) => {
+          startProgressAnimation(3500)
+          setTimeout(resolve, 3500)
+        })
+      },
+      TIMEOUTS.QUICK_OPERATION * 2, // Give demo a bit more time
+      'Demo timed out unexpectedly.',
+      'demo-authentication'
+    )
     
     return {
       success: true,
@@ -310,7 +551,19 @@ export default function BiometricWithFallback({
   const startAuthentication = useCallback(async (method?: AuthMethod) => {
     const methodToUse = method || currentMethod
     
+    if (isProcessing) {
+      warning('Authentication in progress', 'Please wait for the current authentication to complete.')
+      return
+    }
+    
     try {
+      setRetryCount(prev => prev + 1)
+      setIsProcessing(true)
+      
+      if (debugMode) {
+        console.log('[BiometricWithFallback] Starting authentication with method:', methodToUse, { retryCount: retryCount + 1 })
+      }
+      
       let result: BiometricAuthResult
 
       switch (methodToUse) {
@@ -324,29 +577,109 @@ export default function BiometricWithFallback({
           result = await performDemoAuth()
           break
         default:
-          throw new Error('Invalid authentication method')
+          throw new Error(`Invalid authentication method: ${methodToUse}`)
       }
-
-      onSuccess?.(result)
+      
+      setIsProcessing(false)
+      setRetryCount(0)
+      
+      if (currentToastRef.current) {
+        dismiss(currentToastRef.current)
+      }
+      
+      const methodName = result.method === 'biometric' 
+        ? (result.biometricType === 'face' ? 'Face ID' : 'Touch ID')
+        : result.method === 'camera' 
+        ? 'Camera Scan'
+        : 'Visual Demo'
+        
+      success('Authentication successful!', `${methodName} authentication completed successfully.`)
+      
+      if (debugMode) {
+        console.log('[BiometricWithFallback] Authentication successful:', result)
+      }
+      
+      // Wait for success animation to complete before calling onSuccess
+      setTimeout(() => {
+        if (debugMode) {
+          console.log('[BiometricWithFallback] Calling onSuccess callback')
+        }
+        onSuccess?.(result)
+      }, 2000) // 2 second delay for success animation
+      
     } catch (err) {
-      // Auto-fallback a demo si falla
-      if (methodToUse !== 'demo') {
+      setIsProcessing(false)
+      
+      const error = err as WebAuthnError
+      
+      if (debugMode) {
+        console.error('[BiometricWithFallback] Authentication failed:', error)
+      }
+      
+      // Auto-fallback a demo si falla y no es ya demo
+      if (methodToUse !== 'demo' && retryCount < 2) {
         console.log('[BiometricWithFallback] Method failed, falling back to demo:', err)
+        
+        warning('Switching to backup method', `${methodToUse} authentication failed. Switching to Visual Demo as backup.`)
+        
         setCurrentMethod('demo')
-        setTimeout(() => startAuthentication('demo'), 1000)
+        setTimeout(() => startAuthentication('demo'), 2000)
       } else {
-        onError?.(err as WebAuthnError)
+        // Si ya es demo o hemos intentado muchas veces, reportar error
+        setAuthStage('error')
+        
+        if (currentToastRef.current) {
+          dismiss(currentToastRef.current)
+        }
+        
+        onError?.(error)
       }
     }
-  }, [currentMethod, performBiometricAuth, performCameraAuth, performDemoAuth, onSuccess, onError])
+  }, [currentMethod, performBiometricAuth, performCameraAuth, performDemoAuth, onSuccess, onError, isProcessing, retryCount, debugMode, warning, success, dismiss])
 
-  // Cambiar método manualmente
+  // Cambiar método manualmente con cleanup forzado
   const switchMethod = useCallback((method: AuthMethod) => {
+    console.log('[BiometricWithFallback] Switching method from', currentMethod, 'to', method)
+    
+    // CRÍTICO: Forzar cleanup antes de cambiar método
     cleanup()
-    setCurrentMethod(method)
+    
+    // Asegurar que el cleanup se complete antes de continuar
+    setTimeout(() => {
+      setCurrentMethod(method)
+      setAuthStage('ready')
+      setError(null)
+      setProgress(0)
+      console.log('[BiometricWithFallback] Method switched to:', method)
+    }, 100)
+  }, [cleanup, currentMethod])
+
+  // Cancelar operación actual
+  const cancelCurrentOperation = useCallback(() => {
+    console.log('[BiometricWithFallback] Cancelling current operation')
+    
+    // Cancel timeout handler
+    if (timeoutHandlerRef.current) {
+      timeoutHandlerRef.current.cancel()
+    }
+    
+    // Abort current operation
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Cleanup resources
+    cleanup()
+    
+    // Reset state
     setAuthStage('ready')
     setError(null)
     setProgress(0)
+    setIsTakingLonger(false)
+    setShowCancelButton(false)
+    setTimeoutMessage('')
+    
+    console.log('[BiometricWithFallback] Operation cancelled successfully')
   }, [cleanup])
 
   // Obtener información del método actual
@@ -403,7 +736,8 @@ export default function BiometricWithFallback({
           onClick={() => switchMethod('demo')}
           variant={currentMethod === 'demo' ? 'default' : 'outline'}
           size="sm"
-          className="flex items-center gap-2"
+          disabled={isProcessing}
+          className="flex items-center gap-2 disabled:opacity-50"
         >
           <Sparkles className="w-4 h-4" />
           Visual Demo
@@ -415,7 +749,8 @@ export default function BiometricWithFallback({
             onClick={() => switchMethod('biometric')}
             variant={currentMethod === 'biometric' ? 'default' : 'outline'}
             size="sm"
-            className="flex items-center gap-2"
+            disabled={isProcessing}
+            className="flex items-center gap-2 disabled:opacity-50"
           >
             {capabilities.biometricTypes.includes('face') ? (
               <Eye className="w-4 h-4" />
@@ -432,7 +767,8 @@ export default function BiometricWithFallback({
             onClick={() => switchMethod('camera')}
             variant={currentMethod === 'camera' ? 'default' : 'outline'}
             size="sm"
-            className="flex items-center gap-2"
+            disabled={isProcessing}
+            className="flex items-center gap-2 disabled:opacity-50"
           >
             <Camera className="w-4 h-4" />
             Camera
@@ -445,16 +781,53 @@ export default function BiometricWithFallback({
   // Renderizar interfaz principal
   const renderAuthInterface = () => (
     <div className="relative">
-      {/* Video para cámara */}
+      {/* Video para cámara con mejor control */}
       {currentMethod === 'camera' && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-64 object-cover rounded-lg mb-4"
-          style={{ display: streamRef.current ? 'block' : 'none' }}
-        />
+        <div className="relative mb-4">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-64 object-cover rounded-lg"
+            style={{ display: streamRef.current ? 'block' : 'none' }}
+            onError={(e) => {
+              console.error('[BiometricWithFallback] Video error:', e)
+              const error: WebAuthnError = {
+                code: 'CAMERA_ERROR',
+                message: 'Video playback failed',
+                isRecoverable: true,
+                suggestedAction: 'Please try demo mode'
+              }
+              setError(error)
+            }}
+            onLoadedMetadata={() => {
+              console.log('[BiometricWithFallback] Video metadata loaded')
+            }}
+          />
+          {!streamRef.current && currentMethod === 'camera' && (
+            <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+              <div className="text-center text-gray-600">
+                <Camera className="w-12 h-12 mx-auto mb-2" />
+                <p>Initializing camera...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Botón de cancelar siempre visible cuando la cámara está activa */}
+          {streamRef.current && (
+            <button
+              onClick={() => {
+                console.log('[BiometricWithFallback] User cancelled camera')
+                cleanup()
+                switchMethod('demo')
+              }}
+              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-full shadow-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       )}
 
       {/* Interfaz de autenticación */}
@@ -498,12 +871,31 @@ export default function BiometricWithFallback({
         {/* Efectos de éxito */}
         {authStage === 'success' && (
           <motion.div
-            className="absolute inset-0 bg-green-500/20 rounded-2xl flex items-center justify-center"
+            className="absolute inset-0 bg-green-500/20 rounded-2xl flex items-center justify-center overflow-hidden"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15 }}
           >
-            <CheckCircle className="w-16 h-16 text-green-400" />
+            {/* Success ripple effect */}
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-green-400/30 to-emerald-400/30 rounded-2xl"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.5, 2], opacity: [0.8, 0.4, 0] }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+            />
+            
+            <motion.div
+              initial={{ scale: 0, rotate: -90 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ 
+                type: 'spring', 
+                stiffness: 300, 
+                damping: 20,
+                delay: 0.1 
+              }}
+            >
+              <CheckCircle className="w-16 h-16 text-green-400 relative z-10" />
+            </motion.div>
           </motion.div>
         )}
 
@@ -528,9 +920,17 @@ export default function BiometricWithFallback({
               transition={{ duration: 0.3 }}
             />
           </div>
-          <p className="text-center mt-2 text-sm font-medium text-blue-600">
-            {Math.round(progress)}% Complete
-          </p>
+          <div className="text-center mt-2">
+            <p className="text-sm font-medium text-blue-600">
+              {Math.round(progress)}% Complete
+            </p>
+            {isTakingLonger && (
+              <p className="text-xs text-yellow-600 mt-1 flex items-center justify-center">
+                <Timer className="w-3 h-3 mr-1" />
+                Taking longer than expected...
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -547,19 +947,58 @@ export default function BiometricWithFallback({
 
       <p className="text-gray-600">
         {authStage === 'ready' && methodInfo.description}
-        {authStage === 'processing' && 'Please follow the prompts on your device'}
+        {authStage === 'processing' && !isTakingLonger && 'Please follow the prompts on your device'}
+        {authStage === 'processing' && isTakingLonger && (timeoutMessage || 'Operation is taking longer than expected...')}
         {authStage === 'success' && `${mode === 'registration' ? 'Registration' : 'Authentication'} completed successfully`}
         {authStage === 'error' && error?.message}
       </p>
 
-      {/* Botón de acción */}
+      {/* Cancel button when operation is taking longer */}
+      {authStage === 'processing' && showCancelButton && (
+        <Button
+          onClick={cancelCurrentOperation}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <StopCircle className="w-4 h-4" />
+          Cancel Operation
+        </Button>
+      )}
+
+      {/* Botón de acción con timeout */}
       {authStage === 'ready' && (
         <Button
           onClick={() => startAuthentication()}
-          className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+          disabled={isProcessing}
+          className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
           size="lg"
         >
-          {mode === 'registration' ? 'Register' : 'Authenticate'}
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            mode === 'registration' ? 'Register' : 'Authenticate'
+          )}
+        </Button>
+      )}
+      
+      {/* Botón de cancelar siempre disponible durante procesamiento */}
+      {(authStage === 'processing') && (
+        <Button
+          onClick={() => {
+            console.log('[BiometricWithFallback] User cancelled during processing')
+            cleanup()
+            setAuthStage('ready')
+            setError(null)
+          }}
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+        >
+          <X className="w-4 h-4" />
+          Cancel
         </Button>
       )}
 
@@ -583,18 +1022,38 @@ export default function BiometricWithFallback({
       <div className="space-y-2">
         {error?.isRecoverable && (
           <Button
-            onClick={() => startAuthentication()}
-            className="flex items-center gap-2"
+            onClick={() => {
+              console.log('[BiometricWithFallback] Retrying authentication')
+              // Forzar cleanup antes de reintentar
+              cleanup()
+              setTimeout(() => {
+                setError(null)
+                setAuthStage('ready')
+                startAuthentication()
+              }, 500)
+            }}
+            disabled={isProcessing}
+            className="flex items-center gap-2 disabled:opacity-50"
           >
-            <RefreshCw className="w-4 h-4" />
-            Try Again
+            {isProcessing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Retrying...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Try Again {retryCount > 0 && `(${retryCount})`}
+              </>
+            )}
           </Button>
         )}
 
         <Button
           onClick={() => switchMethod('demo')}
           variant="outline"
-          className="flex items-center gap-2"
+          disabled={isProcessing || currentMethod === 'demo'}
+          className="flex items-center gap-2 disabled:opacity-50"
         >
           <Sparkles className="w-4 h-4" />
           Use Visual Demo
@@ -661,20 +1120,104 @@ export default function BiometricWithFallback({
       <AnimatePresence>
         {authStage === 'success' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mt-6 p-6 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl text-center"
+            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            transition={{ 
+              type: "spring", 
+              stiffness: 300, 
+              damping: 25,
+              opacity: { duration: 0.3 },
+              scale: { duration: 0.4 }
+            }}
+            className="mt-6 p-6 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl text-center relative overflow-hidden"
           >
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-green-800 mb-2">
+            {/* Success Animation Background */}
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: [0, 1.2, 1], opacity: [0, 0.3, 0] }}
+              transition={{ duration: 1.5, ease: "easeOut" }}
+              className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-2xl"
+            />
+            
+            {/* Success Icon with Animation */}
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 200, 
+                damping: 15,
+                delay: 0.2 
+              }}
+            >
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4 relative z-10" />
+            </motion.div>
+            
+            <motion.h3 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.3 }}
+              className="text-lg font-bold text-green-800 mb-2 relative z-10"
+            >
               {mode === 'registration' ? 'Registration Complete!' : 'Authentication Successful!'}
-            </h3>
-            <p className="text-green-700">
+            </motion.h3>
+            
+            <motion.p 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.3 }}
+              className="text-green-700 relative z-10"
+            >
               {currentMethod === 'demo' 
                 ? 'This was a demonstration of how biometric authentication would work.'
                 : 'You can now proceed with secure transactions.'}
-            </p>
+            </motion.p>
+            
+            {/* Loading indicator for transition */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, duration: 0.3 }}
+              className="mt-4 relative z-10"
+            >
+              <div className="flex items-center justify-center space-x-2 text-green-600">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                </motion.div>
+                <span className="text-sm font-medium">Redirecting to payment...</span>
+              </div>
+            </motion.div>
+            
+            {/* Sparkle effects */}
+            <div className="absolute inset-0 pointer-events-none">
+              {Array.from({ length: 8 }, (_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-1 h-1 bg-green-400 rounded-full"
+                  initial={{
+                    x: '50%',
+                    y: '50%',
+                    scale: 0,
+                    opacity: 0
+                  }}
+                  animate={{
+                    x: `${30 + Math.random() * 40}%`,
+                    y: `${20 + Math.random() * 60}%`,
+                    scale: [0, 1, 0],
+                    opacity: [0, 1, 0]
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    delay: 0.5 + Math.random() * 0.5,
+                    ease: "easeOut"
+                  }}
+                />
+              ))}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

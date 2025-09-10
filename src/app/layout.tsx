@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+import { ToastProvider } from '@/components/ToastProvider'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 // Configure fonts for modern appearance
 const inter = Inter({ 
@@ -152,7 +154,11 @@ export default function RootLayout({
           <div className="mobile-safe-area">
             {/* App content with proper mobile optimizations */}
             <main className="relative min-h-screen mobile-scroll">
-              {children}
+              <ErrorBoundary enableReporting={true} enableDebugMode={process.env.NODE_ENV === 'development'}>
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
+              </ErrorBoundary>
             </main>
           </div>
           

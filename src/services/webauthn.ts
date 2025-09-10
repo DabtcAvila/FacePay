@@ -2,6 +2,9 @@
 
 // Optimized and unified WebAuthn service for biometric authentication
 // This service has been cleaned and consolidated from multiple implementations
+// Enhanced with timeout handling to prevent UI freezing
+
+import { withTimeout, TimeoutError, TIMEOUTS, isTimeoutError } from '@/utils/timeout';
 
 // Core types
 export interface BiometricCapabilities {
@@ -39,6 +42,7 @@ export interface WebAuthnCapabilities extends BiometricCapabilities {}
 export class WebAuthnService {
   /**
    * Check browser capabilities for WebAuthn and biometric authentication
+   * Enhanced with timeout to prevent indefinite hanging
    */
   static async checkBrowserCapabilities(): Promise<WebAuthnCapabilities> {
     let isSupported = false
@@ -76,11 +80,16 @@ export class WebAuthnService {
     const isWindows = /windows|win32|win64/.test(userAgent)
     const isMobile = /mobile|android|iphone|ipad|phone|blackberry|opera mini|iemobile|wpdesktop/.test(userAgent)
 
-    // Check WebAuthn support
+    // Check WebAuthn support with timeout
     try {
       if (window.PublicKeyCredential && window.navigator.credentials) {
         isSupported = true
-        isPlatformAuthenticatorAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        isPlatformAuthenticatorAvailable = await withTimeout(
+          PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(),
+          TIMEOUTS.QUICK_OPERATION,
+          'Platform authenticator check timed out',
+          'platform-authenticator-check'
+        )
         
         // Infer biometric capabilities based on device
         if (isPlatformAuthenticatorAvailable) {
@@ -98,7 +107,11 @@ export class WebAuthnService {
         }
       }
     } catch (error) {
-      console.warn('[WebAuthn Service] Error checking WebAuthn capabilities:', error)
+      if (isTimeoutError(error)) {
+        console.warn('[WebAuthn Service] Capabilities check timed out, assuming not available');
+      } else {
+        console.warn('[WebAuthn Service] Error checking WebAuthn capabilities:', error);
+      }
     }
 
     return {
@@ -128,8 +141,19 @@ export class WebAuthnService {
    */
   static handleWebAuthnError(error: any): WebAuthnError {
     const errorName = error?.name || error?.code || 'UnknownError'
+    const errorMessage = error?.message || ''
+    
+    console.log('[WebAuthn Service] Handling error:', { errorName, errorMessage, error })
     
     switch (errorName) {
+      case 'TimeoutError':
+        return {
+          code: 'TIMEOUT',
+          message: 'Biometric authentication timed out.',
+          isRecoverable: true,
+          suggestedAction: 'The operation took too long. Please try again or use an alternative method.'
+        }
+      
       case 'NotSupportedError':
         return {
           code: 'NOT_SUPPORTED',
@@ -166,8 +190,9 @@ export class WebAuthnService {
 
   /**
    * Register a new biometric credential
+   * Enhanced with timeout handling to prevent indefinite hanging
    */
-  static async register(options: { userId: string; userName: string; userDisplayName: string }): Promise<any> {
+  static async register(options: { userId: string; userName: string; userDisplayName: string }, abortSignal?: AbortSignal): Promise<any> {
     const capabilities = await this.checkBrowserCapabilities();
     if (!capabilities.isSupported || !capabilities.isPlatformAuthenticatorAvailable) {
       throw new Error('Biometric authentication is not available on this device');
@@ -193,7 +218,7 @@ export class WebAuthnService {
           { alg: -7, type: 'public-key' as const },
           { alg: -257, type: 'public-key' as const }
         ],
-        timeout: 60000,
+        timeout: TIMEOUTS.WEBAUTHN_OPERATION,
         attestation: 'direct' as AttestationConveyancePreference,
         authenticatorSelection: {
           authenticatorAttachment: 'platform' as AuthenticatorAttachment,
@@ -204,7 +229,34 @@ export class WebAuthnService {
     };
 
     try {
-      const credential = await navigator.credentials.create(registrationOptions) as PublicKeyCredential;
+      // Create credential with timeout and optional abort signal
+      let credentialPromise = navigator.credentials.create(registrationOptions) as Promise<PublicKeyCredential>;
+      
+      // Add abort signal support if provided
+      if (abortSignal) {
+        credentialPromise = new Promise((resolve, reject) => {
+          if (abortSignal.aborted) {
+            reject(new Error('Registration was cancelled'));
+            return;
+          }
+          
+          const abortListener = () => reject(new Error('Registration was cancelled'));
+          abortSignal.addEventListener('abort', abortListener);
+          
+          credentialPromise
+            .then(resolve, reject)
+            .finally(() => {
+              abortSignal.removeEventListener('abort', abortListener);
+            });
+        });
+      }
+      
+      const credential = await withTimeout(
+        credentialPromise,
+        TIMEOUTS.WEBAUTHN_OPERATION,
+        'Biometric registration timed out. Please try again.',
+        'webauthn-registration'
+      );
       
       if (!credential) {
         throw new Error('Failed to create biometric credential');
@@ -228,8 +280,9 @@ export class WebAuthnService {
 
   /**
    * Authenticate with existing biometric credential
+   * Enhanced with timeout handling to prevent indefinite hanging
    */
-  static async authenticate(): Promise<any> {
+  static async authenticate(abortSignal?: AbortSignal): Promise<any> {
     const capabilities = await this.checkBrowserCapabilities();
     if (!capabilities.isSupported || !capabilities.isPlatformAuthenticatorAvailable) {
       throw new Error('Biometric authentication is not available on this device');
@@ -241,7 +294,7 @@ export class WebAuthnService {
     const authenticationOptions = {
       publicKey: {
         challenge,
-        timeout: 60000,
+        timeout: TIMEOUTS.WEBAUTHN_OPERATION,
         rpId: window.location.hostname,
         userVerification: 'required' as UserVerificationRequirement,
         allowCredentials: []
@@ -249,7 +302,34 @@ export class WebAuthnService {
     };
 
     try {
-      const credential = await navigator.credentials.get(authenticationOptions) as PublicKeyCredential;
+      // Get credential with timeout and optional abort signal
+      let credentialPromise = navigator.credentials.get(authenticationOptions) as Promise<PublicKeyCredential>;
+      
+      // Add abort signal support if provided
+      if (abortSignal) {
+        credentialPromise = new Promise((resolve, reject) => {
+          if (abortSignal.aborted) {
+            reject(new Error('Authentication was cancelled'));
+            return;
+          }
+          
+          const abortListener = () => reject(new Error('Authentication was cancelled'));
+          abortSignal.addEventListener('abort', abortListener);
+          
+          credentialPromise
+            .then(resolve, reject)
+            .finally(() => {
+              abortSignal.removeEventListener('abort', abortListener);
+            });
+        });
+      }
+      
+      const credential = await withTimeout(
+        credentialPromise,
+        TIMEOUTS.WEBAUTHN_OPERATION,
+        'Biometric authentication timed out. Please try again.',
+        'webauthn-authentication'
+      );
       
       if (!credential) {
         throw new Error('No biometric credential returned');

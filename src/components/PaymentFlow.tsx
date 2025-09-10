@@ -166,15 +166,43 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   }, [demoMode]);
   
   const cleanupFaceID = useCallback(() => {
+    console.log('[PaymentFlow] Starting comprehensive FaceID cleanup');
+    
     if (!demoMode) {
-      RealFaceID.cleanup();
+      try {
+        console.log('[PaymentFlow] Calling RealFaceID.cleanup()');
+        RealFaceID.cleanup();
+        
+        // Verificar que el cleanup se completó
+        const videoElement = RealFaceID.getVideoElement();
+        if (videoElement && videoElement.srcObject) {
+          console.warn('[PaymentFlow] Video element still has srcObject after cleanup');
+          if (videoElement.srcObject instanceof MediaStream) {
+            videoElement.srcObject.getTracks().forEach(track => {
+              track.stop();
+              console.log('[PaymentFlow] Force stopped track:', track.kind, track.readyState);
+            });
+          }
+          videoElement.srcObject = null;
+        }
+      } catch (error) {
+        console.error('[PaymentFlow] Error during RealFaceID cleanup:', error);
+      }
     }
+    
     setShowCamera(false);
+    setFaceIDError(null);
+    setEnrollmentProgress(0);
+    setVerificationProgress(0);
+    setConfidenceScore(null);
+    
+    console.log('[PaymentFlow] FaceID cleanup completed');
   }, [demoMode]);
 
   // Check biometric capabilities when component mounts
   useEffect(() => {
     if (isOpen) {
+      console.log('[PaymentFlow] Component opened, initializing');
       initializeBiometricSystems();
       setPaymentState('initial');
       setProcessingProgress(0);
@@ -184,12 +212,21 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
       setConfidenceScore(null);
       setFaceIDError(null);
       setDetectionAttempts(0);
+    } else {
+      console.log('[PaymentFlow] Component closed, cleaning up');
+      cleanupFaceID();
     }
     
+    // CRÍTICO: Cleanup robusto en unmount
     return () => {
-      if (!isOpen) {
-        cleanupFaceID();
-      }
+      console.log('[PaymentFlow] Component unmounting');
+      cleanupFaceID();
+      
+      // Cleanup adicional para asegurar que no queden timers
+      setCountdown(0);
+      setProcessingProgress(0);
+      setEnrollmentProgress(0);
+      setVerificationProgress(0);
     };
   }, [isOpen, initializeBiometricSystems, cleanupFaceID]);
 
@@ -242,24 +279,44 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   }, []);
 
   const handleEnrollment = useCallback(async () => {
-    if (!faceIDStatus.isInitialized) return;
+    if (!faceIDStatus.isInitialized) {
+      console.error('[PaymentFlow] Cannot enroll: FaceID not initialized');
+      return;
+    }
     
+    console.log('[PaymentFlow] Starting enrollment process');
     setPaymentState('enrolling');
     setShowCamera(true);
     setCountdown(30);
     setFaceIDError(null);
     setDetectionAttempts(0);
     
+    // Timeout para enrollment
+    const enrollmentTimeout = setTimeout(() => {
+      console.log('[PaymentFlow] Enrollment timeout reached');
+      cleanupFaceID();
+      setPaymentState('error');
+      setFaceIDError('UNKNOWN_ERROR');
+      onError?.({
+        code: 'TIMEOUT_ERROR',
+        message: 'Enrollment timed out',
+        isRecoverable: true,
+        suggestedAction: 'Please try again'
+      });
+    }, 35000); // 35 segundos timeout
+    
     try {
       const userId = 'user_' + Date.now();
       
       if (demoMode) {
+        console.log('[PaymentFlow] Demo enrollment mode');
         // Demo enrollment simulation with realistic edge cases
         const shouldSucceed = Math.random() > 0.2; // 80% success rate
         
         if (!shouldSucceed) {
           const errors: FaceIDError[] = ['NO_FACE_DETECTED', 'MULTIPLE_FACES_DETECTED', 'POOR_IMAGE_QUALITY'];
           const randomError = errors[Math.floor(Math.random() * errors.length)];
+          console.log('[PaymentFlow] Demo enrollment failed with:', randomError);
           setFaceIDError(randomError);
           throw new Error(`Demo: ${randomError}`);
         }
@@ -267,17 +324,21 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
         await simulateProgress(setEnrollmentProgress);
         await sleep(1000);
         
+        console.log('[PaymentFlow] Demo enrollment completed successfully');
         setFaceIDStatus(prev => ({ ...prev, isUserEnrolled: true }));
         setPaymentState('initial');
         setEnrollmentProgress(0);
       } else {
+        console.log('[PaymentFlow] Real enrollment starting for user:', userId);
         const result: FaceEnrollmentResult = await RealFaceID.enrollUser(userId, setEnrollmentProgress);
         
         if (result.success) {
+          console.log('[PaymentFlow] Enrollment successful with confidence:', result.confidence);
           setFaceIDStatus(prev => ({ ...prev, isUserEnrolled: true }));
           setConfidenceScore(result.confidence);
           setPaymentState('initial');
         } else {
+          console.error('[PaymentFlow] Enrollment failed:', result.error);
           // Map specific errors
           if (result.error?.includes('face')) {
             setFaceIDError('NO_FACE_DETECTED');
@@ -289,7 +350,15 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
           throw new Error(result.error || 'Enrollment failed');
         }
       }
+      
+      clearTimeout(enrollmentTimeout);
     } catch (error) {
+      clearTimeout(enrollmentTimeout);
+      console.error('[PaymentFlow] Enrollment error:', error);
+      
+      // CRÍTICO: Cleanup en caso de error
+      cleanupFaceID();
+      
       setPaymentState('error');
       setFaceIDStatus(prev => ({ 
         ...prev, 
@@ -301,21 +370,43 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
       setCountdown(0);
       setEnrollmentProgress(0);
     }
-  }, [faceIDStatus.isInitialized, demoMode, onError, simulateProgress, faceIDError]);
+  }, [faceIDStatus.isInitialized, demoMode, onError, simulateProgress, faceIDError, cleanupFaceID]);
 
   const handleFaceIDAuthentication = useCallback(async () => {
-    if (!faceIDStatus.isInitialized || !faceIDStatus.isUserEnrolled) return;
+    if (!faceIDStatus.isInitialized || !faceIDStatus.isUserEnrolled) {
+      console.error('[PaymentFlow] Cannot authenticate: FaceID not initialized or user not enrolled');
+      return;
+    }
 
+    const attemptNumber = detectionAttempts + 1;
+    console.log(`[PaymentFlow] Starting authentication attempt ${attemptNumber}`);
+    
     setPaymentState('authenticating');
     setShowCamera(true);
     setCountdown(30);
     setFaceIDError(null);
     setDetectionAttempts(prev => prev + 1);
 
+    // Timeout para autenticación
+    const authTimeout = setTimeout(() => {
+      console.log('[PaymentFlow] Authentication timeout reached');
+      cleanupFaceID();
+      setPaymentState('error');
+      setCountdown(0);
+      setFaceIDError('UNKNOWN_ERROR');
+      onError?.({
+        code: 'TIMEOUT_ERROR',
+        message: 'Authentication timed out',
+        isRecoverable: true,
+        suggestedAction: 'Please try again'
+      });
+    }, 35000); // 35 segundos timeout
+
     try {
       const userId = 'user_' + Date.now();
       
       if (demoMode) {
+        console.log(`[PaymentFlow] Demo authentication mode, attempt ${attemptNumber}`);
         // Demo mode simulation with edge cases
         await simulateProgress(setVerificationProgress);
         
@@ -323,10 +414,10 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
         let mockConfidence: number;
         let shouldFail = false;
         
-        if (detectionAttempts === 0) {
+        if (attemptNumber === 1) {
           // First attempt - higher success rate
           mockConfidence = 0.88 + Math.random() * 0.1;
-        } else if (detectionAttempts < 3) {
+        } else if (attemptNumber < 3) {
           // Subsequent attempts - moderate success
           mockConfidence = 0.75 + Math.random() * 0.15;
           shouldFail = Math.random() < 0.3; // 30% chance of failure
@@ -345,11 +436,13 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             'POOR_IMAGE_QUALITY'
           ];
           const randomError = errors[Math.floor(Math.random() * errors.length)];
+          console.log(`[PaymentFlow] Demo authentication failed with: ${randomError}`);
           setFaceIDError(randomError);
           throw new Error(`Demo: ${randomError}`);
         }
         
         setConfidenceScore(mockConfidence);
+        console.log(`[PaymentFlow] Demo confidence score: ${mockConfidence}`);
         
         if (mockConfidence >= 0.85) {
           setPaymentState('processing');
@@ -358,6 +451,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
           await simulateProgress(setProcessingProgress);
           await sleep(500);
           
+          console.log('[PaymentFlow] Demo authentication successful');
           setPaymentState('success');
           setDetectionAttempts(0); // Reset on success
           onSuccess?.({
@@ -369,13 +463,16 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             demo: true
           });
         } else {
+          console.log('[PaymentFlow] Demo confidence too low:', mockConfidence);
           setFaceIDError('LOW_CONFIDENCE');
           throw new Error('Face verification failed - confidence too low');
         }
       } else {
+        console.log(`[PaymentFlow] Real authentication starting for user: ${userId}`);
         const result: FaceVerificationResult = await RealFaceID.verifyUser(userId, setVerificationProgress);
         
         if (result.success && result.isMatch) {
+          console.log(`[PaymentFlow] Real authentication successful with confidence: ${result.confidence}`);
           setConfidenceScore(result.confidence);
           setPaymentState('processing');
           setCountdown(0);
@@ -394,6 +491,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
             userId: result.userId
           });
         } else {
+          console.error('[PaymentFlow] Real authentication failed:', result.error);
           // Map specific errors based on result
           if (result.error?.includes('face')) {
             setFaceIDError('NO_FACE_DETECTED');
@@ -407,7 +505,15 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
           throw new Error(result.error || 'Face verification failed');
         }
       }
+      
+      clearTimeout(authTimeout);
     } catch (error) {
+      clearTimeout(authTimeout);
+      console.error(`[PaymentFlow] Authentication error on attempt ${attemptNumber}:`, error);
+      
+      // CRÍTICO: Cleanup en caso de error
+      cleanupFaceID();
+      
       setPaymentState('error');
       setCountdown(0);
       onError?.(WebAuthnService.handleWebAuthnError(error));
@@ -415,7 +521,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
       setShowCamera(false);
       setVerificationProgress(0);
     }
-  }, [faceIDStatus.isInitialized, faceIDStatus.isUserEnrolled, demoMode, detectionAttempts, onSuccess, onError, simulateProgress]);
+  }, [faceIDStatus.isInitialized, faceIDStatus.isUserEnrolled, demoMode, detectionAttempts, onSuccess, onError, simulateProgress, cleanupFaceID]);
 
   const handleWebAuthnAuthentication = useCallback(async () => {
     if (!biometricStatus.isAvailable) return;
@@ -484,16 +590,25 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
   }, [biometricStatus.isAvailable, demoMode, onSuccess, onError, simulateProgress]);
 
   const handleRetry = useCallback(() => {
-    setPaymentState('initial');
-    setProcessingProgress(0);
-    setEnrollmentProgress(0);
-    setVerificationProgress(0);
-    setCountdown(0);
-    setConfidenceScore(null);
-    setShowCamera(false);
-    setFaceIDError(null);
-    // Don't reset detection attempts to track retry count
-  }, []);
+    console.log('[PaymentFlow] User initiated retry');
+    
+    // CRÍTICO: Cleanup completo antes de reintentar
+    cleanupFaceID();
+    
+    // Delay para asegurar cleanup completo
+    setTimeout(() => {
+      setPaymentState('initial');
+      setProcessingProgress(0);
+      setEnrollmentProgress(0);
+      setVerificationProgress(0);
+      setCountdown(0);
+      setConfidenceScore(null);
+      setShowCamera(false);
+      setFaceIDError(null);
+      // Don't reset detection attempts to track retry count
+      console.log('[PaymentFlow] Retry setup completed');
+    }, 500);
+  }, [cleanupFaceID]);
   
   const handleSwitchToFallback = useCallback(() => {
     setAuthMode('webauthn');
@@ -592,14 +707,32 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
               <video
                 ref={node => {
                   if (node && RealFaceID.getVideoElement()) {
-                    node.srcObject = RealFaceID.getVideoElement()!.srcObject;
+                    const realVideo = RealFaceID.getVideoElement()!;
+                    if (realVideo.srcObject) {
+                      node.srcObject = realVideo.srcObject;
+                      console.log('[PaymentFlow] Video element connected to RealFaceID stream');
+                    }
                   }
                 }}
                 autoPlay
                 playsInline
                 muted
                 className="w-full h-full object-cover rounded-full"
+                onError={(e) => {
+                  console.error('[PaymentFlow] Video error:', e);
+                  cleanupFaceID();
+                  setFaceIDError('UNKNOWN_ERROR');
+                  setPaymentState('error');
+                }}
+                onEnded={() => {
+                  console.log('[PaymentFlow] Video stream ended');
+                  cleanupFaceID();
+                }}
               />
+            ) : showCamera && demoMode ? (
+              <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 rounded-full flex items-center justify-center">
+                <Scan className="w-16 h-16 text-blue-400 opacity-60" />
+              </div>
             ) : (
               <Scan className="w-16 h-16 text-blue-600" />
             )}
@@ -1132,13 +1265,17 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
 
               {(paymentState === 'initial' || paymentState === 'authenticating' || paymentState === 'enrolling') && (
                 <Button
-                  onClick={onClose}
+                  onClick={() => {
+                    console.log('[PaymentFlow] User cancelled payment');
+                    cleanupFaceID();
+                    onClose();
+                  }}
                   variant="outline"
                   className="w-full h-12"
                   size="lg"
-                  disabled={paymentState === 'authenticating' || paymentState === 'enrolling'}
+                  disabled={false} // Permitir cancelar siempre
                 >
-                  Cancel
+                  {(paymentState === 'authenticating' || paymentState === 'enrolling') ? 'Force Cancel' : 'Cancel'}
                 </Button>
               )}
             </div>
