@@ -27,6 +27,8 @@
     "db:studio": "prisma studio",
     "db:init": "node scripts/init-db.js",
     "db:fresh": "node scripts/init-db.js --fresh",
+    "test:users": "node scripts/generate-test-users.js",
+    "test:users:fresh": "node scripts/generate-test-users.js --fresh",
     "setup": "./scripts/quick-start.sh",
     "deploy": "npm run build && npm run test:critical && echo '🚀 Ready for deployment! Push to main branch for auto-deploy.'",
     "deploy:vercel": "vercel --prod",

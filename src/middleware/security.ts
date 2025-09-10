@@ -13,12 +13,20 @@ export const SECURITY_CONFIG = {
   AUTH_MAX_REQUESTS: 10,
   PAYMENT_MAX_REQUESTS: 20,
   
-  // CORS
-  ALLOWED_ORIGINS: [
-    'http://localhost:3000',
-    'https://facepay.app',
-    process.env.NEXT_PUBLIC_BASE_URL
-  ].filter(Boolean),
+  // CORS - Production-ready origins
+  ALLOWED_ORIGINS: process.env.NODE_ENV === 'production' 
+    ? [
+        'https://facepay.app',
+        'https://www.facepay.app',
+        process.env.NEXT_PUBLIC_BASE_URL,
+        process.env.NEXT_PUBLIC_APP_URL
+      ].filter(Boolean)
+    : [
+        'http://localhost:3000',
+        'https://localhost:3000',
+        'http://127.0.0.1:3000',
+        process.env.NEXT_PUBLIC_BASE_URL
+      ].filter(Boolean),
   
   // Security headers
   CSP: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com wss:; frame-src https://js.stripe.com https://hooks.stripe.com",

@@ -1,0 +1,31 @@
+# COPIAR ESTAS VARIABLES EN VERCEL
+
+# Supabase (REEMPLAZA CON TUS VALORES)
+DATABASE_URL=postgresql://postgres:[TU-PASSWORD]@db.[TU-PROJECT-ID].supabase.co:5432/postgres
+NEXT_PUBLIC_SUPABASE_URL=https://[TU-PROJECT-ID].supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[TU-ANON-KEY]
+
+# Auth (GENERA NUEVAS)
+NEXTAUTH_URL=https://facepay.vercel.app
+NEXTAUTH_SECRET=genera-una-clave-super-segura-aqui-32-caracteres-minimo
+JWT_SECRET=otra-clave-segura-diferente-32-caracteres
+JWT_REFRESH_SECRET=tercera-clave-segura-diferente-32-caracteres
+
+# WebAuthn
+WEBAUTHN_RP_NAME=FacePay
+WEBAUTHN_RP_ID=facepay.vercel.app
+WEBAUTHN_ORIGIN=https://facepay.vercel.app
+
+# Credits System
+INITIAL_CREDIT_BONUS=100
+REFERRAL_BONUS=50
+CETES_ANNUAL_RATE=0.105
+INVESTMENT_ENABLED=true
+ENABLE_REFERRAL_SYSTEM=true
+VIRAL_SHARING_BONUS=10
+
+# Optional (agregar después si quieres)
+# NEXT_PUBLIC_MIXPANEL_TOKEN=
+# NEXT_PUBLIC_SENTRY_DSN=
+# STRIPE_SECRET_KEY=
+# STRIPE_WEBHOOK_SECRET=

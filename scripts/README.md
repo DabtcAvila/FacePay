@@ -54,6 +54,42 @@ node scripts/init-db.js  # Direct execution
 
 ---
 
+### 👥 `generate-test-users.js`
+**Generate comprehensive test data with float calculation demonstrations**
+
+```bash
+npm run test:users        # Generate test users and transactions
+npm run test:users:fresh  # Clear existing test data first
+node scripts/generate-test-users.js  # Direct execution
+```
+
+**What it creates:**
+- 10 test users with varying credit balances ($0 - $5,000)
+- 50+ realistic transaction scenarios (P2P, merchants, subscriptions)
+- Float calculation demonstrations (daily, weekly, monthly, yearly)
+- Zero-fee system competitive analysis
+- Real-world revenue model projections
+
+**Test Users:**
+- `alice@facepay.test` - $1,500.00 (High balance)
+- `bob@facepay.test` - $750.00 (Medium balance)
+- `charlie@facepay.test` - $250.00 (Low balance)
+- `diana@facepay.test` - $5,000.00 (Premium user)
+- `eve@facepay.test` - $1,000.00 (Standard user)
+- `frank@facepay.test` - $50.00 (Minimal balance)
+- `grace@facepay.test` - $2,000.00 (Business user)
+- `henry@facepay.test` - $0.00 (New user)
+- `iris@facepay.test` - $3,000.00 (Power user)
+- `jack@facepay.test` - $500.00 (Regular user)
+
+**Float Calculation Examples:**
+- Shows how FacePay earns from float interest (5% APY)
+- Demonstrates competitive advantage over traditional 2.9% fee models
+- Projects revenue scaling with transaction volume
+- Proves win-win model: users save fees, FacePay earns from float
+
+---
+
 ### ✅ `deployment-checklist.md`
 **Complete checklist for production deployment**
 
@@ -91,6 +127,8 @@ npm run db:studio         # Open database GUI
 # Database Management  
 npm run db:init           # Initialize with demo data
 npm run db:fresh          # Fresh database setup
+npm run test:users        # Generate test users & transactions
+npm run test:users:fresh  # Fresh test data generation
 npm run db:push          # Update database schema
 npm run db:migrate       # Run migrations
 
@@ -139,6 +177,7 @@ npm run dev
 scripts/
 ├── quick-start.sh           # Complete development setup
 ├── init-db.js              # Database initialization
+├── generate-test-users.js  # Test data with float calculations
 ├── deployment-checklist.md # Production deployment guide
 ├── setup-redis.js          # Redis configuration
 └── README.md               # This file
