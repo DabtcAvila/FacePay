@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       credentialId: cred.credentialId,
       deviceType: cred.deviceType || 'unknown',
       backedUp: cred.backedUp || false,
-      counter: cred.counter,
+      counter: Number(cred.counter),
       createdAt: cred.createdAt,
       lastUsed: cred.createdAt,
       // Add user-friendly names based on device type

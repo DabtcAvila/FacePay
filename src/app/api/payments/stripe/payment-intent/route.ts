@@ -10,6 +10,8 @@ import {
   analyzeThreatLevel,
   SecuritySeverity 
 } from '@/lib/security-logger'
+import { analytics, EVENTS, FUNNELS } from '@/lib/analytics'
+import { monitoring } from '@/lib/monitoring'
 import Stripe from 'stripe'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -25,26 +27,88 @@ const FRAUD_THRESHOLDS = {
 }
 
 async function createPaymentIntentHandler(request: NextRequest) {
+  const startTime = Date.now();
   let auth: any = null;
+  let userAgent: string | undefined;
+  let userIP: string | undefined;
+  
   try {
+    // Extract request metadata for tracking
+    userAgent = request.headers.get('user-agent') || undefined;
+    userIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined;
+
     auth = await requireAuth(request)
     if (auth.error) return auth.error
+
+    // Track payment funnel step 1 - Payment Initiated
+    analytics.trackFunnelStep(FUNNELS.PAYMENT, 'payment_initiated', 1, {
+      user_id: auth.user.userId,
+      user_agent: userAgent,
+      ip_address: userIP,
+      timestamp: new Date().toISOString()
+    });
+
+    analytics.track(EVENTS.PAYMENT_INITIATED, {
+      user_id: auth.user.userId,
+      initiated_at: new Date().toISOString()
+    });
+
     // Analyze request for threats
     const threatAnalysis = analyzeThreatLevel(request)
     if (threatAnalysis.shouldBlock) {
+      // Track payment security block
+      analytics.track('Payment Blocked', {
+        reason: 'threat_analysis',
+        user_id: auth.user.userId,
+        threats: threatAnalysis.threats,
+        funnel: FUNNELS.PAYMENT,
+        step: 'security_check'
+      });
+
       logPaymentFraud(request, { reason: 'Threat analysis blocked request', threats: threatAnalysis.threats }, auth.user.userId)
       return createErrorResponse('Request blocked due to security concerns', 403)
     }
 
     // Validate payment intent data
     const validation = await validatePaymentIntent(request)
-    if (validation.error) return validation.error
+    if (validation.error) {
+      // Track validation error
+      analytics.track('Payment Failed', {
+        reason: 'validation_error',
+        user_id: auth.user.userId,
+        funnel: FUNNELS.PAYMENT,
+        step: 'validation'
+      });
+      
+      return validation.error
+    }
     
     const { amount, currency, paymentMethodId, description, metadata } = validation.data
+
+    // Track payment funnel step 2 - Validation Passed
+    analytics.trackFunnelStep(FUNNELS.PAYMENT, 'validation_passed', 2, {
+      user_id: auth.user.userId,
+      amount,
+      currency: currency || 'USD',
+      has_payment_method: !!paymentMethodId,
+      payment_method_id: paymentMethodId
+    });
 
     // Fraud detection checks
     const fraudCheckResult = await performFraudChecks(auth.user.userId, amount, request)
     if (!fraudCheckResult.allowed) {
+      // Track fraud detection block
+      analytics.track('Payment Blocked', {
+        reason: 'fraud_detection',
+        user_id: auth.user.userId,
+        fraud_reason: fraudCheckResult.reason,
+        amount,
+        currency: currency || 'USD',
+        details: fraudCheckResult.details,
+        funnel: FUNNELS.PAYMENT,
+        step: 'fraud_check'
+      });
+
       logPaymentFraud(request, { 
         reason: fraudCheckResult.reason, 
         amount, 
@@ -53,6 +117,13 @@ async function createPaymentIntentHandler(request: NextRequest) {
       }, auth.user.userId)
       return createErrorResponse(`Payment blocked: ${fraudCheckResult.reason}`, 403)
     }
+
+    // Track payment funnel step 3 - Security Checks Passed
+    analytics.trackFunnelStep(FUNNELS.PAYMENT, 'security_checks_passed', 3, {
+      user_id: auth.user.userId,
+      amount,
+      currency: currency || 'USD'
+    });
 
     // Convert amount to cents (Stripe expects amounts in smallest currency unit)
     const amountInCents = Math.round(amount * 100)
@@ -107,6 +178,47 @@ async function createPaymentIntentHandler(request: NextRequest) {
       },
     })
 
+    // Track payment funnel step 4 - Payment Intent Created
+    analytics.trackFunnelStep(FUNNELS.PAYMENT, 'payment_intent_created', 4, {
+      user_id: auth.user.userId,
+      payment_intent_id: paymentIntent.id,
+      transaction_id: transaction.id,
+      amount,
+      currency: currency || 'USD',
+      status: paymentIntent.status,
+      creation_time_ms: Date.now() - startTime
+    });
+
+    // Track payment method if provided
+    if (paymentMethod) {
+      analytics.trackFeatureUsage('payment_methods', 'used_saved_method', {
+        user_id: auth.user.userId,
+        payment_method_id: paymentMethod.id,
+        payment_method_type: paymentMethod.type
+      });
+    }
+
+    // Add monitoring breadcrumb
+    monitoring.addBreadcrumb(
+      `Payment intent created: ${paymentIntent.id}`,
+      'payment',
+      'info',
+      { 
+        userId: auth.user.userId,
+        paymentIntentId: paymentIntent.id,
+        transactionId: transaction.id,
+        amount,
+        currency: currency || 'USD'
+      }
+    );
+
+    // Track performance metric
+    monitoring.trackPerformanceMetric('payment_intent_creation', Date.now() - startTime, {
+      success: true,
+      amount,
+      has_payment_method: !!paymentMethodId
+    });
+
     return createSuccessResponse({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
@@ -115,6 +227,32 @@ async function createPaymentIntentHandler(request: NextRequest) {
     })
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Track payment system error
+    analytics.track('Payment Failed', {
+      reason: 'system_error',
+      user_id: auth?.user?.userId,
+      error_message: (error as Error).message,
+      funnel: FUNNELS.PAYMENT,
+      step: 'payment_intent_creation'
+    });
+
+    // Capture exception in monitoring
+    monitoring.captureException(error as Error, {
+      extra: {
+        context: 'payment_intent_creation',
+        user_id: auth?.user?.userId,
+        user_agent: userAgent,
+        ip_address: userIP,
+        duration
+      },
+      tags: {
+        endpoint: '/api/payments/stripe/payment-intent',
+        operation: 'create_payment_intent'
+      }
+    });
+
     console.error('Payment intent error:', error)
     logSuspiciousActivity(request, 'Payment intent creation failed', auth?.user?.userId, SecuritySeverity.MEDIUM)
     return createErrorResponse('Failed to create payment intent', 500)

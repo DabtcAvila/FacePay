@@ -78,9 +78,10 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     };
   }, [showActions]);
 
-  const formatTimeAgo = (date: Date) => {
+  const formatTimeAgo = (date: Date | string) => {
     const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - new Date(date).getTime()) / 1000);
+    const parsedDate = typeof date === 'string' ? new Date(date) : date;
+    const diffInSeconds = Math.floor((now.getTime() - parsedDate.getTime()) / 1000);
     
     if (diffInSeconds < 60) return 'Just now';
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
@@ -187,7 +188,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
                         </button>
                       )}
                       
-                      {notification.data?.actionUrl && (
+                      {notification.metadata?.actionUrl && (
                         <button
                           onClick={() => {
                             if (onAction) onAction(notification.id, 'view');
@@ -218,9 +219,9 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
           </div>
           
           {/* Action buttons for specific notification types */}
-          {notification.data?.actions && (
+          {notification.metadata?.actions && (
             <div className="flex space-x-2 mt-3">
-              {notification.data.actions.map((action: any, index: number) => (
+              {notification.metadata.actions.map((action: any, index: number) => (
                 <button
                   key={index}
                   onClick={() => onAction && onAction(notification.id, action.type)}
@@ -295,8 +296,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     // Handle specific actions
     switch (action) {
       case 'view':
-        if (notification.data?.actionUrl) {
-          window.open(notification.data.actionUrl, '_blank');
+        if (notification.metadata?.actionUrl) {
+          window.open(notification.metadata.actionUrl, '_blank');
         }
         break;
       case 'approve':

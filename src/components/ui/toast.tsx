@@ -65,7 +65,7 @@ interface ToastProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<
 }
 
 const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ className, variant, title, description, action, onClose, duration = 5000, persistent = false, ...props }, ref) => {
+  ({ className, variant, title, description, action, onClose, duration = 5000, persistent = false, onDrag, onDragStart, onDragEnd, onAnimationStart, onAnimationEnd, ...props }, ref) => {
     const [isVisible, setIsVisible] = React.useState(true)
     const [timeLeft, setTimeLeft] = React.useState(duration)
     const timeoutRef = React.useRef<NodeJS.Timeout>()

@@ -1,16 +1,38 @@
 // FacePay Service Worker for PWA and Performance Optimization
-const CACHE_NAME = 'facepay-cache-v1';
-const RUNTIME_CACHE = 'facepay-runtime-v1';
-const STATIC_CACHE = 'facepay-static-v1';
+const CACHE_NAME = 'facepay-cache-v2';
+const RUNTIME_CACHE = 'facepay-runtime-v2';
+const STATIC_CACHE = 'facepay-static-v2';
+const IMAGE_CACHE = 'facepay-images-v1';
+const MOBILE_CACHE = 'facepay-mobile-v1';
 
 // Static assets to cache
 const STATIC_ASSETS = [
   '/',
+  '/m',
   '/manifest.json',
   '/favicon.ico',
   '/favicon-16x16.png',
   '/favicon-32x32.png',
   '/apple-touch-icon.png',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
+];
+
+// Mobile-specific routes to cache
+const MOBILE_ROUTES = [
+  '/m',
+  '/payments',
+  '/history',
+  '/profile',
+  '/dashboard',
+];
+
+// Image patterns for lazy caching
+const IMAGE_PATTERNS = [
+  /\.(png|jpg|jpeg|gif|svg|webp|avif)$/,
+  /\/images\//,
+  /\/screenshots\//,
+  /\/icons\//,
 ];
 
 // API routes to cache with network-first strategy
@@ -92,6 +114,10 @@ self.addEventListener('fetch', (event) => {
   // Handle different types of requests with appropriate strategies
   if (isStaticAsset(request)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
+  } else if (isImageRequest(request)) {
+    event.respondWith(cacheFirstWithExpiration(request, IMAGE_CACHE, 7 * 24 * 60 * 60 * 1000)); // 7 days
+  } else if (isMobileRoute(request)) {
+    event.respondWith(staleWhileRevalidate(request, MOBILE_CACHE));
   } else if (isAPIRoute(request)) {
     event.respondWith(networkFirst(request, RUNTIME_CACHE));
   } else if (isDynamicRoute(request)) {
@@ -252,10 +278,54 @@ async function handleNavigation(request) {
   }
 }
 
+// Enhanced caching strategy with expiration
+async function cacheFirstWithExpiration(request, cacheName, maxAge) {
+  const cache = await caches.open(cacheName);
+  const cachedResponse = await cache.match(request);
+  
+  if (cachedResponse) {
+    const cachedTime = cachedResponse.headers.get('sw-cached-time');
+    if (cachedTime) {
+      const age = Date.now() - parseInt(cachedTime);
+      if (age < maxAge) {
+        return cachedResponse;
+      }
+    }
+  }
+
+  try {
+    const networkResponse = await fetch(request);
+    
+    if (networkResponse.ok) {
+      const responseToCache = networkResponse.clone();
+      responseToCache.headers.set('sw-cached-time', Date.now().toString());
+      cache.put(request, responseToCache);
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    if (cachedResponse) {
+      return cachedResponse; // Return expired cache as fallback
+    }
+    console.error('[SW] Network request failed:', error);
+    return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+  }
+}
+
 // Helper functions
 function isStaticAsset(request) {
   const url = new URL(request.url);
-  return url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|ico)$/);
+  return url.pathname.match(/\.(js|css|woff|woff2|ttf|eot)$/);
+}
+
+function isImageRequest(request) {
+  const url = new URL(request.url);
+  return IMAGE_PATTERNS.some(pattern => pattern.test(url.pathname));
+}
+
+function isMobileRoute(request) {
+  const url = new URL(request.url);
+  return MOBILE_ROUTES.some(route => url.pathname === route || url.pathname.startsWith(route + '/'));
 }
 
 function isAPIRoute(request) {

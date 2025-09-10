@@ -320,9 +320,9 @@ export default function DemoPage() {
                   }
                   handleDemoComplete()
                 }}
-                onError={(error) => {
-                  console.error('❌ REAL biometric authentication ERROR:', error)
-                  error('Real Biometric Failed', `Error: ${error.message}`)
+                onError={(authError) => {
+                  console.error('❌ REAL biometric authentication ERROR:', authError)
+                  error('Real Biometric Failed', `Error: ${authError.message}`)
                 }}
                 onCancel={handleBackToLanding}
                 showFallbackOptions={false}

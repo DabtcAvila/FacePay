@@ -1,0 +1,1568 @@
+{
+  "info": {
+    "name": "FacePay API - Comprehensive Collection",
+    "description": "Complete API collection for FacePay - Advanced Biometric Payment Platform.\n\n## 🚀 Features\n- 🔐 **Biometric Authentication**: WebAuthn with Face ID/Touch ID\n- 💳 **Payment Processing**: Stripe integration with multiple payment methods\n- 👤 **User Management**: Complete profile and account management\n- 📊 **Transaction History**: Advanced filtering and analytics\n- 📈 **Analytics Dashboard**: Comprehensive payment and security insights\n- ⚙️ **Admin Tools**: Security monitoring and system health\n\n## 🔧 Authentication\nMost endpoints require JWT authentication. Get your token from the `/auth/login` endpoint and set the `{{accessToken}}` variable.\n\n## 🌍 Environment Setup\n1. Set `{{baseUrl}}` to your API base URL\n2. Set `{{accessToken}}` after successful login\n3. Update other variables as needed\n\n**Base URLs:**\n- 🟢 **Production**: `https://api.facepay.com/v1`\n- 🟡 **Staging**: `https://api-staging.facepay.com/v1`\n- 🔵 **Development**: `http://localhost:3000/api`\n\n## 📋 Test Data\nUse these test accounts for development:\n- **Demo User**: `demo@facepay.com` / `demo123456`\n- **Test Admin**: `admin@facepay.com` / `admin123456`\n\n## 📚 Documentation\n- **API Docs**: https://api.facepay.com/v1/docs\n- **Developer Guide**: /docs/DEVELOPER_GUIDE.md\n- **GitHub**: https://github.com/facepay/api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "facepay-api-comprehensive-v2",
+    "version": {
+      "major": 2,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string",
+      "description": "Base URL for the FacePay API"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token from login"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string",
+      "description": "JWT refresh token"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string",
+      "description": "Current user ID"
+    },
+    {
+      "key": "sessionId",
+      "value": "",
+      "type": "string",
+      "description": "Current session ID"
+    },
+    {
+      "key": "transactionId",
+      "value": "",
+      "type": "string",
+      "description": "Last created transaction ID"
+    },
+    {
+      "key": "checkoutSessionId",
+      "value": "",
+      "type": "string",
+      "description": "Stripe checkout session ID"
+    },
+    {
+      "key": "paymentMethodId",
+      "value": "",
+      "type": "string",
+      "description": "Payment method ID"
+    },
+    {
+      "key": "webauthnChallenge",
+      "value": "",
+      "type": "string",
+      "description": "WebAuthn challenge for biometric auth"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏥 Health & System",
+      "description": "System health, version, and monitoring endpoints",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check the health status of the FacePay API. Provides system uptime, version, database status, and service connectivity."
+          },
+          "response": [
+            {
+              "name": "Healthy System",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["health"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"status\": \"healthy\",\n  \"timestamp\": \"2024-01-15T10:30:00Z\",\n  \"uptime\": 12345.67,\n  \"version\": \"1.0.0\",\n  \"environment\": \"development\",\n  \"database\": \"connected\",\n  \"redis\": \"connected\",\n  \"stripe\": \"operational\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "API Version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/version",
+              "host": ["{{baseUrl}}"],
+              "path": ["version"]
+            },
+            "description": "Get API version information, build details, and available features."
+          },
+          "response": [
+            {
+              "name": "Version Info",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/version",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["version"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"version\": \"1.0.0\",\n  \"build\": \"2024.01.15.001\",\n  \"commit\": \"e6634b8\",\n  \"environment\": \"development\",\n  \"features\": {\n    \"biometricAuth\": true,\n    \"stripePayments\": true,\n    \"analytics\": true\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔐 Authentication",
+      "description": "User authentication and authorization endpoints",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.tokens) {",
+                  "        pm.collectionVariables.set('accessToken', response.data.tokens.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', response.data.tokens.refreshToken);",
+                  "        pm.collectionVariables.set('userId', response.data.user.id);",
+                  "        pm.collectionVariables.set('sessionId', response.data.sessionId);",
+                  "        console.log('✅ Login successful - tokens saved');",
+                  "        console.log('👤 User:', response.data.user.email);",
+                  "        console.log('🔑 Session:', response.data.sessionId);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Login successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.tokens.accessToken).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo@facepay.com\",\n  \"password\": \"demo123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user with email and password. Returns JWT tokens and user information with enhanced security monitoring."
+          },
+          "response": [
+            {
+              "name": "Successful Login",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo@facepay.com\",\n  \"password\": \"demo123456\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["auth", "login"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"user\": {\n      \"id\": \"clp1abc123def456ghi789\",\n      \"email\": \"demo@facepay.com\",\n      \"name\": \"Demo User\",\n      \"createdAt\": \"2024-01-01T12:00:00Z\",\n      \"updatedAt\": \"2024-01-15T10:30:00Z\"\n    },\n    \"tokens\": {\n      \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n      \"refreshToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n      \"expiresIn\": 3600\n    },\n    \"sessionId\": \"sess_abc123def456\"\n  },\n  \"message\": \"Login successful\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.tokens) {",
+                  "        pm.collectionVariables.set('accessToken', response.data.tokens.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', response.data.tokens.refreshToken);",
+                  "        pm.collectionVariables.set('userId', response.data.user.id);",
+                  "        console.log('✅ Registration successful');",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Registration successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"name\": \"New User\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account with email, name, and password. Includes automatic token generation."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', response.data.accessToken);",
+                  "        console.log('✅ Access token refreshed successfully');",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Token refresh successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.accessToken).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Refresh the access token using a valid refresh token. Extends session without requiring re-authentication."
+          }
+        },
+        {
+          "name": "Demo Login (Development)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.tokens) {",
+                  "        pm.collectionVariables.set('accessToken', response.tokens.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', response.tokens.refreshToken);",
+                  "        pm.collectionVariables.set('userId', response.user.id);",
+                  "        console.log('✅ Demo login successful - tokens saved');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/demo-login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "demo-login"]
+            },
+            "description": "Quick demo login for development and testing. Only available in development environment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User Management",
+      "description": "User profile and account management endpoints",
+      "item": [
+        {
+          "name": "Get Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Profile retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "    pm.expect(jsonData.data.email).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('👤 User Profile:', response.data.email);",
+                  "    console.log('📊 Transactions:', response.data._count?.transactions || 0);",
+                  "    console.log('💳 Payment Methods:', response.data.paymentMethods?.length || 0);",
+                  "    console.log('🔐 Biometric Data:', response.data.biometricData?.length || 0);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Get the authenticated user's profile information including biometric data, payment methods, and transaction counts."
+          },
+          "response": [
+            {
+              "name": "User Profile",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/profile",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "profile"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"clp1abc123def456ghi789\",\n    \"email\": \"demo@facepay.com\",\n    \"name\": \"Demo User\",\n    \"createdAt\": \"2024-01-01T12:00:00Z\",\n    \"updatedAt\": \"2024-01-15T10:30:00Z\",\n    \"biometricData\": [\n      {\n        \"id\": \"bio_abc123\",\n        \"type\": \"face\",\n        \"isActive\": true,\n        \"createdAt\": \"2024-01-01T12:00:00Z\"\n      }\n    ],\n    \"paymentMethods\": [\n      {\n        \"id\": \"pm_abc123\",\n        \"type\": \"card\",\n        \"provider\": \"stripe\",\n        \"isDefault\": true,\n        \"createdAt\": \"2024-01-01T12:00:00Z\"\n      }\n    ],\n    \"_count\": {\n      \"transactions\": 42\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Profile updated successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include('updated');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"email\": \"updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "Update the authenticated user's profile information. Requires re-authentication for email changes."
+          }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "profile"]
+            },
+            "description": "⚠️ Permanently delete the authenticated user's account and all associated data. This action cannot be undone."
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Payment Processing",
+      "description": "Payment processing, methods, and Stripe integration",
+      "item": [
+        {
+          "name": "Stripe Checkout",
+          "item": [
+            {
+              "name": "Create Checkout Session",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.success && response.data) {",
+                      "        pm.collectionVariables.set('checkoutSessionId', response.data.sessionId);",
+                      "        pm.collectionVariables.set('transactionId', response.data.transactionId);",
+                      "        console.log('✅ Checkout session created');",
+                      "        console.log('🛒 Session ID:', response.data.sessionId);",
+                      "        console.log('💳 Transaction ID:', response.data.transactionId);",
+                      "        console.log('🔗 Checkout URL:', response.data.sessionUrl);",
+                      "    }",
+                      "}",
+                      "",
+                      "pm.test('Checkout session created', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data.sessionId).to.exist;",
+                      "    pm.expect(jsonData.data.sessionUrl).to.exist;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 29.99,\n  \"currency\": \"USD\",\n  \"description\": \"Premium Feature Access\",\n  \"successUrl\": \"https://yourapp.com/payment/success?session_id={CHECKOUT_SESSION_ID}\",\n  \"cancelUrl\": \"https://yourapp.com/payment/cancel\",\n  \"paymentMethodTypes\": [\"card\"],\n  \"mode\": \"payment\",\n  \"metadata\": {\n    \"product_id\": \"premium_features\",\n    \"user_tier\": \"premium\",\n    \"campaign\": \"postman_test\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/stripe/checkout",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "stripe", "checkout"]
+                },
+                "description": "Create a Stripe checkout session for secure payment processing. Returns a checkout URL for user redirection."
+              }
+            },
+            {
+              "name": "Get Checkout Session Details",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Checkout session retrieved', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data.sessionId).to.exist;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('💳 Payment Status:', response.data.paymentStatus);",
+                      "    console.log('💰 Amount:', response.data.amountTotal);",
+                      "    console.log('📧 Customer:', response.data.customerEmail);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/stripe/checkout?session_id={{checkoutSessionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "stripe", "checkout"],
+                  "query": [
+                    {
+                      "key": "session_id",
+                      "value": "{{checkoutSessionId}}"
+                    }
+                  ]
+                },
+                "description": "Retrieve details of a specific Stripe checkout session, including payment status and customer information."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Methods",
+          "item": [
+            {
+              "name": "List Payment Methods",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Payment methods retrieved', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('💳 Payment Methods Count:', response.data?.length || 0);",
+                      "    if (response.data && response.data.length > 0) {",
+                      "        pm.collectionVariables.set('paymentMethodId', response.data[0].id);",
+                      "    }",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/methods",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "methods"]
+                },
+                "description": "Get all payment methods associated with the authenticated user's account."
+              }
+            },
+            {
+              "name": "Add Payment Method",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"card\",\n  \"provider\": \"stripe\",\n  \"details\": {\n    \"last4\": \"4242\",\n    \"brand\": \"visa\",\n    \"exp_month\": 12,\n    \"exp_year\": 2025\n  },\n  \"isDefault\": false,\n  \"nickname\": \"Personal Visa\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/methods",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "methods"]
+                },
+                "description": "Add a new payment method to the user's account. Supports cards, bank accounts, and digital wallets."
+              }
+            },
+            {
+              "name": "Delete Payment Method",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payments/methods/{{paymentMethodId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "methods", "{{paymentMethodId}}"]
+                },
+                "description": "Remove a specific payment method from the user's account."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Analytics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Payment analytics retrieved', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const data = response.data;",
+                  "    console.log('💰 Total Volume:', data.totalVolume);",
+                  "    console.log('📊 Total Payments:', data.totalPayments);",
+                  "    console.log('✅ Success Rate:', data.successRate + '%');",
+                  "    console.log('📈 Avg Payment:', data.averagePayment);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/analytics?period=month&currency=USD",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", "analytics"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "month",
+                  "description": "Time period for analytics"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "Filter by currency"
+                }
+              ]
+            },
+            "description": "Get detailed payment analytics including volume, success rates, and payment method breakdowns."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Transaction Management",
+      "description": "Transaction history, creation, and management endpoints",
+      "item": [
+        {
+          "name": "List Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Transactions retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.items).to.be.an('array');",
+                  "    pm.expect(jsonData.data.pagination).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const { items, pagination } = response.data;",
+                  "    console.log('📊 Transactions:', items.length);",
+                  "    console.log('📄 Page:', pagination.page + ' of ' + pagination.totalPages);",
+                  "    console.log('🔢 Total:', pagination.total);",
+                  "    if (items.length > 0) {",
+                  "        pm.collectionVariables.set('transactionId', items[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=1&limit=20&status=completed&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page (max 100)"
+                },
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "description": "Filter by status: pending, completed, failed, refunded"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "description": "Sort field"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc",
+                  "description": "Sort direction: asc, desc"
+                }
+              ]
+            },
+            "description": "Get paginated transaction history with advanced filtering, sorting, and search capabilities."
+          }
+        },
+        {
+          "name": "Create Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data) {",
+                  "        pm.collectionVariables.set('transactionId', response.data.id);",
+                  "        console.log('✅ Transaction created:', response.data.id);",
+                  "        console.log('💰 Amount:', response.data.amount, response.data.currency);",
+                  "        console.log('📋 Status:', response.data.status);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Transaction created successfully', function () {",
+                  "    pm.response.to.have.status([200, 201]);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 49.99,\n  \"currency\": \"USD\",\n  \"paymentMethodId\": \"pm_example123\",\n  \"description\": \"Premium feature unlock - API Test\",\n  \"metadata\": {\n    \"feature\": \"premium_analytics\",\n    \"tier\": \"premium\",\n    \"source\": \"postman_collection\",\n    \"test_id\": \"txn_test_001\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            },
+            "description": "Create a new transaction with specified amount, payment method, and metadata."
+          }
+        },
+        {
+          "name": "Get Transaction Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Transaction details retrieved', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const txn = response.data;",
+                  "    console.log('🆔 Transaction:', txn.id);",
+                  "    console.log('💰 Amount:', txn.amount, txn.currency);",
+                  "    console.log('📋 Status:', txn.status);",
+                  "    console.log('📝 Description:', txn.description);",
+                  "    console.log('📅 Created:', txn.createdAt);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            },
+            "description": "Get detailed information about a specific transaction, including metadata and processing history."
+          }
+        },
+        {
+          "name": "Refund Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Refund processed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('💸 Refund processed for transaction:', pm.collectionVariables.get('transactionId'));",
+                  "    console.log('✅ Refund successful');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer requested refund - API test\",\n  \"amount\": 25.00,\n  \"metadata\": {\n    \"refund_type\": \"partial\",\n    \"processed_by\": \"postman_test\",\n    \"customer_ticket\": \"TICKET-001\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}/refund",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}", "refund"]
+            },
+            "description": "Process a full or partial refund for a specific transaction. Requires transaction to be in 'completed' status."
+          }
+        },
+        {
+          "name": "Transaction History (Advanced)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/history?dateFrom=2024-01-01&dateTo=2024-01-31&amountMin=10&amountMax=100&currency=USD&status=completed",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "history"],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2024-01-01",
+                  "description": "Start date (ISO format)"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2024-01-31",
+                  "description": "End date (ISO format)"
+                },
+                {
+                  "key": "amountMin",
+                  "value": "10",
+                  "description": "Minimum amount filter"
+                },
+                {
+                  "key": "amountMax",
+                  "value": "100",
+                  "description": "Maximum amount filter"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "description": "Currency filter"
+                },
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "description": "Status filter"
+                }
+              ]
+            },
+            "description": "Get detailed transaction history with advanced filtering by date range, amount, currency, and status."
+          }
+        },
+        {
+          "name": "Bulk Transaction Operations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operation\": \"export\",\n  \"transactionIds\": [\"txn_123\", \"txn_456\", \"txn_789\"],\n  \"parameters\": {\n    \"format\": \"csv\",\n    \"includeMetadata\": true,\n    \"columns\": [\"id\", \"amount\", \"currency\", \"status\", \"createdAt\", \"description\"]\n  },\n  \"metadata\": {\n    \"export_reason\": \"api_test\",\n    \"requested_by\": \"postman_collection\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "bulk"]
+            },
+            "description": "Perform bulk operations on multiple transactions: export, batch update, or batch processing."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔒 Biometric Authentication (WebAuthn)",
+      "description": "Advanced biometric authentication using WebAuthn standard",
+      "item": [
+        {
+          "name": "Registration Flow",
+          "item": [
+            {
+              "name": "Start Biometric Registration",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.success && response.data) {",
+                      "        pm.collectionVariables.set('webauthnChallenge', response.data.options.challenge);",
+                      "        console.log('🔐 WebAuthn registration challenge created');",
+                      "        console.log('👤 User ID:', response.data.userId);",
+                      "        console.log('📱 Platform authenticator required:', response.data.platformAuthenticatorRequired);",
+                      "        console.log('🛡️ Biometric required:', response.data.biometricRequired);",
+                      "    }",
+                      "}",
+                      "",
+                      "pm.test('WebAuthn registration started', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data.options).to.exist;",
+                      "    pm.expect(jsonData.data.options.challenge).to.exist;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"authenticatorSelection\": {\n    \"authenticatorAttachment\": \"platform\",\n    \"userVerification\": \"preferred\",\n    \"residentKey\": \"preferred\"\n  },\n  \"attestation\": \"none\",\n  \"timeout\": 60000\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/register/start",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "register", "start"]
+                },
+                "description": "🚀 Start the WebAuthn biometric registration process. Creates a cryptographic challenge for platform authenticators (Face ID, Touch ID, Windows Hello)."
+              }
+            },
+            {
+              "name": "Complete Biometric Registration",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('WebAuthn registration completed', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('✅ Biometric registration completed');",
+                      "    console.log('🆔 Credential ID:', response.data?.credential?.id);",
+                      "    console.log('✔️ Verified:', response.data?.verified);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"credentialId\": \"credential_id_from_webauthn_create_response\",\n  \"clientDataJSON\": \"client_data_json_from_webauthn_response\",\n  \"attestationObject\": \"attestation_object_from_webauthn_response\",\n  \"name\": \"Postman Test Device\",\n  \"metadata\": {\n    \"device_type\": \"test\",\n    \"registered_via\": \"postman_collection\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/register/complete",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "register", "complete"]
+                },
+                "description": "🏁 Complete the WebAuthn biometric registration with the client response from navigator.credentials.create(). ⚠️ This requires actual browser WebAuthn API interaction."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authentication Flow",
+          "item": [
+            {
+              "name": "Start Biometric Authentication",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('WebAuthn authentication started', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data.challenge).to.exist;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔐 WebAuthn authentication challenge created');",
+                      "    console.log('🔗 Allowed credentials:', response.data.allowCredentials?.length || 0);",
+                      "    console.log('⏱️ Timeout:', response.data.timeout + 'ms');",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"demo@facepay.com\",\n  \"userVerification\": \"preferred\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/authenticate/start",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "authenticate", "start"]
+                },
+                "description": "🚀 Start the WebAuthn authentication challenge for passwordless login using biometrics."
+              }
+            },
+            {
+              "name": "Complete Biometric Authentication",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.success && response.data.tokens) {",
+                      "        pm.collectionVariables.set('accessToken', response.data.tokens.accessToken);",
+                      "        pm.collectionVariables.set('refreshToken', response.data.tokens.refreshToken);",
+                      "        pm.collectionVariables.set('userId', response.data.user.id);",
+                      "        pm.collectionVariables.set('sessionId', response.data.sessionId);",
+                      "        console.log('✅ WebAuthn authentication successful');",
+                      "        console.log('👤 User:', response.data.user.email);",
+                      "        console.log('🔑 Session:', response.data.sessionId);",
+                      "    }",
+                      "}",
+                      "",
+                      "pm.test('WebAuthn authentication successful', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data.verified).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"credentialId\": \"credential_id_from_webauthn_get_response\",\n  \"clientDataJSON\": \"client_data_json_from_webauthn_response\",\n  \"authenticatorData\": \"authenticator_data_from_webauthn_response\",\n  \"signature\": \"signature_from_webauthn_response\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/authenticate/complete",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "authenticate", "complete"]
+                },
+                "description": "🏁 Complete the WebAuthn authentication with the client response from navigator.credentials.get(). Returns JWT tokens upon successful verification."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Credential Management",
+          "item": [
+            {
+              "name": "List Biometric Credentials",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Credentials retrieved', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    const credentials = response.data || [];",
+                      "    console.log('🔐 Registered credentials:', credentials.length);",
+                      "    credentials.forEach((cred, index) => {",
+                      "        console.log(`  ${index + 1}. ${cred.name} (${cred.type}) - ${cred.isActive ? 'Active' : 'Inactive'}`);",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/credentials",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "credentials"]
+                },
+                "description": "📋 List all registered biometric credentials for the authenticated user, including device names and status."
+              }
+            },
+            {
+              "name": "Delete Biometric Credential",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Credential deleted', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    console.log('🗑️ Biometric credential deleted successfully');",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/webauthn/credentials?credentialId=credential_abc123",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webauthn", "credentials"],
+                  "query": [
+                    {
+                      "key": "credentialId",
+                      "value": "credential_abc123",
+                      "description": "ID of the credential to delete"
+                    }
+                  ]
+                },
+                "description": "🗑️ Remove a specific biometric credential from the user's account. ⚠️ This will disable biometric login for that device."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Face Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Face verification processed', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const data = response.data;",
+                  "    console.log('👤 Face detected:', data.faceDetected);",
+                  "    console.log('✅ Verified:', data.verified);",
+                  "    console.log('📊 Confidence:', data.confidence);",
+                  "    console.log('🎯 Match score:', data.matchScore);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageData\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyKzKhPpAIrKzAIYkWaCrARi....\",\n  \"confidence\": 0.9,\n  \"metadata\": {\n    \"source\": \"postman_test\",\n    \"device_type\": \"api_client\",\n    \"verification_reason\": \"payment_confirmation\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/biometric/face",
+              "host": ["{{baseUrl}}"],
+              "path": ["biometric", "face"]
+            },
+            "description": "🎭 Verify user identity using facial recognition. Requires base64-encoded image data. ⚠️ Use actual face image for real testing."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📈 Analytics & Insights",
+      "description": "Analytics, statistics, and business intelligence endpoints",
+      "item": [
+        {
+          "name": "System Analytics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Analytics retrieved successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const data = response.data;",
+                  "    console.log('📊 === ANALYTICS SUMMARY ===');",
+                  "    console.log('💰 Total Revenue: $' + data.totalRevenue);",
+                  "    console.log('📈 Total Transactions:', data.totalTransactions);",
+                  "    console.log('💳 Avg Transaction: $' + data.averageTransactionValue);",
+                  "    console.log('✅ Success Rate:', data.successRate + '%');",
+                  "    console.log('🔐 Biometric Success:', data.biometricAuthSuccess + '%');",
+                  "    console.log('🏆 Top Payment Method:', data.topPaymentMethods?.[0]?.method);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/analytics/stats?period=month&dateFrom=2024-01-01&dateTo=2024-01-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "stats"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "month",
+                  "description": "Time period: day, week, month, year"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2024-01-01",
+                  "description": "Start date (optional)"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2024-01-31",
+                  "description": "End date (optional)"
+                }
+              ]
+            },
+            "description": "📊 Get comprehensive system analytics including revenue, transaction success rates, biometric usage, and payment method breakdown."
+          },
+          "response": [
+            {
+              "name": "Monthly Analytics",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{accessToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/analytics/stats?period=month",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["analytics", "stats"],
+                  "query": [
+                    {
+                      "key": "period",
+                      "value": "month"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"data\": {\n    \"totalTransactions\": 1250,\n    \"totalRevenue\": 125000.50,\n    \"averageTransactionValue\": 100.00,\n    \"successRate\": 98.5,\n    \"biometricAuthSuccess\": 95.2,\n    \"topPaymentMethods\": [\n      {\n        \"method\": \"card\",\n        \"count\": 850,\n        \"percentage\": 68.0\n      },\n      {\n        \"method\": \"biometric\",\n        \"count\": 300,\n        \"percentage\": 24.0\n      },\n      {\n        \"method\": \"crypto\",\n        \"count\": 100,\n        \"percentage\": 8.0\n      }\n    ],\n    \"dailyStats\": [\n      {\n        \"date\": \"2024-01-15\",\n        \"transactions\": 45,\n        \"revenue\": 4599.99,\n        \"successRate\": 97.8\n      }\n    ]\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Administration",
+      "description": "Administrative endpoints for system monitoring and security",
+      "item": [
+        {
+          "name": "Security Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Security stats retrieved (admin only)', function () {",
+                  "    // This endpoint requires admin permissions",
+                  "    pm.response.to.be.oneOf([200, 403]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    const data = response.data;",
+                  "    console.log('🛡️ === SECURITY OVERVIEW ===');",
+                  "    console.log('👥 Active Users:', data.activeUsers);",
+                  "    console.log('👥 Total Users:', data.totalUsers);",
+                  "    console.log('❌ Failed Logins (24h):', data.failedLogins?.last24h);",
+                  "    console.log('🚫 Blocked IPs:', data.blockedIPs?.active);",
+                  "    console.log('🔐 Biometric Success Rate:', data.biometricAttempts?.successRate + '%');",
+                  "    console.log('⚠️ Threat Level:', data.threatLevel);",
+                  "    console.log('🏥 System Health:', JSON.stringify(data.systemHealth));",
+                  "} else if (pm.response.code === 403) {",
+                  "    console.log('❌ Admin permissions required for security stats');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/security-stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "security-stats"]
+            },
+            "description": "🛡️ Get comprehensive security statistics and monitoring data. ⚠️ **Requires admin access permissions**. Provides insights into system security, threat detection, and user activity."
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 🕐 Set timestamp for requests",
+          "pm.variables.set('timestamp', new Date().getTime());",
+          "pm.variables.set('requestId', 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));",
+          "",
+          "// 🔧 Environment setup validation",
+          "const baseUrl = pm.collectionVariables.get('baseUrl');",
+          "if (!baseUrl || baseUrl === '') {",
+          "    console.warn('⚠️ Warning: baseUrl not set. Please configure your environment.');",
+          "}",
+          "",
+          "// 🎯 Request logging",
+          "console.log('🚀 Request:', pm.info.requestName);",
+          "console.log('🌐 URL:', pm.request.url.toString());",
+          "console.log('📅 Time:', new Date().toISOString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 🧪 Global response validation",
+          "pm.test('⏱️ Response time is acceptable', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('📦 Response has proper Content-Type', function () {",
+          "    if (pm.response.code !== 204) {",
+          "        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "    }",
+          "});",
+          "",
+          "// 📊 Response logging",
+          "console.log('📈 Status:', pm.response.code, pm.response.status);",
+          "console.log('⏱️ Response Time:', pm.response.responseTime + 'ms');",
+          "",
+          "// 🆔 Request ID tracking",
+          "const requestId = pm.response.headers.get('x-request-id') || pm.variables.get('requestId');",
+          "if (requestId) {",
+          "    console.log('🆔 Request ID:', requestId);",
+          "}",
+          "",
+          "// 📊 Rate limit info",
+          "const rateLimitRemaining = pm.response.headers.get('x-rate-limit-remaining');",
+          "if (rateLimitRemaining) {",
+          "    console.log('🚦 Rate Limit Remaining:', rateLimitRemaining);",
+          "}",
+          "",
+          "// ❌ Error response logging",
+          "if (pm.response.code >= 400) {",
+          "    console.error('❌ Error Response:', pm.response.json());",
+          "    ",
+          "    // 🔍 Parse common error patterns",
+          "    try {",
+          "        const errorData = pm.response.json();",
+          "        if (errorData.error) {",
+          "            console.error('💥 Error Message:', errorData.error);",
+          "        }",
+          "        if (errorData.code) {",
+          "            console.error('🏷️ Error Code:', errorData.code);",
+          "        }",
+          "        if (errorData.details) {",
+          "            console.error('📝 Error Details:', JSON.stringify(errorData.details, null, 2));",
+          "        }",
+          "    } catch (e) {",
+          "        // Non-JSON error response",
+          "        console.error('📄 Raw Error:', pm.response.text());",
+          "    }",
+          "} else {",
+          "    console.log('✅ Request completed successfully');",
+          "}"
+        ]
+      }
+    }
+  ]
+}

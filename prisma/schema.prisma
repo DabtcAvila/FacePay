@@ -15,6 +15,7 @@ model User {
   id                String              @id @default(cuid())
   email             String              @unique
   name              String?
+  creditBalance     BigInt              @default(0)      // User's credit balance (1 MXN = 100 credits)
   currentChallenge  String?             // Store current WebAuthn challenge
   isActive          Boolean             @default(true)   // Soft delete flag
   deletedAt         DateTime?           // Soft delete timestamp

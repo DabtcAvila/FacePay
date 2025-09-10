@@ -15,6 +15,12 @@ export interface NotificationPayload {
 
 export class WebSocketManager {
   // TODO: Implement when socket.io is installed
+  
+  async sendNotificationToUser(userId: string, notification: NotificationPayload): Promise<boolean> {
+    // Placeholder implementation - WebSocket functionality disabled
+    console.log('WebSocket disabled - notification would be sent to:', userId, notification);
+    return true;
+  }
 }
 
 export const webSocketManager = new WebSocketManager();

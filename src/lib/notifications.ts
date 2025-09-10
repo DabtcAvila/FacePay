@@ -155,9 +155,9 @@ class NotificationService {
         type,
         title: customData?.title || this.getDefaultTitle(type),
         message: customData?.message || this.getDefaultMessage(type),
-        data: customData,
+        metadata: customData,
         userId: recipient.userId,
-        timestamp,
+        timestamp: timestamp.toISOString(),
         read: false,
       };
 
@@ -382,7 +382,7 @@ class NotificationService {
         body: pushContent.body,
         icon: pushContent.icon,
         badge: pushContent.badge,
-        data: notification.data,
+        data: notification.metadata,
       });
     }
   }

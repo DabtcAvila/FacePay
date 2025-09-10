@@ -748,8 +748,7 @@ export class WebAuthnService {
 
       // Return the credential along with verification data for UI
       return {
-        ...authenticationCredential,
-        verificationData: verification.data
+        ...authenticationCredential
       };
     } catch (err: any) {
       console.error('[WebAuthn Service] Real authentication error details:', {

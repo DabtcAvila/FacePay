@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server'
+import { analytics, EVENTS, FUNNELS } from '@/lib/analytics'
+import { monitoring } from '@/lib/monitoring'
 import { z } from 'zod'
 
 // Schema for registration initiation
@@ -63,7 +65,16 @@ export async function POST(request: NextRequest) {
 }
 
 async function handleRegistrationInitiation(user: any) {
+  const startTime = Date.now();
+  
   try {
+    // Track biometric setup funnel step 1 - Initiation Started
+    analytics.trackFunnelStep(FUNNELS.BIOMETRIC_SETUP, 'initiation_started', 1, {
+      user_id: user.id,
+      existing_credentials_count: user.webauthnCredentials?.length || 0,
+      has_existing_biometric: user.webauthnCredentials?.length > 0
+    });
+
     // Get existing credentials for the user to exclude them
     const existingCredentials = user.webauthnCredentials.map((cred: any) => ({
       id: Buffer.from(cred.credentialId, 'base64url'),
@@ -96,21 +107,95 @@ async function handleRegistrationInitiation(user: any) {
       },
     })
 
+    // Track successful options generation
+    analytics.trackFunnelStep(FUNNELS.BIOMETRIC_SETUP, 'options_generated', 2, {
+      user_id: user.id,
+      challenge_length: options.challenge.length,
+      timeout: 60000,
+      authenticator_attachment: 'platform'
+    });
+
+    // Track feature usage
+    analytics.trackFeatureUsage('webauthn', 'registration_options_generated', {
+      user_id: user.id,
+      generation_time_ms: Date.now() - startTime,
+      excluded_credentials_count: existingCredentials.length
+    });
+
+    // Add monitoring breadcrumb
+    monitoring.addBreadcrumb(
+      `WebAuthn registration options generated for user ${user.id}`,
+      'biometric_setup',
+      'info',
+      { 
+        userId: user.id, 
+        challengeGenerated: true,
+        existingCredentials: existingCredentials.length
+      }
+    );
+
+    // Track performance
+    monitoring.trackPerformanceMetric('webauthn_options_generation', Date.now() - startTime, {
+      success: true,
+      excluded_credentials: existingCredentials.length
+    });
+
     return createSuccessResponse({
       options,
       userId: user.id,
     }, 'Registration options generated successfully')
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Track biometric setup failure
+    analytics.track('Biometric Setup Failed', {
+      reason: 'options_generation_failed',
+      user_id: user.id,
+      error_message: (error as Error).message,
+      funnel: FUNNELS.BIOMETRIC_SETUP,
+      step: 'options_generation'
+    });
+
+    // Capture exception in monitoring
+    monitoring.captureException(error as Error, {
+      extra: {
+        context: 'webauthn_registration_initiation',
+        user_id: user.id,
+        duration,
+        existing_credentials_count: user.webauthnCredentials?.length || 0
+      },
+      tags: {
+        endpoint: '/api/webauthn/register',
+        operation: 'registration_initiation'
+      }
+    });
+
     console.error('Failed to generate registration options:', error)
     return createErrorResponse('Failed to generate registration options', 500)
   }
 }
 
 async function handleRegistrationVerification(user: any, credential: any) {
+  const startTime = Date.now();
+  
   try {
+    // Track biometric setup funnel step 3 - Verification Started
+    analytics.trackFunnelStep(FUNNELS.BIOMETRIC_SETUP, 'verification_started', 3, {
+      user_id: user.id,
+      credential_id: credential.id,
+      has_challenge: !!user.currentChallenge
+    });
+
     // Retrieve the stored challenge
     if (!user.currentChallenge) {
+      analytics.track('Biometric Setup Failed', {
+        reason: 'no_active_challenge',
+        user_id: user.id,
+        funnel: FUNNELS.BIOMETRIC_SETUP,
+        step: 'verification'
+      });
+
       return createErrorResponse('No active registration challenge found', 400)
     }
 
@@ -124,6 +209,23 @@ async function handleRegistrationVerification(user: any, credential: any) {
     })
 
     if (!verification.verified || !verification.registrationInfo) {
+      // Track verification failure
+      analytics.track('Biometric Setup Failed', {
+        reason: 'verification_failed',
+        user_id: user.id,
+        verification_result: verification.verified,
+        has_registration_info: !!verification.registrationInfo,
+        funnel: FUNNELS.BIOMETRIC_SETUP,
+        step: 'verification'
+      });
+
+      monitoring.addBreadcrumb(
+        `WebAuthn verification failed for user ${user.id}`,
+        'biometric_setup',
+        'warning',
+        { userId: user.id, verified: verification.verified }
+      );
+
       return createErrorResponse('WebAuthn registration verification failed', 400)
     }
 
@@ -135,6 +237,14 @@ async function handleRegistrationVerification(user: any, credential: any) {
     })
 
     if (existingCredential) {
+      analytics.track('Biometric Setup Failed', {
+        reason: 'credential_already_exists',
+        user_id: user.id,
+        credential_id: Buffer.from(credentialID).toString('base64url'),
+        funnel: FUNNELS.BIOMETRIC_SETUP,
+        step: 'verification'
+      });
+
       return createErrorResponse('Credential already registered', 409)
     }
 
@@ -173,6 +283,63 @@ async function handleRegistrationVerification(user: any, credential: any) {
       },
     })
 
+    // Track successful biometric registration - Final Step
+    analytics.trackFunnelStep(FUNNELS.BIOMETRIC_SETUP, 'registration_completed', 4, {
+      user_id: user.id,
+      credential_id: webauthnCredential.credentialId,
+      device_type: webauthnCredential.deviceType,
+      backed_up: webauthnCredential.backedUp,
+      completion_time_ms: Date.now() - startTime
+    });
+
+    // Track biometric enrollment
+    analytics.track(EVENTS.BIOMETRIC_ENROLLED, {
+      user_id: user.id,
+      biometric_type: 'webauthn_passkey',
+      device_type: webauthnCredential.deviceType,
+      backed_up: webauthnCredential.backedUp,
+      enrollment_timestamp: webauthnCredential.createdAt
+    });
+
+    // Track user registration with biometric method
+    analytics.trackUserRegistration('webauthn', {
+      user_id: user.id,
+      credential_id: webauthnCredential.credentialId,
+      device_type: webauthnCredential.deviceType,
+      backed_up: webauthnCredential.backedUp,
+      completion_time_ms: Date.now() - startTime
+    });
+
+    // Track biometric authentication success
+    // Use face_id for iOS devices, fingerprint as default for others
+    const biometricType = webauthnCredential.deviceType?.toLowerCase().includes('ios') ? 'face_id' : 'fingerprint';
+    analytics.trackBiometricAuth(biometricType, true, {
+      user_id: user.id,
+      operation: 'registration',
+      device_type: webauthnCredential.deviceType,
+      webauthn_method: 'platform_authenticator'
+    });
+
+    // Add monitoring breadcrumb for success
+    monitoring.addBreadcrumb(
+      `WebAuthn registration completed successfully for user ${user.id}`,
+      'biometric_setup',
+      'info',
+      { 
+        userId: user.id,
+        credentialId: webauthnCredential.credentialId,
+        deviceType: webauthnCredential.deviceType,
+        backedUp: webauthnCredential.backedUp
+      }
+    );
+
+    // Track performance metric
+    monitoring.trackPerformanceMetric('webauthn_registration_verification', Date.now() - startTime, {
+      success: true,
+      device_type: webauthnCredential.deviceType,
+      backed_up: webauthnCredential.backedUp
+    });
+
     return createSuccessResponse({
       verified: true,
       credential: {
@@ -185,6 +352,32 @@ async function handleRegistrationVerification(user: any, credential: any) {
     }, 'Biometric registration completed successfully')
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Track verification system error
+    analytics.track('Biometric Setup Failed', {
+      reason: 'verification_system_error',
+      user_id: user.id,
+      error_message: (error as Error).message,
+      funnel: FUNNELS.BIOMETRIC_SETUP,
+      step: 'verification'
+    });
+
+    // Capture exception in monitoring
+    monitoring.captureException(error as Error, {
+      extra: {
+        context: 'webauthn_registration_verification',
+        user_id: user.id,
+        credential_id: credential.id,
+        duration,
+        has_challenge: !!user.currentChallenge
+      },
+      tags: {
+        endpoint: '/api/webauthn/register',
+        operation: 'registration_verification'
+      }
+    });
+
     console.error('Failed to verify registration:', error)
     return createErrorResponse('Failed to verify registration', 500)
   }

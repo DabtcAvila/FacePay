@@ -105,7 +105,7 @@ export default function WebAuthnDemo({
     try {
       // Use REAL WebAuthn authentication - will trigger actual biometric prompt
       console.log('[WebAuthnDemo] DEPRECATED: Using real WebAuthn - recommend switching to BiometricWithFallback')
-      const result = await WebAuthnService.authenticate({ userId, userName })
+      const result = await WebAuthnService.authenticate({ userId, email: userName })
       
       console.log('[WebAuthnDemo] Real WebAuthn authentication completed')
       setStep('success')

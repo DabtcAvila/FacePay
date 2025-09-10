@@ -213,8 +213,7 @@ export async function requireAuth(request: NextRequest): Promise<{
       
       const response: ApiResponse<null> = {
         success: false,
-        error: 'Too many failed login attempts. Please try again later.',
-        code: 'IP_LOCKED_OUT'
+        error: 'Too many failed login attempts. Please try again later.'
       }
       
       return {
@@ -231,7 +230,6 @@ export async function requireAuth(request: NextRequest): Promise<{
       const response: ApiResponse<null> = {
         success: false,
         error: 'Authorization token required',
-        code: 'MISSING_TOKEN'
       }
       
       return {
@@ -253,7 +251,6 @@ export async function requireAuth(request: NextRequest): Promise<{
       const response: ApiResponse<null> = {
         success: false,
         error: 'Invalid or expired token',
-        code: 'INVALID_TOKEN'
       }
       
       return {
@@ -263,10 +260,11 @@ export async function requireAuth(request: NextRequest): Promise<{
     }
     
     // Validate session if sessionId is present
-    if (payload.sessionId) {
-      if (!validateSession(payload.sessionId, clientInfo.ipAddress)) {
+    const sessionId = (payload as any).sessionId;
+    if (sessionId) {
+      if (!validateSession(sessionId, clientInfo.ipAddress)) {
         console.warn('[Auth] Invalid session:', {
-          sessionId: payload.sessionId,
+          sessionId: sessionId,
           userId: payload.userId,
           ipAddress: clientInfo.ipAddress,
           path: request.nextUrl.pathname,
@@ -276,7 +274,6 @@ export async function requireAuth(request: NextRequest): Promise<{
         const response: ApiResponse<null> = {
           success: false,
           error: 'Session expired or invalid',
-          code: 'INVALID_SESSION'
         }
         
         return {
@@ -286,7 +283,7 @@ export async function requireAuth(request: NextRequest): Promise<{
       }
       
       // Update session activity
-      updateSessionActivity(payload.sessionId)
+      updateSessionActivity(sessionId)
     }
     
     // Check if user still exists and is active
@@ -296,7 +293,7 @@ export async function requireAuth(request: NextRequest): Promise<{
         id: true,
         email: true,
         isActive: true,
-        lastLogin: true
+        lastLoginAt: true
       }
     })
     
@@ -312,7 +309,6 @@ export async function requireAuth(request: NextRequest): Promise<{
       const response: ApiResponse<null> = {
         success: false,
         error: 'User not found or account deactivated',
-        code: 'USER_NOT_FOUND'
       }
       
       return {
@@ -323,7 +319,7 @@ export async function requireAuth(request: NextRequest): Promise<{
     
     // Check if token needs refresh
     const now = Date.now()
-    const expiresAt = payload.exp * 1000
+    const expiresAt = payload.exp ? payload.exp * 1000 : now + (15 * 60 * 1000) // Default to 15 minutes from now if exp is missing
     const needsRefresh = (expiresAt - now) < AUTH_CONFIG.TOKEN_REFRESH_THRESHOLD
     
     // Check if fresh token is required for this endpoint
@@ -335,7 +331,6 @@ export async function requireAuth(request: NextRequest): Promise<{
       const response: ApiResponse<null> = {
         success: false,
         error: 'Fresh authentication required for this operation',
-        code: 'FRESH_TOKEN_REQUIRED'
       }
       
       return {
@@ -348,7 +343,7 @@ export async function requireAuth(request: NextRequest): Promise<{
     console.log('[Auth] Successful authentication:', {
       userId: payload.userId,
       email: user.email,
-      sessionId: payload.sessionId,
+      sessionId: (payload as any).sessionId,
       ipAddress: clientInfo.ipAddress,
       path: request.nextUrl.pathname,
       needsRefresh,
@@ -358,7 +353,7 @@ export async function requireAuth(request: NextRequest): Promise<{
     return {
       user: {
         ...payload,
-        sessionId: payload.sessionId || 'legacy',
+        sessionId: (payload as any).sessionId || 'legacy',
         needsRefresh
       },
       error: null
@@ -375,7 +370,6 @@ export async function requireAuth(request: NextRequest): Promise<{
     const response: ApiResponse<null> = {
       success: false,
       error: 'Authentication processing error',
-      code: 'AUTH_PROCESSING_ERROR'
     }
     
     return {
@@ -426,10 +420,10 @@ export function hasPermission(user: JWTPayload, operation: string, resource?: an
              (Date.now() - new Date(resource.createdAt).getTime()) < (30 * 24 * 60 * 60 * 1000)
     
     case 'admin:read_all_users':
-      return user.role === 'admin' || user.role === 'super_admin'
+      return (user as any).role === 'admin' || (user as any).role === 'super_admin'
     
     case 'admin:read_analytics':
-      return user.role === 'admin' || user.role === 'super_admin'
+      return (user as any).role === 'admin' || (user as any).role === 'super_admin'
     
     default:
       return false
@@ -476,7 +470,7 @@ export function getAuthStats(): {
 } {
   const now = Date.now()
   
-  const activeSessions = Array.from(activeSessions.values())
+  const activeSessionCount = Array.from(activeSessions.values())
     .filter(session => now - session.lastActivity <= AUTH_CONFIG.SESSION_TIMEOUT)
     .length
   
@@ -488,7 +482,7 @@ export function getAuthStats(): {
     .reduce((total, attempts) => total + attempts.attempts, 0)
   
   return {
-    activeSessions,
+    activeSessions: activeSessionCount,
     lockedIPs,
     totalLoginAttempts
   }

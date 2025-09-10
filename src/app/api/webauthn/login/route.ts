@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       authenticator: {
         credentialID: webauthnCredential.credentialId,
         credentialPublicKey: Buffer.from(webauthnCredential.publicKey, 'base64url'),
-        counter: webauthnCredential.counter,
+        counter: Number(webauthnCredential.counter),
       },
       requireUserVerification: true, // Enforce biometric verification
     })

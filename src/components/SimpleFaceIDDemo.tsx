@@ -55,6 +55,148 @@ export default function SimpleFaceIDDemo({
   const timeoutHandlerRef = useRef<TimeoutHandler | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // CRÍTICO: Cleanup ultra robusto para evitar streams colgados
+  const cleanup = useCallback(() => {
+    console.log('[SimpleFaceIDDemo] Starting comprehensive cleanup');
+    
+    // Clean up timeout handler
+    if (timeoutHandlerRef.current) {
+      console.log('[SimpleFaceIDDemo] Cancelling timeout handler');
+      timeoutHandlerRef.current.cancel();
+      timeoutHandlerRef.current = null;
+    }
+    
+    // Clean up abort controller
+    if (abortControllerRef.current) {
+      console.log('[SimpleFaceIDDemo] Aborting operations');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // Limpiar stream de cámara con verificación completa
+    if (streamRef.current) {
+      console.log('[SimpleFaceIDDemo] Stopping camera stream with', streamRef.current.getTracks().length, 'tracks');
+      streamRef.current.getTracks().forEach((track, index) => {
+        const initialState = track.readyState;
+        track.stop();
+        console.log(`[SimpleFaceIDDemo] Track ${index} (${track.kind}): ${initialState} -> ${track.readyState}`);
+      });
+      streamRef.current = null;
+    } else {
+      console.log('[SimpleFaceIDDemo] No active stream to clean');
+    }
+    
+    // Limpiar video element completamente
+    if (videoRef.current) {
+      console.log('[SimpleFaceIDDemo] Clearing video element');
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+      videoRef.current.src = '';
+      videoRef.current.load(); // Forzar reset completo
+    }
+    
+    // Reset estados
+    setStatus('idle');
+    setScanProgress(0);
+    setError('');
+    setPermissionState('unknown');
+    setIsTakingLonger(false);
+    setShowCancelButton(false);
+    setTimeoutMessage('');
+    
+    console.log('[SimpleFaceIDDemo] Cleanup completed');
+  }, []);
+
+  // Enhanced scanning simulation with timeout
+  const startScanning = useCallback(() => {
+    if (status !== 'active' && status !== 'demo') {
+      console.warn('Cannot start scanning, invalid status:', status);
+      return;
+    }
+    
+    setStatus('scanning');
+    setScanProgress(0);
+    setIsTakingLonger(false);
+    setShowCancelButton(false);
+    
+    // Create abort controller for scanning
+    abortControllerRef.current = new AbortController();
+    
+    // Set up timeout handler for face detection
+    timeoutHandlerRef.current = new TimeoutHandler(
+      () => {
+        setIsTakingLonger(true);
+        setShowCancelButton(true);
+        setTimeoutMessage(getTimeoutMessage('Face detection', TIMEOUTS.FACE_DETECTION));
+      }
+    );
+    
+    // Use timeout handler for face detection simulation
+    timeoutHandlerRef.current!.execute(
+      () => {
+        return new Promise<void>((resolve) => {
+          // Realistic progress animation with variable speeds
+          const progressInterval = setInterval(() => {
+            setScanProgress(prev => {
+              // Check if operation was aborted
+              if (abortControllerRef.current?.signal.aborted) {
+                clearInterval(progressInterval);
+                return prev;
+              }
+              
+              // Simulate real face detection with slower start, faster middle, slower end
+              let increment;
+              if (prev < 20) {
+                increment = Math.random() * 3 + 1; // Slow start
+              } else if (prev < 80) {
+                increment = Math.random() * 6 + 3; // Fast middle
+              } else {
+                increment = Math.random() * 2 + 0.5; // Slow finish
+              }
+              
+              const newProgress = Math.min(prev + increment, 100);
+              
+              if (newProgress >= 100) {
+                clearInterval(progressInterval);
+                setStatus('complete');
+                
+                // Auto-complete after brief delay
+                setTimeout(() => {
+                  onScanComplete?.(isDemoMode ? 'demo' : 'camera');
+                }, 1500);
+                
+                resolve();
+                return 100;
+              }
+              
+              return newProgress;
+            });
+          }, 150); // Slightly slower for more realistic feel
+        });
+      },
+      TIMEOUTS.FACE_DETECTION,
+      'Face detection timed out. Please ensure your face is visible and well-lit.',
+      'face-detection'
+    ).catch((error) => {
+      if (isTimeoutError(error)) {
+        setError('Face detection timed out. Please try again or use demo mode.');
+        setStatus('error');
+      }
+    });
+  }, [onScanComplete, isDemoMode, status]);
+
+  // Demo mode - no camera required
+  const startDemoMode = useCallback(() => {
+    setStatus('demo');
+    setError('');
+    setIsDemoMode(true);
+    
+    // Simulate demo scanning
+    setTimeout(() => {
+      startScanning();
+    }, 1000);
+  }, [startScanning]);
+
   // CRÍTICO: Inicialización de cámara ultra segura con cleanup preventivo y timeouts
   const startCamera = useCallback(async () => {
     console.log('[SimpleFaceIDDemo] Starting camera initialization');
@@ -266,147 +408,8 @@ export default function SimpleFaceIDDemo({
     }
   }, [cleanup, startScanning, startDemoMode, status]);
 
-  // Enhanced scanning simulation with timeout
-  const startScanning = useCallback(() => {
-    if (status !== 'active' && status !== 'demo') {
-      console.warn('Cannot start scanning, invalid status:', status);
-      return;
-    }
-    
-    setStatus('scanning');
-    setScanProgress(0);
-    setIsTakingLonger(false);
-    setShowCancelButton(false);
-    
-    // Create abort controller for scanning
-    abortControllerRef.current = new AbortController();
-    
-    // Set up timeout handler for face detection
-    timeoutHandlerRef.current = new TimeoutHandler(
-      () => {
-        setIsTakingLonger(true);
-        setShowCancelButton(true);
-        setTimeoutMessage(getTimeoutMessage('Face detection', TIMEOUTS.FACE_DETECTION));
-      }
-    );
-    
-    // Use timeout handler for face detection simulation
-    timeoutHandlerRef.current!.execute(
-      () => {
-        return new Promise<void>((resolve) => {
-          // Realistic progress animation with variable speeds
-          const progressInterval = setInterval(() => {
-            setScanProgress(prev => {
-              // Check if operation was aborted
-              if (abortControllerRef.current?.signal.aborted) {
-                clearInterval(progressInterval);
-                return prev;
-              }
-              
-              // Simulate real face detection with slower start, faster middle, slower end
-              let increment;
-              if (prev < 20) {
-                increment = Math.random() * 3 + 1; // Slow start
-              } else if (prev < 80) {
-                increment = Math.random() * 6 + 3; // Fast middle
-              } else {
-                increment = Math.random() * 2 + 0.5; // Slow finish
-              }
-              
-              const newProgress = Math.min(prev + increment, 100);
-              
-              if (newProgress >= 100) {
-                clearInterval(progressInterval);
-                setStatus('complete');
-                
-                // Auto-complete after brief delay
-                setTimeout(() => {
-                  onScanComplete?.(isDemoMode ? 'demo' : 'camera');
-                }, 1500);
-                
-                resolve();
-                return 100;
-              }
-              
-              return newProgress;
-            });
-          }, 150); // Slightly slower for more realistic feel
-        });
-      },
-      TIMEOUTS.FACE_DETECTION,
-      'Face detection timed out. Please ensure your face is visible and well-lit.',
-      'face-detection'
-    ).catch((error) => {
-      if (isTimeoutError(error)) {
-        setError('Face detection timed out. Please try again or use demo mode.');
-        setStatus('error');
-      }
-    });
-  }, [onScanComplete, isDemoMode, status]);
 
-  // Demo mode - no camera required
-  const startDemoMode = useCallback(() => {
-    setStatus('demo');
-    setError('');
-    setIsDemoMode(true);
-    
-    // Simulate demo scanning
-    setTimeout(() => {
-      startScanning();
-    }, 1000);
-  }, [startScanning]);
 
-  // CRÍTICO: Cleanup ultra robusto para evitar streams colgados
-  const cleanup = useCallback(() => {
-    console.log('[SimpleFaceIDDemo] Starting comprehensive cleanup');
-    
-    // Clean up timeout handler
-    if (timeoutHandlerRef.current) {
-      console.log('[SimpleFaceIDDemo] Cancelling timeout handler');
-      timeoutHandlerRef.current.cancel();
-      timeoutHandlerRef.current = null;
-    }
-    
-    // Clean up abort controller
-    if (abortControllerRef.current) {
-      console.log('[SimpleFaceIDDemo] Aborting operations');
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    
-    // Limpiar stream de cámara con verificación completa
-    if (streamRef.current) {
-      console.log('[SimpleFaceIDDemo] Stopping camera stream with', streamRef.current.getTracks().length, 'tracks');
-      streamRef.current.getTracks().forEach((track, index) => {
-        const initialState = track.readyState;
-        track.stop();
-        console.log(`[SimpleFaceIDDemo] Track ${index} (${track.kind}): ${initialState} -> ${track.readyState}`);
-      });
-      streamRef.current = null;
-    } else {
-      console.log('[SimpleFaceIDDemo] No active stream to clean');
-    }
-    
-    // Limpiar video element completamente
-    if (videoRef.current) {
-      console.log('[SimpleFaceIDDemo] Clearing video element');
-      videoRef.current.pause();
-      videoRef.current.srcObject = null;
-      videoRef.current.src = '';
-      videoRef.current.load(); // Forzar reset completo
-    }
-    
-    // Reset estados
-    setStatus('idle');
-    setScanProgress(0);
-    setError('');
-    setPermissionState('unknown');
-    setIsTakingLonger(false);
-    setShowCancelButton(false);
-    setTimeoutMessage('');
-    
-    console.log('[SimpleFaceIDDemo] Cleanup completed');
-  }, []);
 
   // Cancel current operation
   const cancelCurrentOperation = useCallback(() => {

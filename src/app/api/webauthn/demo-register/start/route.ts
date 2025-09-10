@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
         id: userId,
         email: userName,
         name: userDisplayName || userName,
-        emailVerified: new Date(), // Mark as verified for demo purposes
       },
       include: {
         webauthnCredentials: true,

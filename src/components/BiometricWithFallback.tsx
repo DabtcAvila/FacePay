@@ -42,6 +42,7 @@ export interface BiometricAuthResult {
   credentialId?: string
   verified?: boolean
   type?: 'registration' | 'authentication' | 'demo'
+  realBiometric?: boolean // Flag to indicate real biometric authentication was used
 }
 
 interface BiometricWithFallbackProps {
@@ -312,7 +313,7 @@ export default function BiometricWithFallback({
         webAuthnResult = await timeoutHandlerRef.current!.execute(
           () => WebAuthnService.authenticate({
             userId,
-            userName
+            email: userName
           }, abortControllerRef.current?.signal),
           TIMEOUTS.WEBAUTHN_OPERATION,
           'Real biometric authentication timed out. Please try again.',
@@ -334,8 +335,7 @@ export default function BiometricWithFallback({
           credentialId: webAuthnResult.id,
           verified: true,
           type: 'authentication' as const,
-          realBiometric: true, // Flag to indicate real authentication was used
-          verificationData: webAuthnResult.verificationData // Include backend verification data
+          realBiometric: true // Flag to indicate real authentication was used
         }
       }
       

@@ -68,10 +68,10 @@ export async function testBiometricRegistration(userId: string = 'test-user', us
     // Result is direct data, not wrapped in success object
     
     console.log('✅ Registration successful!')
-    console.log(`   • Credential ID: ${result.credential?.id.substring(0, 20)}...`)
-    console.log(`   • Authenticator: ${result.credential?.authenticatorAttachment || 'unknown'}`)
+    console.log(`   • Credential ID: ${result.id?.substring(0, 20)}...`)
+    console.log(`   • Authenticator: ${result.authenticatorAttachment || 'unknown'}`)
     
-    return result.credential
+    return result
     
   } catch (error: any) {
     console.error('❌ Registration failed:', error.message || error)
@@ -92,10 +92,10 @@ export async function testBiometricAuthentication() {
     // Result is direct data, not wrapped in success object
     
     console.log('✅ Authentication successful!')
-    console.log(`   • Credential ID: ${result.credential?.id.substring(0, 20)}...`)
-    console.log(`   • Authenticator: ${result.credential?.authenticatorAttachment || 'unknown'}`)
+    console.log(`   • Credential ID: ${result.id?.substring(0, 20)}...`)
+    console.log(`   • Authenticator: ${result.authenticatorAttachment || 'unknown'}`)
     
-    return result.credential
+    return result
     
   } catch (error: any) {
     console.error('❌ Authentication failed:', error.message || error)

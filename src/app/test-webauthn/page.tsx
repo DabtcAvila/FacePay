@@ -18,7 +18,7 @@ interface RegistrationOptions {
     challenge: string;
     rp: { name: string; id: string };
     user: { id: string; name: string; displayName: string };
-    pubKeyCredParams: Array<{ alg: number; type: string }>;
+    pubKeyCredParams: Array<{ alg: number; type: "public-key" }>;
     timeout: number;
     attestation: string;
     authenticatorSelection: {

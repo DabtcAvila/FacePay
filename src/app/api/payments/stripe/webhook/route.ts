@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { webhookSecurity } from '@/middleware/security'
 import { logSuspiciousActivity, SecuritySeverity } from '@/lib/security-logger'
+import { analytics, EVENTS, FUNNELS } from '@/lib/analytics'
+import { monitoring } from '@/lib/monitoring'
 import Stripe from 'stripe'
 import { headers } from 'next/headers'
 
@@ -167,10 +169,43 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 }
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  const startTime = Date.now();
+  
   try {
     console.log('Processing payment intent succeeded:', paymentIntent.id)
 
-    // Update transactions with this payment intent
+    // Find and update transactions with this payment intent
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        metadata: {
+          path: ['stripePaymentIntentId'],
+          equals: paymentIntent.id,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true
+          }
+        },
+        paymentMethod: {
+          select: {
+            id: true,
+            type: true,
+            provider: true
+          }
+        }
+      }
+    })
+
+    if (transactions.length === 0) {
+      console.warn('No transactions found for payment intent:', paymentIntent.id)
+      return
+    }
+
+    // Update transaction status
     await prisma.transaction.updateMany({
       where: {
         metadata: {
@@ -184,16 +219,162 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       },
     })
 
+    // Track payment completion for each transaction
+    for (const transaction of transactions) {
+      const completionData = {
+        user_id: transaction.userId,
+        transaction_id: transaction.id,
+        payment_intent_id: paymentIntent.id,
+        amount: Number(transaction.amount),
+        currency: transaction.currency,
+        payment_method: paymentIntent.payment_method?.toString() || 'unknown',
+        payment_method_type: transaction.paymentMethod?.type || 'unknown',
+        completion_timestamp: new Date().toISOString(),
+        processing_time_ms: Date.now() - startTime
+      };
+
+      // Track final payment funnel step - Payment Completed
+      analytics.trackFunnelStep(FUNNELS.PAYMENT, 'payment_completed', 5, {
+        ...completionData,
+        success: true
+      });
+
+      // Track payment completion event
+      analytics.track(EVENTS.PAYMENT_COMPLETED, {
+        ...completionData,
+        revenue: Number(transaction.amount)
+      });
+
+      // Track successful payment
+      analytics.trackPayment(
+        Number(transaction.amount),
+        transaction.currency,
+        transaction.paymentMethod?.type || 'stripe',
+        true,
+        {
+          transaction_id: transaction.id,
+          payment_intent_id: paymentIntent.id,
+          payment_method_id: transaction.paymentMethodId,
+          completion_timestamp: new Date().toISOString()
+        }
+      );
+
+      // Set user context for analytics
+      if (transaction.user) {
+        analytics.identify(transaction.user.id, {
+          email: transaction.user.email,
+          name: transaction.user.name,
+          last_payment_date: new Date().toISOString(),
+          last_payment_amount: Number(transaction.amount),
+          last_payment_currency: transaction.currency
+        });
+
+        // Set monitoring user context
+        monitoring.setUser({
+          id: transaction.user.id,
+          email: transaction.user.email || '',
+          username: transaction.user.name || transaction.user.email || ''
+        });
+      }
+
+      // Add successful payment breadcrumb
+      monitoring.addBreadcrumb(
+        `Payment completed successfully: ${paymentIntent.id}`,
+        'payment',
+        'info',
+        {
+          userId: transaction.userId,
+          transactionId: transaction.id,
+          paymentIntentId: paymentIntent.id,
+          amount: Number(transaction.amount),
+          currency: transaction.currency,
+          paymentMethod: transaction.paymentMethod?.type
+        }
+      );
+
+      // Track feature usage for payment method
+      if (transaction.paymentMethod) {
+        analytics.trackFeatureUsage('payment_methods', 'successful_payment', {
+          user_id: transaction.userId,
+          payment_method_id: transaction.paymentMethod.id,
+          payment_method_type: transaction.paymentMethod.type,
+          provider: transaction.paymentMethod.provider,
+          amount: Number(transaction.amount)
+        });
+      }
+
+      console.log(`Payment completion tracked for transaction: ${transaction.id}`);
+    }
+
+    // Track performance metric
+    monitoring.trackPerformanceMetric('payment_webhook_processing', Date.now() - startTime, {
+      success: true,
+      payment_intent_id: paymentIntent.id,
+      transactions_count: transactions.length
+    });
+
     console.log('Payment intent transaction updated:', paymentIntent.id)
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Track webhook processing error
+    analytics.track('Payment Webhook Error', {
+      reason: 'processing_error',
+      payment_intent_id: paymentIntent.id,
+      error_message: (error as Error).message,
+      webhook_type: 'payment_intent.succeeded'
+    });
+
+    // Capture exception in monitoring
+    monitoring.captureException(error as Error, {
+      extra: {
+        context: 'payment_webhook_processing',
+        payment_intent_id: paymentIntent.id,
+        webhook_type: 'payment_intent.succeeded',
+        duration
+      },
+      tags: {
+        endpoint: '/api/payments/stripe/webhook',
+        operation: 'payment_intent_succeeded'
+      }
+    });
+
     console.error('Error handling payment intent succeeded:', error)
   }
 }
 
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  const startTime = Date.now();
+  
   try {
     console.log('Processing payment intent failed:', paymentIntent.id)
+
+    // Find transactions with this payment intent
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        metadata: {
+          path: ['stripePaymentIntentId'],
+          equals: paymentIntent.id,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true
+          }
+        },
+        paymentMethod: {
+          select: {
+            id: true,
+            type: true,
+            provider: true
+          }
+        }
+      }
+    })
 
     // Update transactions with this payment intent
     await prisma.transaction.updateMany({
@@ -212,9 +393,118 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
       },
     })
 
+    // Track payment failure for each transaction
+    for (const transaction of transactions) {
+      const failureData = {
+        user_id: transaction.userId,
+        transaction_id: transaction.id,
+        payment_intent_id: paymentIntent.id,
+        amount: Number(transaction.amount),
+        currency: transaction.currency,
+        payment_method: paymentIntent.payment_method?.toString() || 'unknown',
+        payment_method_type: transaction.paymentMethod?.type || 'unknown',
+        error_code: paymentIntent.last_payment_error?.code || 'unknown',
+        error_message: paymentIntent.last_payment_error?.message || 'Payment failed',
+        failure_timestamp: new Date().toISOString()
+      };
+
+      // Track payment failure event
+      analytics.track(EVENTS.PAYMENT_FAILED, {
+        ...failureData,
+        revenue: 0 // No revenue from failed payments
+      });
+
+      // Track failed payment
+      analytics.trackPayment(
+        Number(transaction.amount),
+        transaction.currency,
+        transaction.paymentMethod?.type || 'stripe',
+        false,
+        {
+          transaction_id: transaction.id,
+          payment_intent_id: paymentIntent.id,
+          payment_method_id: transaction.paymentMethodId,
+          error_code: paymentIntent.last_payment_error?.code,
+          error_message: paymentIntent.last_payment_error?.message,
+          failure_timestamp: new Date().toISOString()
+        }
+      );
+
+      // Add payment failure breadcrumb
+      monitoring.addBreadcrumb(
+        `Payment failed: ${paymentIntent.id}`,
+        'payment',
+        'error',
+        {
+          userId: transaction.userId,
+          transactionId: transaction.id,
+          paymentIntentId: paymentIntent.id,
+          amount: Number(transaction.amount),
+          currency: transaction.currency,
+          errorCode: paymentIntent.last_payment_error?.code,
+          errorMessage: paymentIntent.last_payment_error?.message
+        }
+      );
+
+      // Capture payment failure as a message (not an exception since it's expected behavior)
+      monitoring.captureMessage(
+        `Payment failed: ${paymentIntent.last_payment_error?.message || 'Unknown error'}`,
+        'warning',
+        {
+          extra: {
+            user_id: transaction.userId,
+            transaction_id: transaction.id,
+            payment_intent_id: paymentIntent.id,
+            amount: Number(transaction.amount),
+            currency: transaction.currency,
+            error_code: paymentIntent.last_payment_error?.code,
+            error_type: paymentIntent.last_payment_error?.type,
+            decline_code: paymentIntent.last_payment_error?.decline_code
+          },
+          tags: {
+            payment_failure: true,
+            error_code: paymentIntent.last_payment_error?.code || 'unknown'
+          }
+        }
+      );
+
+      console.log(`Payment failure tracked for transaction: ${transaction.id}`);
+    }
+
+    // Track performance metric
+    monitoring.trackPerformanceMetric('payment_failure_webhook_processing', Date.now() - startTime, {
+      success: true,
+      payment_intent_id: paymentIntent.id,
+      transactions_count: transactions.length
+    });
+
     console.log('Failed payment intent transaction updated:', paymentIntent.id)
 
   } catch (error) {
+    const duration = Date.now() - startTime;
+
+    // Track webhook processing error
+    analytics.track('Payment Webhook Error', {
+      reason: 'processing_error',
+      payment_intent_id: paymentIntent.id,
+      error_message: (error as Error).message,
+      webhook_type: 'payment_intent.payment_failed'
+    });
+
+    // Capture exception in monitoring
+    monitoring.captureException(error as Error, {
+      extra: {
+        context: 'payment_failure_webhook_processing',
+        payment_intent_id: paymentIntent.id,
+        webhook_type: 'payment_intent.payment_failed',
+        duration
+      },
+      tags: {
+        endpoint: '/api/payments/stripe/webhook',
+        operation: 'payment_intent_failed'
+      }
+    });
+
     console.error('Error handling payment intent failed:', error)
   }
 }

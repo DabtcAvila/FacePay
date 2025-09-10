@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { z } from 'zod'
 
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic'
+
 const analyticsQuerySchema = z.object({
   period: z.enum(['7d', '30d', '90d', '1y', 'all']).optional().default('30d'),
   granularity: z.enum(['day', 'week', 'month']).optional().default('day'),

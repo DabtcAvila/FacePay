@@ -181,15 +181,49 @@ List endpoints support cursor-based pagination:
 
 ### 🔐 Authentication
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/login` | User login with email/password |
-| `POST` | `/auth/register` | Create new user account |
-| `POST` | `/auth/refresh` | Refresh access token |
-| `POST` | `/auth/demo-login` | Quick demo login (dev only) |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/auth/login` | User login with email/password | No |
+| `POST` | `/auth/register` | Create new user account | No |
+| `POST` | `/auth/refresh` | Refresh access token | No |
+| `POST` | `/auth/demo-login` | Quick demo login (dev only) | No |
 
-#### Login Example
+#### POST `/auth/login`
 
+Authenticate user with email and password.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "clp1abc123def456ghi789",
+      "email": "user@example.com",
+      "name": "John Doe",
+      "createdAt": "2024-01-01T12:00:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expiresIn": 3600
+    },
+    "sessionId": "sess_abc123def456"
+  },
+  "message": "Login successful"
+}
+```
+
+**cURL Example:**
 ```bash
 curl -X POST https://api.facepay.com/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -197,6 +231,64 @@ curl -X POST https://api.facepay.com/v1/auth/login \
     "email": "user@example.com",
     "password": "securepassword123"
   }'
+```
+
+#### POST `/auth/register`
+
+Create a new user account.
+
+**Request Body:**
+```json
+{
+  "email": "newuser@example.com",
+  "name": "New User",
+  "password": "securepassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "clp2xyz789abc123def456",
+      "email": "newuser@example.com",
+      "name": "New User",
+      "createdAt": "2024-01-15T14:30:00Z",
+      "updatedAt": "2024-01-15T14:30:00Z"
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expiresIn": 3600
+    }
+  },
+  "message": "Registration successful"
+}
+```
+
+#### POST `/auth/refresh`
+
+Refresh the access token using a valid refresh token.
+
+**Request Body:**
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expiresIn": 3600
+  },
+  "message": "Token refreshed successfully"
+}
 ```
 
 ### 👤 Users
@@ -242,33 +334,340 @@ curl -X POST https://api.facepay.com/v1/payments/stripe/checkout \
 
 ### 📊 Transactions
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/transactions` | List transactions with pagination |
-| `POST` | `/transactions` | Create new transaction |
-| `GET` | `/transactions/{id}` | Get transaction details |
-| `POST` | `/transactions/{id}/refund` | Refund transaction |
-| `GET` | `/transactions/history` | Detailed transaction history |
-| `POST` | `/transactions/bulk` | Bulk transaction operations |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/transactions` | List transactions with pagination | Yes |
+| `POST` | `/transactions` | Create new transaction | Yes |
+| `GET` | `/transactions/{id}` | Get transaction details | Yes |
+| `POST` | `/transactions/{id}/refund` | Refund transaction | Yes |
+| `GET` | `/transactions/{id}/receipt` | Get transaction receipt | Yes |
+| `GET` | `/transactions/history` | Detailed transaction history | Yes |
+| `POST` | `/transactions/bulk` | Bulk transaction operations | Yes |
 
-#### List Transactions Example
+#### GET `/transactions`
 
+List transactions with pagination and filtering.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 20, max: 100)
+- `status` (optional): Filter by status (`pending`, `completed`, `failed`, `refunded`)
+- `sortBy` (optional): Sort field (default: `createdAt`)
+- `sortOrder` (optional): Sort direction (`asc`, `desc`, default: `desc`)
+- `dateFrom` (optional): Start date filter (ISO format)
+- `dateTo` (optional): End date filter (ISO format)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "txn_abc123def456",
+        "userId": "clp1abc123def456ghi789",
+        "amount": 29.99,
+        "currency": "USD",
+        "status": "completed",
+        "description": "Premium feature unlock",
+        "paymentMethodId": "pm_stripe_123",
+        "createdAt": "2024-01-15T14:30:00Z",
+        "updatedAt": "2024-01-15T14:31:00Z",
+        "metadata": {
+          "feature": "premium_analytics"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8,
+      "hasNext": true,
+      "hasPrev": false
+    }
+  }
+}
+```
+
+**cURL Example:**
 ```bash
 curl -X GET "https://api.facepay.com/v1/transactions?page=1&limit=20&status=completed" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
+#### POST `/transactions`
+
+Create a new transaction.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "amount": 49.99,
+  "currency": "USD",
+  "paymentMethodId": "pm_example123",
+  "description": "Premium feature unlock",
+  "metadata": {
+    "feature": "premium_analytics",
+    "tier": "premium"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "txn_abc123def456",
+    "userId": "clp1abc123def456ghi789",
+    "amount": 49.99,
+    "currency": "USD",
+    "status": "pending",
+    "description": "Premium feature unlock",
+    "paymentMethodId": "pm_example123",
+    "createdAt": "2024-01-15T14:30:00Z",
+    "updatedAt": "2024-01-15T14:30:00Z",
+    "metadata": {
+      "feature": "premium_analytics",
+      "tier": "premium"
+    }
+  },
+  "message": "Transaction created successfully"
+}
+```
+
 ### 🔒 WebAuthn (Biometric Authentication)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/webauthn/register/start` | Start biometric registration |
-| `POST` | `/webauthn/register/complete` | Complete biometric registration |
-| `POST` | `/webauthn/authenticate/start` | Start biometric authentication |
-| `POST` | `/webauthn/authenticate/complete` | Complete biometric authentication |
-| `GET` | `/webauthn/credentials` | List registered credentials |
-| `DELETE` | `/webauthn/credentials` | Delete biometric credential |
-| `POST` | `/biometric/face` | Face verification |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/webauthn/register/start` | Start biometric registration | Yes |
+| `POST` | `/webauthn/register/complete` | Complete biometric registration | Yes |
+| `POST` | `/webauthn/authenticate/start` | Start biometric authentication | No |
+| `POST` | `/webauthn/authenticate/complete` | Complete biometric authentication | No |
+| `GET` | `/webauthn/register-options` | Get registration options | Yes |
+| `POST` | `/webauthn/register-verify` | Verify registration | Yes |
+| `GET` | `/webauthn/authenticate-options` | Get authentication options | No |
+| `POST` | `/webauthn/authenticate-verify` | Verify authentication | No |
+| `GET` | `/webauthn/credentials` | List registered credentials | Yes |
+| `DELETE` | `/webauthn/credentials` | Delete biometric credential | Yes |
+| `POST` | `/webauthn/login` | Complete WebAuthn login | No |
+| `POST` | `/biometric/face` | Face verification | Yes |
+
+#### POST `/webauthn/register/start`
+
+Start the WebAuthn biometric registration process.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "authenticatorSelection": {
+    "authenticatorAttachment": "platform",
+    "userVerification": "preferred",
+    "residentKey": "preferred"
+  },
+  "attestation": "none"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "options": {
+      "challenge": "base64-encoded-challenge",
+      "rp": {
+        "name": "FacePay",
+        "id": "localhost"
+      },
+      "user": {
+        "id": "base64-user-id",
+        "name": "user@example.com",
+        "displayName": "John Doe"
+      },
+      "pubKeyCredParams": [
+        { "alg": -7, "type": "public-key" },
+        { "alg": -257, "type": "public-key" }
+      ],
+      "timeout": 60000,
+      "authenticatorSelection": {
+        "authenticatorAttachment": "platform",
+        "userVerification": "preferred"
+      }
+    },
+    "userId": "clp1abc123def456ghi789",
+    "biometricRequired": true,
+    "platformAuthenticatorRequired": true
+  },
+  "message": "WebAuthn biometric registration started"
+}
+```
+
+#### POST `/webauthn/register/complete`
+
+Complete the WebAuthn biometric registration.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "credentialId": "credential_id_from_webauthn",
+  "clientDataJSON": "client_data_json_from_webauthn",
+  "attestationObject": "attestation_object_from_webauthn",
+  "name": "iPhone Face ID"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "credential": {
+      "id": "cred_abc123def456",
+      "credentialId": "credential_id_from_webauthn",
+      "name": "iPhone Face ID",
+      "type": "platform",
+      "createdAt": "2024-01-15T14:30:00Z"
+    },
+    "verified": true
+  },
+  "message": "Biometric registration completed successfully"
+}
+```
+
+#### POST `/webauthn/authenticate/start`
+
+Start the WebAuthn authentication challenge.
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "challenge": "base64-encoded-challenge",
+    "allowCredentials": [
+      {
+        "id": "base64-credential-id",
+        "type": "public-key",
+        "transports": ["internal"]
+      }
+    ],
+    "timeout": 60000,
+    "userVerification": "preferred"
+  },
+  "message": "WebAuthn authentication challenge created"
+}
+```
+
+#### POST `/webauthn/authenticate/complete`
+
+Complete the WebAuthn authentication.
+
+**Headers:**
+```
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "credentialId": "credential_id_from_webauthn",
+  "clientDataJSON": "client_data_json_from_webauthn",
+  "authenticatorData": "authenticator_data_from_webauthn",
+  "signature": "signature_from_webauthn"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "clp1abc123def456ghi789",
+      "email": "user@example.com",
+      "name": "John Doe"
+    },
+    "tokens": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "expiresIn": 3600
+    },
+    "sessionId": "sess_webauthn_abc123",
+    "verified": true
+  },
+  "message": "WebAuthn authentication successful"
+}
+```
+
+#### POST `/biometric/face`
+
+Verify user identity using facial recognition.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "imageData": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "confidence": 0.9
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "verified": true,
+    "confidence": 0.95,
+    "faceDetected": true,
+    "matchScore": 0.92,
+    "verificationId": "face_verify_abc123"
+  },
+  "message": "Face verification successful"
+}
+```
 
 #### WebAuthn Registration Flow
 
@@ -303,29 +702,222 @@ const completeResponse = await fetch('/api/webauthn/register/complete', {
 
 ### 📈 Analytics
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/analytics/stats` | Get analytics statistics |
-| `GET` | `/payments/analytics` | Payment-specific analytics |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/analytics/stats` | Get analytics statistics | Yes |
+| `GET` | `/payments/analytics` | Payment-specific analytics | Yes |
 
-#### Analytics Example
+#### GET `/analytics/stats`
 
+Get comprehensive analytics and statistics.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Query Parameters:**
+- `period` (optional): Time period (`day`, `week`, `month`, `year`, default: `month`)
+- `dateFrom` (optional): Start date (ISO format)
+- `dateTo` (optional): End date (ISO format)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalTransactions": 1250,
+    "totalRevenue": 125000.50,
+    "averageTransactionValue": 100.00,
+    "successRate": 98.5,
+    "biometricAuthSuccess": 95.2,
+    "topPaymentMethods": [
+      {
+        "method": "card",
+        "count": 850,
+        "percentage": 68.0
+      },
+      {
+        "method": "biometric",
+        "count": 300,
+        "percentage": 24.0
+      },
+      {
+        "method": "crypto",
+        "count": 100,
+        "percentage": 8.0
+      }
+    ],
+    "dailyStats": [
+      {
+        "date": "2024-01-15",
+        "transactions": 45,
+        "revenue": 4599.99,
+        "successRate": 97.8
+      }
+    ]
+  }
+}
+```
+
+**cURL Example:**
 ```bash
 curl -X GET "https://api.facepay.com/v1/analytics/stats?period=month" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
+#### GET `/payments/analytics`
+
+Get payment-specific analytics and insights.
+
+**Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Query Parameters:**
+- `period` (optional): Time period (`day`, `week`, `month`, `year`, default: `month`)
+- `currency` (optional): Filter by currency (`USD`, `EUR`, etc.)
+- `status` (optional): Filter by status (`completed`, `failed`, `pending`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalPayments": 892,
+    "totalVolume": 89250.75,
+    "averagePayment": 100.06,
+    "successRate": 97.8,
+    "failureRate": 2.2,
+    "topCurrencies": [
+      {
+        "currency": "USD",
+        "count": 785,
+        "volume": 78500.25
+      },
+      {
+        "currency": "EUR",
+        "count": 107,
+        "volume": 10750.50
+      }
+    ],
+    "paymentMethods": {
+      "card": 678,
+      "bank_transfer": 123,
+      "crypto": 91
+    }
+  }
+}
+```
+
 ### 🏥 Health & Monitoring
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | System health check |
-| `GET` | `/admin/security-stats` | Security statistics (admin only) |
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/health` | System health check | No |
+| `GET` | `/version` | API version information | No |
+| `GET` | `/admin/security-stats` | Security statistics (admin only) | Yes |
 
-#### Health Check Example
+#### GET `/health`
 
+Check the health status of the FacePay API.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "uptime": 12345.67,
+  "version": "1.0.0",
+  "environment": "production",
+  "database": "connected",
+  "redis": "connected",
+  "stripe": "operational"
+}
+```
+
+**cURL Example:**
 ```bash
 curl -X GET https://api.facepay.com/v1/health
+```
+
+#### GET `/version`
+
+Get API version and build information.
+
+**Response:**
+```json
+{
+  "version": "1.0.0",
+  "build": "2024.01.15.001",
+  "commit": "e6634b8",
+  "environment": "production",
+  "features": {
+    "biometricAuth": true,
+    "stripePayments": true,
+    "analytics": true
+  }
+}
+```
+
+### ⚙️ Admin
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/admin/security-stats` | Security statistics | Yes (Admin) |
+
+#### GET `/admin/security-stats`
+
+Get security statistics and monitoring data (admin access required).
+
+**Headers:**
+```
+Authorization: Bearer YOUR_ADMIN_JWT_TOKEN
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "activeUsers": 1250,
+    "totalUsers": 5420,
+    "failedLogins": {
+      "last24h": 15,
+      "last7d": 89,
+      "last30d": 342
+    },
+    "blockedIPs": {
+      "active": 5,
+      "total": 127
+    },
+    "biometricAttempts": {
+      "successful": 850,
+      "failed": 42,
+      "successRate": 95.3
+    },
+    "threatLevel": "low",
+    "anomalies": [
+      {
+        "type": "unusual_login_location",
+        "count": 3,
+        "severity": "medium"
+      }
+    ],
+    "systemHealth": {
+      "database": "healthy",
+      "redis": "healthy",
+      "stripe": "operational"
+    }
+  }
+}
+```
+
+**cURL Example:**
+```bash
+curl -X GET https://api.facepay.com/v1/admin/security-stats \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
 ## WebAuthn Integration
@@ -697,8 +1289,95 @@ Demo Account: demo@facepay.com / demo123456
 
 ---
 
-**Last Updated**: January 2024  
+---
+
+## Additional Error Codes
+
+Beyond the standard HTTP status codes, FacePay uses specific error codes for different scenarios:
+
+### Authentication Errors
+- `AUTH_TOKEN_MISSING`: No authorization token provided
+- `AUTH_TOKEN_INVALID`: Invalid or malformed token
+- `AUTH_TOKEN_EXPIRED`: Token has expired
+- `AUTH_USER_NOT_FOUND`: User associated with token not found
+- `AUTH_INSUFFICIENT_PERMISSIONS`: User lacks required permissions
+
+### Payment Errors
+- `PAYMENT_AMOUNT_INVALID`: Invalid payment amount
+- `PAYMENT_CURRENCY_UNSUPPORTED`: Currency not supported
+- `PAYMENT_METHOD_INVALID`: Invalid payment method
+- `PAYMENT_PROCESSING_FAILED`: Payment processing error
+- `PAYMENT_INSUFFICIENT_FUNDS`: Insufficient funds
+- `STRIPE_API_ERROR`: Stripe API error
+
+### Biometric Errors
+- `BIOMETRIC_REGISTRATION_FAILED`: Biometric registration failed
+- `BIOMETRIC_AUTHENTICATION_FAILED`: Biometric authentication failed
+- `WEBAUTHN_NOT_SUPPORTED`: WebAuthn not supported by client
+- `FACE_DETECTION_FAILED`: Face not detected in image
+- `FACE_VERIFICATION_FAILED`: Face verification failed
+
+### Validation Errors
+- `VALIDATION_EMAIL_INVALID`: Invalid email format
+- `VALIDATION_PASSWORD_WEAK`: Password doesn't meet requirements
+- `VALIDATION_REQUIRED_FIELD_MISSING`: Required field missing
+- `VALIDATION_FIELD_TOO_LONG`: Field exceeds maximum length
+
+## Response Headers
+
+All API responses include standard headers:
+
+```http
+Content-Type: application/json
+X-Request-Id: req_abc123def456
+X-Rate-Limit-Remaining: 999
+X-Rate-Limit-Reset: 1640995200
+X-API-Version: 1.0.0
+```
+
+## Environment Variables
+
+For local development and deployment:
+
+```bash
+# Database
+DATABASE_URL="postgresql://..."
+
+# Authentication
+JWT_SECRET="your-jwt-secret"
+JWT_EXPIRATION="3600"
+
+# WebAuthn
+WEBAUTHN_RP_NAME="FacePay"
+WEBAUTHN_RP_ID="localhost"
+WEBAUTHN_ORIGIN="http://localhost:3000"
+
+# Stripe
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_PUBLISHABLE_KEY="pk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Application
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+NODE_ENV="development"
+```
+
+## Changelog
+
+### Version 1.0.0 (Current)
+- Initial API release
+- Complete WebAuthn biometric authentication
+- Stripe payment integration
+- Transaction management
+- Analytics and reporting
+- Admin security features
+- Comprehensive error handling
+- Rate limiting implementation
+
+---
+
+**Last Updated**: January 15, 2024  
 **API Version**: 1.0.0  
-**Documentation Version**: 1.0.0
+**Documentation Version**: 2.0.0
 
 For the most up-to-date information, visit our [interactive API documentation](https://api.facepay.com/v1/docs).
