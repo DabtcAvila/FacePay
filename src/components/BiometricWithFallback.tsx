@@ -113,8 +113,8 @@ export default function BiometricWithFallback({
       )
       setCapabilities(caps)
       
-      // Seleccionar el mejor método automáticamente
-      let selectedMethod: AuthMethod = 'demo' // Fallback por defecto
+      // ALWAYS prefer real biometric authentication when available
+      let selectedMethod: AuthMethod = 'fallback' // Only fallback if nothing works
       
       if (preferredMethod) {
         // Use preferred method if specified and available
@@ -122,15 +122,24 @@ export default function BiometricWithFallback({
           selectedMethod = 'biometric'
         } else if (preferredMethod === 'camera' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
           selectedMethod = 'camera'
+        } else if (preferredMethod === 'demo') {
+          // Only allow demo as explicit fallback, not as preferred method
+          console.warn('[BiometricWithFallback] Demo mode requested but real biometric auth is preferred')
+          selectedMethod = caps.isSupported && caps.isPlatformAuthenticatorAvailable ? 'biometric' : 'camera'
         } else {
           selectedMethod = preferredMethod
         }
       } else {
-        // Auto-select best available method
+        // CRITICAL: Auto-select REAL biometric authentication as top priority
         if (caps.isSupported && caps.isPlatformAuthenticatorAvailable) {
           selectedMethod = 'biometric'
+          console.log('[BiometricWithFallback] Auto-selected REAL biometric authentication')
         } else if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
           selectedMethod = 'camera'
+          console.log('[BiometricWithFallback] Biometric not available, using camera fallback')
+        } else {
+          console.warn('[BiometricWithFallback] No biometric methods available, using demo fallback')
+          selectedMethod = 'demo'
         }
       }
       
@@ -235,13 +244,13 @@ export default function BiometricWithFallback({
     animate()
   }, [])
 
-  // Autenticación biométrica real con timeout handling
+  // REAL biometric authentication - NO DEMO MODE
   const performBiometricAuth = useCallback(async () => {
     if (!capabilities?.isPlatformAuthenticatorAvailable) {
       throw new Error('Biometric authentication not available')
     }
 
-    console.log('[BiometricWithFallback] Starting biometric authentication')
+    console.log('[BiometricWithFallback] Starting REAL biometric authentication - NO SIMULATION')
     setAuthStage('processing')
     setError(null)
     setIsTakingLonger(false)
@@ -255,98 +264,91 @@ export default function BiometricWithFallback({
       () => {
         setIsTakingLonger(true)
         setShowCancelButton(true)
-        setTimeoutMessage(getTimeoutMessage('Biometric authentication', TIMEOUTS.WEBAUTHN_OPERATION))
+        setTimeoutMessage(getTimeoutMessage('Real biometric authentication', TIMEOUTS.WEBAUTHN_OPERATION))
       },
       (progress) => setProgress(progress)
     )
 
     try {
       let result
+      let webAuthnResult
+
+      console.log('[BiometricWithFallback] Executing REAL WebAuthn operation, mode:', mode)
       
-      if (mode === 'demo') {
-        // Demo mode - simulate biometric process
-        console.log('[BiometricWithFallback] Running in demo mode')
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+      if (mode === 'registration') {
+        // REAL biometric registration - will trigger Face ID/Touch ID
+        console.log('[BiometricWithFallback] Starting REAL biometric registration...')
+        webAuthnResult = await timeoutHandlerRef.current!.execute(
+          () => WebAuthnService.register({
+            userId,
+            userName,
+            userDisplayName: userName
+          }, abortControllerRef.current?.signal),
+          TIMEOUTS.WEBAUTHN_OPERATION,
+          'Real biometric registration timed out. Please try again.',
+          'webauthn-registration'
+        )
         
-        if (isAvailable) {
-          startProgressAnimation(2000)
-          result = {
-            success: true,
-            method: 'biometric' as const,
-            biometricType: (['face', 'fingerprint'].includes(capabilities.biometricTypes[0]) ? capabilities.biometricTypes[0] : 'unknown') as 'face' | 'fingerprint' | 'unknown',
-            deviceInfo: {
-              isIOS: capabilities.deviceInfo.isIOS,
-              isMobile: capabilities.deviceInfo.isMobile,
-              platform: capabilities.deviceInfo.platform
-            },
-            timestamp: Date.now(),
-            verified: true,
-            type: 'demo' as const
-          }
-        } else {
-          throw new Error('Biometric verification failed')
+        console.log('[BiometricWithFallback] REAL biometric registration completed successfully')
+        startProgressAnimation(1500)
+        result = {
+          success: true,
+          method: 'biometric' as const,
+          biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
+          deviceInfo: {
+            isIOS: capabilities.deviceInfo.isIOS,
+            isMobile: capabilities.deviceInfo.isMobile,
+            platform: capabilities.deviceInfo.platform
+          },
+          timestamp: Date.now(),
+          credentialId: webAuthnResult.id,
+          verified: true,
+          type: 'registration' as const,
+          realBiometric: true // Flag to indicate real authentication was used
         }
       } else {
-        // Real biometric authentication
-        console.log('[BiometricWithFallback] Running real biometric authentication, mode:', mode)
-        if (mode === 'registration') {
-          const webAuthnResult = await timeoutHandlerRef.current!.execute(
-            () => WebAuthnService.register({
-              userId,
-              userName,
-              userDisplayName: userName
-            }, abortControllerRef.current?.signal),
-            TIMEOUTS.WEBAUTHN_OPERATION,
-            'Biometric registration timed out. Please try again.',
-            'webauthn-registration'
-          )
-          
-          startProgressAnimation(1500)
-          result = {
-            success: true,
-            method: 'biometric' as const,
-            biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
-            deviceInfo: {
-              isIOS: capabilities.deviceInfo.isIOS,
-              isMobile: capabilities.deviceInfo.isMobile,
-              platform: capabilities.deviceInfo.platform
-            },
-            timestamp: Date.now(),
-            credentialId: webAuthnResult.id,
-            verified: true,
-            type: 'registration' as const
-          }
-        } else {
-          const webAuthnResult = await timeoutHandlerRef.current!.execute(
-            () => WebAuthnService.authenticate(abortControllerRef.current?.signal),
-            TIMEOUTS.WEBAUTHN_OPERATION,
-            'Biometric authentication timed out. Please try again.',
-            'webauthn-authentication'
-          )
-          
-          startProgressAnimation(1500)
-          result = {
-            success: true,
-            method: 'biometric' as const,
-            biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
-            deviceInfo: {
-              isIOS: capabilities.deviceInfo.isIOS,
-              isMobile: capabilities.deviceInfo.isMobile,
-              platform: capabilities.deviceInfo.platform
-            },
-            timestamp: Date.now(),
-            credentialId: webAuthnResult.id,
-            verified: true,
-            type: 'authentication' as const
-          }
+        // REAL biometric authentication - will trigger Face ID/Touch ID
+        console.log('[BiometricWithFallback] Starting REAL biometric authentication...')
+        webAuthnResult = await timeoutHandlerRef.current!.execute(
+          () => WebAuthnService.authenticate({
+            userId,
+            userName
+          }, abortControllerRef.current?.signal),
+          TIMEOUTS.WEBAUTHN_OPERATION,
+          'Real biometric authentication timed out. Please try again.',
+          'webauthn-authentication'
+        )
+        
+        console.log('[BiometricWithFallback] REAL biometric authentication completed successfully')
+        startProgressAnimation(1500)
+        result = {
+          success: true,
+          method: 'biometric' as const,
+          biometricType: capabilities.biometricTypes[0] as 'face' | 'fingerprint' | 'unknown' || 'unknown',
+          deviceInfo: {
+            isIOS: capabilities.deviceInfo.isIOS,
+            isMobile: capabilities.deviceInfo.isMobile,
+            platform: capabilities.deviceInfo.platform
+          },
+          timestamp: Date.now(),
+          credentialId: webAuthnResult.id,
+          verified: true,
+          type: 'authentication' as const,
+          realBiometric: true, // Flag to indicate real authentication was used
+          verificationData: webAuthnResult.verificationData // Include backend verification data
         }
       }
       
-      console.log('[BiometricWithFallback] Biometric authentication completed successfully:', result)
+      console.log('[BiometricWithFallback] REAL biometric operation completed successfully:', {
+        method: result.method,
+        type: result.type,
+        credentialId: result.credentialId,
+        realBiometric: result.realBiometric,
+        timestamp: result.timestamp
+      })
       return result
     } catch (err) {
-      console.error('[BiometricWithFallback] Biometric authentication failed:', err)
+      console.error('[BiometricWithFallback] REAL biometric authentication failed:', err)
       const webAuthnError = WebAuthnService.handleWebAuthnError(err)
       setError(webAuthnError)
       throw webAuthnError
@@ -588,12 +590,16 @@ export default function BiometricWithFallback({
       }
       
       const methodName = result.method === 'biometric' 
-        ? (result.biometricType === 'face' ? 'Face ID' : 'Touch ID')
+        ? (result.biometricType === 'face' ? 'Real Face ID' : 'Real Touch ID')
         : result.method === 'camera' 
         ? 'Camera Scan'
         : 'Visual Demo'
         
-      success('Authentication successful!', `${methodName} authentication completed successfully.`)
+      const successMessage = result.realBiometric 
+        ? `${methodName} authentication completed successfully - REAL biometric verification used!`
+        : `${methodName} authentication completed successfully.`
+        
+      success('Real Authentication Successful!', successMessage)
       
       if (debugMode) {
         console.log('[BiometricWithFallback] Authentication successful:', result)
@@ -1171,6 +1177,8 @@ export default function BiometricWithFallback({
             >
               {currentMethod === 'demo' 
                 ? 'This was a demonstration of how biometric authentication would work.'
+                : currentMethod === 'biometric'
+                ? 'REAL biometric authentication completed! Your Face ID/Touch ID was successfully verified.'
                 : 'You can now proceed with secure transactions.'}
             </motion.p>
             

@@ -1,30 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
-import { WebAuthnService } from '@/services/webauthn'
+import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request)
-    if (auth.error) return auth.error
+    const body = await request.json()
+    const { userId, userName, userDisplayName } = body
 
-    // Get user details
-    const user = await prisma.user.findUnique({
-      where: { id: auth.user.userId },
+    if (!userId || !userName) {
+      return createErrorResponse('userId and userName are required', 400)
+    }
+
+    // Create or get demo user
+    const user = await prisma.user.upsert({
+      where: { email: userName },
+      update: {
+        name: userDisplayName || userName,
+      },
+      create: {
+        id: userId,
+        email: userName,
+        name: userDisplayName || userName,
+        emailVerified: new Date(), // Mark as verified for demo purposes
+      },
       include: {
         webauthnCredentials: true,
       },
     })
 
-    if (!user) {
-      console.error('[WebAuthn Registration] User not found:', auth.user.userId)
-      return createErrorResponse('User not found', 404)
-    }
-
-    // Log biometric registration attempt
-    console.log('[WebAuthn Registration] Starting biometric registration for user:', {
+    // Log demo registration attempt
+    console.log('[WebAuthn Demo Registration] Starting REAL biometric registration for demo user:', {
       userId: user.id,
       email: user.email,
       existingCredentials: user.webauthnCredentials.length,
@@ -39,38 +46,36 @@ export async function POST(request: NextRequest) {
       transports: ['internal', 'hybrid'] as AuthenticatorTransportFuture[],
     }))
 
-    // Generate registration options with improved compatibility for localhost
+    // Generate registration options with strict biometric requirements
     const options = await generateRegistrationOptions({
-      rpName: process.env.WEBAUTHN_RP_NAME || 'FacePay',
+      rpName: process.env.WEBAUTHN_RP_NAME || 'FacePay Demo',
       rpID: process.env.WEBAUTHN_RP_ID || 'localhost',
       userID: Buffer.from(user.id, 'utf8'),
       userName: user.email,
       userDisplayName: user.name || user.email,
       timeout: 60000,
-      attestationType: 'none', // Change to 'none' for better compatibility
+      attestationType: 'direct',
       excludeCredentials: existingCredentials,
       authenticatorSelection: {
         // Force platform authenticators (built-in biometric sensors)
         authenticatorAttachment: 'platform',
-        // Change to false for better compatibility during testing
-        requireResidentKey: false,
-        // Change from 'required' to 'preferred' for testing
-        userVerification: 'preferred',
+        // Require resident key for better UX and security
+        residentKey: 'required',
+        // CRITICAL: Force biometric verification
+        userVerification: 'required',
       },
       supportedAlgorithmIDs: [-7, -257], // ES256, RS256
     })
 
     // Log the generated options for debugging
-    console.log('[WebAuthn Registration] Generated options:', {
+    console.log('[WebAuthn Demo Registration] Generated REAL biometric options:', {
       userId: user.id,
       rpID: options.rp.id,
       authenticatorAttachment: options.authenticatorSelection?.authenticatorAttachment,
       userVerification: options.authenticatorSelection?.userVerification,
-      requireResidentKey: options.authenticatorSelection?.requireResidentKey,
+      residentKey: options.authenticatorSelection?.residentKey,
       attestationType: options.attestation,
       challengeLength: options.challenge.length,
-      hostname: process.env.WEBAUTHN_RP_ID || 'localhost',
-      origin: process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000',
       timestamp: new Date().toISOString()
     })
 
@@ -83,11 +88,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Log successful registration start
-    console.log('[WebAuthn Registration] Registration options created successfully:', {
+    console.log('[WebAuthn Demo Registration] REAL biometric registration options created successfully:', {
       userId: user.id,
       email: user.email,
       biometricRequired: true,
       platformAuthenticator: true,
+      realWebAuthn: true,
       timestamp: new Date().toISOString()
     })
 
@@ -96,16 +102,17 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       biometricRequired: true,
       platformAuthenticatorRequired: true,
-      message: 'Biometric registration started successfully - platform authenticator required'
-    }, 'WebAuthn biometric registration started')
+      realWebAuthn: true,
+      message: 'REAL biometric registration started successfully - platform authenticator required'
+    }, 'WebAuthn REAL biometric demo registration started')
 
   } catch (error) {
-    console.error('[WebAuthn Registration] Registration start failed:', {
+    console.error('[WebAuthn Demo Registration] Registration start failed:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get('user-agent')
     })
-    return createErrorResponse('Failed to start biometric registration', 500)
+    return createErrorResponse('Failed to start REAL biometric demo registration', 500)
   }
 }

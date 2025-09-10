@@ -66,7 +66,8 @@ model WebauthnCredential {
   id           String   @id @default(cuid())
   credentialId String   @unique
   publicKey    String
-  counter      Int      @default(0)
+  counter      BigInt   @default(0)
+  transports   String[] @default(["internal"]) // ['internal', 'hybrid', etc.]
   backedUp     Boolean  @default(false)
   deviceType   String   @default("unknown") // single_device, multi_device, unknown
   deviceName   String?  // User-friendly device name

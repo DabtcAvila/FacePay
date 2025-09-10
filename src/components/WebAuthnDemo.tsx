@@ -55,12 +55,13 @@ export default function WebAuthnDemo({
 
   const handleRegistration = async () => {
     if (demoMode) {
-      // Demo mode - simulate registration
+      // Demo mode - simulate registration with warning
+      console.warn('[WebAuthnDemo] DEPRECATED: Demo mode used - switch to BiometricWithFallback for real authentication')
       setIsProcessing(true)
       setTimeout(() => {
         setIsProcessing(false)
         setStep('success')
-        onSuccess?.({ demo: true, type: 'registration' })
+        onSuccess?.({ demo: true, type: 'registration', deprecated: true })
       }, 2000)
       return
     }
@@ -69,11 +70,11 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // Use real WebAuthnService.registerWithBiometric method
+      // Use REAL WebAuthn registration - will trigger actual biometric prompt
+      console.log('[WebAuthnDemo] DEPRECATED: Using real WebAuthn - recommend switching to BiometricWithFallback')
       const result = await WebAuthnService.register({ userId, userName, userDisplayName: userName })
       
-      // Result is direct data, not wrapped in success object
-
+      console.log('[WebAuthnDemo] Real WebAuthn registration completed')
       setStep('success')
       onSuccess?.(result)
     } catch (err) {
@@ -87,12 +88,13 @@ export default function WebAuthnDemo({
 
   const handleAuthentication = async () => {
     if (demoMode) {
-      // Demo mode - simulate authentication
+      // Demo mode - simulate authentication with warning
+      console.warn('[WebAuthnDemo] DEPRECATED: Demo mode used - switch to BiometricWithFallback for real authentication')
       setIsProcessing(true)
       setTimeout(() => {
         setIsProcessing(false)
         setStep('success')
-        onSuccess?.({ demo: true, type: 'authentication' })
+        onSuccess?.({ demo: true, type: 'authentication', deprecated: true })
       }, 1500)
       return
     }
@@ -101,11 +103,11 @@ export default function WebAuthnDemo({
     setError(null)
 
     try {
-      // Use real WebAuthnService.authenticateWithBiometric method
-      const result = await WebAuthnService.authenticate()
+      // Use REAL WebAuthn authentication - will trigger actual biometric prompt
+      console.log('[WebAuthnDemo] DEPRECATED: Using real WebAuthn - recommend switching to BiometricWithFallback')
+      const result = await WebAuthnService.authenticate({ userId, userName })
       
-      // Result is direct data, not wrapped in success object
-
+      console.log('[WebAuthnDemo] Real WebAuthn authentication completed')
       setStep('success')
       onSuccess?.(result)
     } catch (err) {

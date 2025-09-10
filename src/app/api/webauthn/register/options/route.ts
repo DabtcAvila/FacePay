@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
-import { WebAuthnService } from '@/services/webauthn'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
@@ -19,12 +18,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
-      console.error('[WebAuthn Registration] User not found:', auth.user.userId)
+      console.error('[WebAuthn Registration Options] User not found:', auth.user.userId)
       return createErrorResponse('User not found', 404)
     }
 
     // Log biometric registration attempt
-    console.log('[WebAuthn Registration] Starting biometric registration for user:', {
+    console.log('[WebAuthn Registration Options] Generating registration options for user:', {
       userId: user.id,
       email: user.email,
       existingCredentials: user.webauthnCredentials.length,
@@ -39,42 +38,25 @@ export async function POST(request: NextRequest) {
       transports: ['internal', 'hybrid'] as AuthenticatorTransportFuture[],
     }))
 
-    // Generate registration options with improved compatibility for localhost
+    // Generate REAL registration options
     const options = await generateRegistrationOptions({
       rpName: process.env.WEBAUTHN_RP_NAME || 'FacePay',
-      rpID: process.env.WEBAUTHN_RP_ID || 'localhost',
+      rpID: process.env.WEBAUTHN_RP_ID || 'localhost', // or your domain
       userID: Buffer.from(user.id, 'utf8'),
       userName: user.email,
       userDisplayName: user.name || user.email,
       timeout: 60000,
-      attestationType: 'none', // Change to 'none' for better compatibility
+      attestationType: 'direct',
       excludeCredentials: existingCredentials,
       authenticatorSelection: {
-        // Force platform authenticators (built-in biometric sensors)
         authenticatorAttachment: 'platform',
-        // Change to false for better compatibility during testing
-        requireResidentKey: false,
-        // Change from 'required' to 'preferred' for testing
-        userVerification: 'preferred',
+        requireResidentKey: true,
+        userVerification: 'required'
       },
-      supportedAlgorithmIDs: [-7, -257], // ES256, RS256
+      supportedAlgorithmIDs: [-7, -257] // ES256, RS256
     })
 
-    // Log the generated options for debugging
-    console.log('[WebAuthn Registration] Generated options:', {
-      userId: user.id,
-      rpID: options.rp.id,
-      authenticatorAttachment: options.authenticatorSelection?.authenticatorAttachment,
-      userVerification: options.authenticatorSelection?.userVerification,
-      requireResidentKey: options.authenticatorSelection?.requireResidentKey,
-      attestationType: options.attestation,
-      challengeLength: options.challenge.length,
-      hostname: process.env.WEBAUTHN_RP_ID || 'localhost',
-      origin: process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000',
-      timestamp: new Date().toISOString()
-    })
-
-    // Store the challenge in the database for verification
+    // Store challenge in session/database
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -82,10 +64,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Log successful registration start
-    console.log('[WebAuthn Registration] Registration options created successfully:', {
+    console.log('[WebAuthn Registration Options] Registration options generated successfully:', {
       userId: user.id,
       email: user.email,
+      challengeLength: options.challenge.length,
+      rpID: options.rp.id,
       biometricRequired: true,
       platformAuthenticator: true,
       timestamp: new Date().toISOString()
@@ -96,16 +79,16 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       biometricRequired: true,
       platformAuthenticatorRequired: true,
-      message: 'Biometric registration started successfully - platform authenticator required'
-    }, 'WebAuthn biometric registration started')
+      message: 'Registration options generated successfully'
+    }, 'WebAuthn registration options generated')
 
   } catch (error) {
-    console.error('[WebAuthn Registration] Registration start failed:', {
+    console.error('[WebAuthn Registration Options] Failed to generate options:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get('user-agent')
     })
-    return createErrorResponse('Failed to start biometric registration', 500)
+    return createErrorResponse('Failed to generate registration options', 500)
   }
 }

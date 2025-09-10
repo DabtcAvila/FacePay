@@ -310,19 +310,37 @@ export default function DemoPage() {
               <BiometricWithFallback
                 userId={`demo-real-${Date.now()}`}
                 userName="demo@facepay.com"
-                mode="demo"
-                title="Real Device Biometric Authentication"
-                subtitle="Use your REAL Face ID, Touch ID, or Windows Hello"
+                mode="authentication"
+                title="🚨 REAL Biometric Authentication Test"
+                subtitle="CRITICAL: This will trigger your device's REAL Face ID/Touch ID"
                 onSuccess={(result) => {
-                  console.log('Real biometric success:', result)
+                  console.log('🎉 REAL biometric authentication SUCCESS:', result)
+                  if (result.realBiometric) {
+                    success('REAL Biometric Success!', 'Your device\'s Face ID/Touch ID was successfully used!')
+                  }
                   handleDemoComplete()
                 }}
-                onError={(error) => console.error('Real biometric error:', error)}
+                onError={(error) => {
+                  console.error('❌ REAL biometric authentication ERROR:', error)
+                  error('Real Biometric Failed', `Error: ${error.message}`)
+                }}
                 onCancel={handleBackToLanding}
-                showFallbackOptions={true}
+                showFallbackOptions={false}
                 preferredMethod="biometric"
                 className="p-0"
               />
+            </div>
+            
+            {/* Warning notice */}
+            <div className="mt-4 p-4 bg-red-500/20 border border-red-400/30 rounded-lg">
+              <div className="flex items-center space-x-2 text-red-200 mb-2">
+                <Shield className="w-5 h-5" />
+                <span className="font-semibold">⚠️ REAL AUTHENTICATION WARNING</span>
+              </div>
+              <p className="text-red-100 text-sm">
+                This will trigger your device's actual biometric authentication (Face ID, Touch ID, Windows Hello). 
+                This is NOT a simulation - you will see the real biometric prompt from your device.
+              </p>
             </div>
           </div>
         </div>
