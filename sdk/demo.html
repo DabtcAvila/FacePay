@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FacePay SDK Demo - Biometric Authentication Made Simple</title>
+    <meta name="description" content="Experience the power of FacePay SDK with this interactive demo. See how easy biometric authentication can be in just 5 lines of code.">
+    
+    <!-- Styles for a modern, professional demo -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .version {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            display: inline-block;
+        }
+
+        .main {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-icon {
+            font-size: 1.8rem;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+
+        .status-card.success {
+            border-left-color: #27ae60;
+        }
+
+        .status-card.error {
+            border-left-color: #e74c3c;
+        }
+
+        .status-card.warning {
+            border-left-color: #f39c12;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .code-header {
+            background: #4a5568;
+            color: white;
+            padding: 10px 20px;
+            margin: -20px -20px 20px -20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .highlight {
+            color: #81e6d9;
+            font-weight: bold;
+        }
+
+        .comment {
+            color: #a0aec0;
+            font-style: italic;
+        }
+
+        .string {
+            color: #fbb6ce;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px 10px 10px 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .button.secondary {
+            background: #ecf0f1;
+            color: #2c3e50;
+        }
+
+        .button.secondary:hover {
+            background: #d5dbdb;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .button.success {
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+        }
+
+        .button.danger {
+            background: linear-gradient(135deg, #e17055 0%, #fdcb6e 100%);
+        }
+
+        .input-group {
+            margin: 20px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .log-container {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-line;
+            margin: 20px 0;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+
+        .checkmark {
+            color: #27ae60;
+            font-size: 1.2rem;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .biometric-icon {
+            font-size: 3rem;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border: 1px solid transparent;
+        }
+
+        .alert.info {
+            background: #e3f2fd;
+            border-color: #bbdefb;
+            color: #1565c0;
+        }
+
+        .alert.success {
+            background: #e8f5e8;
+            border-color: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .alert.warning {
+            background: #fff3e0;
+            border-color: #ffcc02;
+            color: #ef6c00;
+        }
+
+        .alert.error {
+            background: #ffebee;
+            border-color: #ffcdd2;
+            color: #c62828;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main {
+                padding: 20px;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🔐 FacePay SDK Demo</h1>
+            <p>Biometric Authentication Made Simple - Just 5 Lines of Code</p>
+            <span class="version" id="sdkVersion">Loading...</span>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main">
+            <!-- Quick Start Section -->
+            <div class="section">
+                <h2><span class="section-icon">🚀</span>Quick Start</h2>
+                <p>Experience the simplicity of FacePay SDK. Real biometric authentication in just a few lines:</p>
+                
+                <div class="code-block">
+                    <div class="code-header">JavaScript Integration</div>
+                    <span class="comment">// 1. Initialize FacePay SDK</span><br>
+                    <span class="highlight">const</span> facePay = <span class="highlight">new</span> <span class="string">FacePay</span>({<br>
+                    &nbsp;&nbsp;apiKey: <span class="string">'your-api-key'</span>,<br>
+                    &nbsp;&nbsp;baseUrl: <span class="string">'https://your-api.com'</span>,<br>
+                    &nbsp;&nbsp;debug: <span class="highlight">true</span><br>
+                    });<br><br>
+                    
+                    <span class="comment">// 2. Enroll user biometric data</span><br>
+                    <span class="highlight">await</span> facePay.<span class="string">enroll</span>(<span class="string">'user@example.com'</span>);<br><br>
+                    
+                    <span class="comment">// 3. Authenticate with biometrics</span><br>
+                    <span class="highlight">const</span> result = <span class="highlight">await</span> facePay.<span class="string">authenticate</span>(<span class="string">'user@example.com'</span>);<br><br>
+                    
+                    <span class="comment">// 4. Verify the result</span><br>
+                    <span class="highlight">if</span> (result.verified) {<br>
+                    &nbsp;&nbsp;console.log(<span class="string">'✅ Authentication successful!'</span>);<br>
+                    }
+                </div>
+
+                <div class="alert info">
+                    <strong>🔍 Note:</strong> This demo works with real biometric sensors (Face ID, Touch ID, Windows Hello, Android Fingerprint). 
+                    Make sure you're on a supported device and browser.
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="section">
+                <h2><span class="section-icon">📊</span>System Status</h2>
+                <div id="systemStatus">
+                    <div class="loader"></div> Checking system compatibility...
+                </div>
+                
+                <div class="stats-grid" id="statsGrid" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-value" id="browserSupport">❓</div>
+                        <div class="stat-label">Browser Support</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="biometricType">❓</div>
+                        <div class="stat-label">Biometric Type</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="deviceType">❓</div>
+                        <div class="stat-label">Device Type</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="securityLevel">❓</div>
+                        <div class="stat-label">Security Level</div>
+                    </div>
+                </div>
+
+                <button class="button secondary" onclick="checkSystemStatus()">
+                    🔄 Refresh Status
+                </button>
+                <button class="button secondary" onclick="runDiagnostics()">
+                    🔧 Run Diagnostics
+                </button>
+            </div>
+
+            <!-- Interactive Demo -->
+            <div class="section">
+                <h2><span class="section-icon">🧪</span>Interactive Demo</h2>
+                <p>Try the FacePay SDK with these interactive examples:</p>
+
+                <div class="grid">
+                    <!-- Enrollment Demo -->
+                    <div class="card">
+                        <h3>👤 User Enrollment</h3>
+                        <p>Register a new user for biometric authentication</p>
+                        
+                        <div class="input-group">
+                            <label for="enrollEmail">Email Address:</label>
+                            <input type="email" id="enrollEmail" placeholder="user@example.com" value="demo-user@facepay.com">
+                        </div>
+                        
+                        <button class="button success" onclick="testEnrollment()">
+                            🔐 Start Enrollment
+                        </button>
+                        
+                        <div id="enrollmentResult"></div>
+                    </div>
+
+                    <!-- Authentication Demo -->
+                    <div class="card">
+                        <h3>🔓 User Authentication</h3>
+                        <p>Authenticate an enrolled user with biometrics</p>
+                        
+                        <div class="input-group">
+                            <label for="authEmail">Email Address:</label>
+                            <input type="email" id="authEmail" placeholder="user@example.com" value="demo-user@facepay.com">
+                        </div>
+                        
+                        <button class="button" onclick="testAuthentication()">
+                            👆 Authenticate Now
+                        </button>
+                        
+                        <div id="authenticationResult"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>🧪 SDK Testing Suite</h3>
+                    <p>Run comprehensive tests to verify SDK functionality</p>
+                    
+                    <button class="button secondary" onclick="runFullTest()">
+                        🔬 Run All Tests
+                    </button>
+                    <button class="button secondary" onclick="clearLogs()">
+                        🧹 Clear Logs
+                    </button>
+                    
+                    <div id="testResults"></div>
+                </div>
+            </div>
+
+            <!-- SDK Features -->
+            <div class="section">
+                <h2><span class="section-icon">⭐</span>SDK Features</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>🎯 Core Features</h3>
+                        <ul class="feature-list">
+                            <li><span class="checkmark">✅</span> WebAuthn-based biometric auth</li>
+                            <li><span class="checkmark">✅</span> Face ID & Touch ID support</li>
+                            <li><span class="checkmark">✅</span> Windows Hello integration</li>
+                            <li><span class="checkmark">✅</span> Android biometric support</li>
+                            <li><span class="checkmark">✅</span> Auto-retry mechanisms</li>
+                            <li><span class="checkmark">✅</span> Fallback handling</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>🔧 Developer Experience</h3>
+                        <ul class="feature-list">
+                            <li><span class="checkmark">✅</span> 5-line integration</li>
+                            <li><span class="checkmark">✅</span> Full TypeScript support</li>
+                            <li><span class="checkmark">✅</span> Promise-based API</li>
+                            <li><span class="checkmark">✅</span> Comprehensive error handling</li>
+                            <li><span class="checkmark">✅</span> Debug logging</li>
+                            <li><span class="checkmark">✅</span> Production ready</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>🌍 Browser Support</h3>
+                        <ul class="feature-list">
+                            <li><span class="checkmark">✅</span> Chrome 67+</li>
+                            <li><span class="checkmark">✅</span> Safari 14+</li>
+                            <li><span class="checkmark">✅</span> Firefox 60+</li>
+                            <li><span class="checkmark">✅</span> Edge 79+</li>
+                            <li><span class="checkmark">✅</span> Mobile browsers</li>
+                            <li><span class="checkmark">✅</span> PWA support</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>📈 Performance</h3>
+                        <ul class="feature-list">
+                            <li><span class="checkmark">✅</span> &lt;50KB bundle size</li>
+                            <li><span class="checkmark">✅</span> Zero dependencies*</li>
+                            <li><span class="checkmark">✅</span> Fast initialization</li>
+                            <li><span class="checkmark">✅</span> Minimal memory usage</li>
+                            <li><span class="checkmark">✅</span> Tree-shakeable</li>
+                            <li><span class="checkmark">✅</span> CDN optimized</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Logs -->
+            <div class="section">
+                <h2><span class="section-icon">📜</span>Real-time Logs</h2>
+                <p>Watch the SDK in action with detailed logging:</p>
+                <div class="log-container" id="logContainer">
+                    [FacePay SDK Demo] Ready to start logging...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the FacePay SDK -->
+    <script src="./facepay.js"></script>
+    
+    <!-- Demo JavaScript -->
+    <script>
+        // Demo application state
+        let facePaySDK = null;
+        let systemCapabilities = null;
+        
+        // Initialize demo when page loads
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initDemo();
+        });
+
+        // Initialize the demo application
+        async function initDemo() {
+            log('🚀 Initializing FacePay SDK Demo...');
+            
+            try {
+                // Initialize SDK
+                facePaySDK = new FacePay({
+                    debug: true,
+                    timeout: 30000
+                });
+
+                // Update version display
+                document.getElementById('sdkVersion').textContent = `v${facePaySDK.version}`;
+                
+                log(`✅ FacePay SDK v${facePaySDK.version} initialized successfully`);
+                
+                // Check system status
+                await checkSystemStatus();
+                
+            } catch (error) {
+                log(`❌ Failed to initialize SDK: ${error.message}`, 'error');
+                showStatus('SDK initialization failed: ' + error.message, 'error');
+            }
+        }
+
+        // Check system status and capabilities
+        async function checkSystemStatus() {
+            log('🔍 Checking system capabilities...');
+            
+            try {
+                const support = await facePaySDK.isSupported();
+                systemCapabilities = support;
+                
+                log('📊 System capabilities detected:', 'info');
+                log(JSON.stringify(support, null, 2), 'info');
+                
+                // Update UI
+                updateSystemStatus(support);
+                
+            } catch (error) {
+                log(`❌ Failed to check system status: ${error.message}`, 'error');
+                showStatus('Failed to check system capabilities', 'error');
+            }
+        }
+
+        // Update system status display
+        function updateSystemStatus(support) {
+            const statusElement = document.getElementById('systemStatus');
+            const statsGrid = document.getElementById('statsGrid');
+            
+            if (support.supported) {
+                statusElement.innerHTML = `
+                    <div class="status-card success">
+                        <strong>✅ System Ready</strong><br>
+                        Your device supports biometric authentication with <strong>${support.biometricType}</strong>
+                    </div>
+                `;
+                
+                // Update stats
+                document.getElementById('browserSupport').textContent = '✅';
+                document.getElementById('biometricType').textContent = support.biometricType;
+                document.getElementById('deviceType').textContent = support.deviceInfo.isMobile ? '📱' : '💻';
+                document.getElementById('securityLevel').textContent = '🔒 High';
+                
+                statsGrid.style.display = 'grid';
+            } else {
+                let issues = support.issues.length > 0 ? support.issues.join(', ') : 'Unknown compatibility issue';
+                
+                statusElement.innerHTML = `
+                    <div class="status-card error">
+                        <strong>❌ System Not Supported</strong><br>
+                        Issues: ${issues}
+                    </div>
+                `;
+                
+                // Update stats
+                document.getElementById('browserSupport').textContent = '❌';
+                document.getElementById('biometricType').textContent = 'N/A';
+                document.getElementById('deviceType').textContent = support.deviceInfo.isMobile ? '📱' : '💻';
+                document.getElementById('securityLevel').textContent = '⚠️ Low';
+                
+                statsGrid.style.display = 'grid';
+            }
+        }
+
+        // Test enrollment
+        async function testEnrollment() {
+            const email = document.getElementById('enrollEmail').value;
+            const resultDiv = document.getElementById('enrollmentResult');
+            
+            if (!email) {
+                showResult(resultDiv, 'Please enter an email address', 'error');
+                return;
+            }
+
+            log(`👤 Starting enrollment for: ${email}`);
+            showResult(resultDiv, '🔄 Starting biometric enrollment...', 'info');
+
+            try {
+                const result = await facePaySDK.enroll(email);
+                
+                log('✅ Enrollment successful!', 'success');
+                log(JSON.stringify(result, null, 2), 'success');
+                
+                showResult(resultDiv, `
+                    <div class="alert success">
+                        <strong>✅ Enrollment Successful!</strong><br>
+                        Credential ID: ${result.credentialId.substring(0, 20)}...<br>
+                        Biometric Type: ${result.biometricType}<br>
+                        Device: ${result.metadata.deviceType}
+                    </div>
+                `, 'success');
+
+            } catch (error) {
+                log(`❌ Enrollment failed: ${error.message}`, 'error');
+                
+                let errorType = error.code || 'UNKNOWN_ERROR';
+                let suggestion = error.suggestedAction || 'Please try again';
+                
+                showResult(resultDiv, `
+                    <div class="alert error">
+                        <strong>❌ Enrollment Failed</strong><br>
+                        Error: ${error.message}<br>
+                        Type: ${errorType}<br>
+                        Suggestion: ${suggestion}
+                    </div>
+                `, 'error');
+            }
+        }
+
+        // Test authentication
+        async function testAuthentication() {
+            const email = document.getElementById('authEmail').value;
+            const resultDiv = document.getElementById('authenticationResult');
+            
+            if (!email) {
+                showResult(resultDiv, 'Please enter an email address', 'error');
+                return;
+            }
+
+            log(`🔓 Starting authentication for: ${email}`);
+            showResult(resultDiv, '🔄 Starting biometric authentication...', 'info');
+
+            try {
+                const result = await facePaySDK.authenticate(email);
+                
+                log('✅ Authentication successful!', 'success');
+                log(JSON.stringify(result, null, 2), 'success');
+                
+                showResult(resultDiv, `
+                    <div class="alert success">
+                        <strong>✅ Authentication Successful!</strong><br>
+                        Credential ID: ${result.credentialId.substring(0, 20)}...<br>
+                        Biometric Type: ${result.biometricType}<br>
+                        User: ${result.user?.email || 'N/A'}<br>
+                        Verified: ${result.verified ? 'Yes' : 'No'}
+                    </div>
+                `, 'success');
+
+            } catch (error) {
+                log(`❌ Authentication failed: ${error.message}`, 'error');
+                
+                let errorType = error.code || 'UNKNOWN_ERROR';
+                let suggestion = error.suggestedAction || 'Please try again';
+                
+                showResult(resultDiv, `
+                    <div class="alert error">
+                        <strong>❌ Authentication Failed</strong><br>
+                        Error: ${error.message}<br>
+                        Type: ${errorType}<br>
+                        Suggestion: ${suggestion}
+                    </div>
+                `, 'error');
+            }
+        }
+
+        // Run full test suite
+        async function runFullTest() {
+            const resultDiv = document.getElementById('testResults');
+            
+            log('🧪 Running comprehensive SDK test suite...');
+            showResult(resultDiv, '🔄 Running comprehensive tests...', 'info');
+
+            try {
+                const testResult = await facePaySDK.test();
+                
+                log('📊 Test suite completed!', 'info');
+                log(JSON.stringify(testResult, null, 2), 'info');
+                
+                let statusClass = testResult.overall === 'pass' ? 'success' : 
+                                 testResult.overall === 'fail' ? 'warning' : 'error';
+                
+                let statusIcon = testResult.overall === 'pass' ? '✅' : 
+                               testResult.overall === 'fail' ? '⚠️' : '❌';
+                
+                showResult(resultDiv, `
+                    <div class="alert ${statusClass}">
+                        <strong>${statusIcon} Test Suite ${testResult.overall.toUpperCase()}</strong><br>
+                        SDK Ready: ${testResult.ready ? 'Yes' : 'No'}<br>
+                        WebAuthn Available: ${testResult.tests.webauthn.available ? 'Yes' : 'No'}<br>
+                        HTTPS Secure: ${testResult.tests.environment.https ? 'Yes' : 'No'}<br>
+                        Biometric Support: ${testResult.tests.support.supported ? 'Yes' : 'No'}<br>
+                        ${testResult.error ? `Error: ${testResult.error}` : ''}
+                    </div>
+                `);
+
+            } catch (error) {
+                log(`❌ Test suite failed: ${error.message}`, 'error');
+                showResult(resultDiv, `
+                    <div class="alert error">
+                        <strong>❌ Test Suite Error</strong><br>
+                        ${error.message}
+                    </div>
+                `, 'error');
+            }
+        }
+
+        // Run diagnostics
+        async function runDiagnostics() {
+            log('🔧 Running detailed diagnostics...');
+            
+            try {
+                const diagnostics = await facePaySDK.getDiagnostics();
+                
+                log('🔍 Diagnostic report generated:', 'info');
+                log(JSON.stringify(diagnostics, null, 2), 'info');
+                
+                // Show a summary in the UI
+                const issues = diagnostics.issues.length;
+                const hasApiKey = diagnostics.config.hasApiKey;
+                const isSecure = diagnostics.environment.isHTTPS || diagnostics.environment.isLocalhost;
+                
+                showStatus(`
+                    Diagnostics completed: ${issues} issues found. 
+                    API Key: ${hasApiKey ? 'Present' : 'Missing'}. 
+                    Secure Context: ${isSecure ? 'Yes' : 'No'}.
+                    Check logs for details.
+                `, issues === 0 ? 'success' : 'warning');
+                
+            } catch (error) {
+                log(`❌ Diagnostics failed: ${error.message}`, 'error');
+                showStatus('Diagnostics failed: ' + error.message, 'error');
+            }
+        }
+
+        // Utility function to show status messages
+        function showStatus(message, type = 'info') {
+            // This could be enhanced with toast notifications
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        // Utility function to show results in UI
+        function showResult(element, content, type = 'info') {
+            if (typeof content === 'string' && !content.includes('<div')) {
+                const alertClass = type === 'success' ? 'success' : 
+                                 type === 'error' ? 'error' : 
+                                 type === 'warning' ? 'warning' : 'info';
+                const icon = type === 'success' ? '✅' : 
+                           type === 'error' ? '❌' : 
+                           type === 'warning' ? '⚠️' : 'ℹ️';
+                
+                element.innerHTML = `<div class="alert ${alertClass}"><strong>${icon}</strong> ${content}</div>`;
+            } else {
+                element.innerHTML = content;
+            }
+        }
+
+        // Logging function
+        function log(message, level = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logContainer = document.getElementById('logContainer');
+            
+            const levelIcons = {
+                'info': 'ℹ️',
+                'success': '✅',
+                'warning': '⚠️',
+                'error': '❌',
+                'debug': '🔍'
+            };
+            
+            const icon = levelIcons[level] || 'ℹ️';
+            const logEntry = `[${timestamp}] ${icon} ${message}\n`;
+            
+            // Add to log container
+            logContainer.textContent += logEntry;
+            
+            // Auto-scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Also log to console
+            console.log(`[FacePay Demo] ${message}`);
+        }
+
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('logContainer').textContent = '[FacePay SDK Demo] Logs cleared...\n';
+        }
+
+        // Add some demo-specific CSS for better mobile experience
+        if (window.innerWidth < 768) {
+            document.body.style.padding = '10px';
+        }
+
+        // Handle orientation change on mobile
+        window.addEventListener('orientationchange', function() {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+            }, 100);
+        });
+
+        // Add keyboard shortcuts for power users
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'e':
+                        e.preventDefault();
+                        testEnrollment();
+                        break;
+                    case 'a':
+                        e.preventDefault();
+                        testAuthentication();
+                        break;
+                    case 't':
+                        e.preventDefault();
+                        runFullTest();
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        checkSystemStatus();
+                        break;
+                }
+            }
+        });
+
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            log(`❌ Global error: ${e.message}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            log(`❌ Unhandled promise rejection: ${e.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

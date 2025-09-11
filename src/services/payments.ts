@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { ethers } from 'ethers'
+import { paymentMonitor, TransactionData } from './payment-monitoring'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
@@ -142,6 +143,24 @@ export class PaymentService {
   private static async handleCheckoutSessionCompleted(session: any) {
     // This would typically update your database
     console.log('Checkout session completed:', session.id)
+    
+    // Track successful transaction
+    const startTime = Date.now();
+    await paymentMonitor.trackTransaction({
+      id: session.id,
+      userId: session.customer || 'anonymous',
+      amount: session.amount_total / 100, // Convert from cents
+      currency: session.currency.toUpperCase(),
+      status: 'completed',
+      paymentMethod: 'stripe_checkout',
+      timestamp: new Date(),
+      responseTime: Date.now() - startTime,
+      metadata: {
+        sessionId: session.id,
+        paymentStatus: session.payment_status
+      }
+    });
+
     return {
       sessionId: session.id,
       paymentStatus: session.payment_status,
@@ -152,6 +171,22 @@ export class PaymentService {
 
   private static async handlePaymentIntentSucceeded(paymentIntent: any) {
     console.log('Payment intent succeeded:', paymentIntent.id)
+    
+    // Track successful transaction
+    await paymentMonitor.trackTransaction({
+      id: paymentIntent.id,
+      userId: paymentIntent.customer || 'anonymous',
+      amount: paymentIntent.amount / 100, // Convert from cents
+      currency: paymentIntent.currency.toUpperCase(),
+      status: 'completed',
+      paymentMethod: 'stripe_payment_intent',
+      timestamp: new Date(),
+      metadata: {
+        paymentIntentId: paymentIntent.id,
+        charges: paymentIntent.charges?.data?.length || 0
+      }
+    });
+
     return {
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
@@ -161,6 +196,25 @@ export class PaymentService {
 
   private static async handlePaymentIntentFailed(paymentIntent: any) {
     console.log('Payment intent failed:', paymentIntent.id)
+    
+    // Track failed transaction
+    await paymentMonitor.trackTransaction({
+      id: paymentIntent.id,
+      userId: paymentIntent.customer || 'anonymous',
+      amount: paymentIntent.amount / 100, // Convert from cents
+      currency: paymentIntent.currency.toUpperCase(),
+      status: 'failed',
+      paymentMethod: 'stripe_payment_intent',
+      timestamp: new Date(),
+      errorCode: paymentIntent.last_payment_error?.code,
+      errorMessage: paymentIntent.last_payment_error?.message,
+      metadata: {
+        paymentIntentId: paymentIntent.id,
+        failureReason: paymentIntent.last_payment_error?.type,
+        declineCode: paymentIntent.last_payment_error?.decline_code
+      }
+    });
+
     return {
       paymentIntentId: paymentIntent.id,
       errorMessage: paymentIntent.last_payment_error?.message,

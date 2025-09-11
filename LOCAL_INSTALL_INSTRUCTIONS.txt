@@ -1,0 +1,23 @@
+📋 INSTRUCCIONES PARA CONFIGURAR TU SERVIDOR LOCAL:
+
+1. Abre una NUEVA terminal
+2. Ve al directorio del proyecto:
+   cd ~/MASTER\ proyectos/FacePay
+
+3. Ejecuta el script:
+   ./scripts/setup-local-server.sh
+
+4. Cuando aparezca el menú, presiona: 1 (Instalación completa)
+
+5. El script hará TODO automáticamente:
+   ✅ Instalará PostgreSQL local
+   ✅ Configurará la base de datos
+   ✅ Instalará FacePay
+   ✅ Configurará Nginx
+   ✅ Activará backups automáticos
+   
+6. En ~10 minutos estará listo!
+
+Tu app estará en: http://localhost:3000
+Base de datos: 100% LOCAL en tu máquina
+Control: 100% TUYO

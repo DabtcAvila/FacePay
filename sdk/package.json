@@ -1,0 +1,75 @@
+{
+  "name": "@facepay/sdk",
+  "version": "1.0.0",
+  "description": "Lightweight JavaScript SDK for biometric authentication using WebAuthn - Just 5 lines of code!",
+  "main": "facepay.js",
+  "types": "types.d.ts",
+  "files": [
+    "facepay.js",
+    "types.d.ts",
+    "README.md",
+    "demo.html"
+  ],
+  "scripts": {
+    "test": "node test.js",
+    "demo": "python -m http.server 8000",
+    "serve": "npx serve .",
+    "size": "du -h facepay.js"
+  },
+  "keywords": [
+    "biometric",
+    "authentication",
+    "webauthn",
+    "faceid",
+    "touchid",
+    "fingerprint",
+    "security",
+    "sdk",
+    "javascript",
+    "typescript",
+    "face-recognition",
+    "biometric-auth",
+    "passwordless",
+    "2fa",
+    "mfa"
+  ],
+  "author": "FacePay Team <team@facepay.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/facepay/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/facepay/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/facepay/sdk/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browser": "facepay.js",
+  "module": "facepay.js",
+  "unpkg": "facepay.js",
+  "jsdelivr": "facepay.js",
+  "cdn": "facepay.js",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/facepay"
+  },
+  "config": {
+    "bundle_size_limit": "50KB",
+    "current_size": "24KB"
+  },
+  "dependencies": {},
+  "peerDependencies": {},
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "bundledDependencies": [],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "collective": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/facepay"
+  }
+}
