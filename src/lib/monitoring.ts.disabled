@@ -1,0 +1,703 @@
+import { v4 as uuidv4 } from 'uuid';
+
+// Performance Metrics Types
+export interface PerformanceMetric {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
+  timestamp: number;
+  url: string;
+  userId?: string;
+  sessionId: string;
+  deviceInfo: DeviceInfo;
+}
+
+export interface DeviceInfo {
+  userAgent: string;
+  platform: string;
+  screenResolution: string;
+  connectionType?: string;
+  memoryUsage?: number;
+  batteryLevel?: number;
+}
+
+export interface ErrorReport {
+  id: string;
+  message: string;
+  stack?: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+  timestamp: number;
+  url: string;
+  userId?: string;
+  sessionId: string;
+  userAgent: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  context?: Record<string, any>;
+  fingerprint?: string;
+}
+
+export interface WebVitalsMetric {
+  name: 'CLS' | 'FID' | 'FCP' | 'LCP' | 'TTFB' | 'INP';
+  value: number;
+  rating: 'good' | 'needs-improvement' | 'poor';
+  delta: number;
+  id: string;
+  timestamp: number;
+}
+
+export interface CustomAlert {
+  id: string;
+  type: 'performance' | 'error' | 'business' | 'security';
+  message: string;
+  threshold: number;
+  currentValue: number;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  timestamp: number;
+  resolved: boolean;
+}
+
+// Monitoring Configuration
+interface MonitoringConfig {
+  sentryDsn?: string;
+  enableErrorReporting?: boolean;
+  enablePerformanceMonitoring?: boolean;
+  enableWebVitals?: boolean;
+  enableConsoleCapture?: boolean;
+  enableNetworkMonitoring?: boolean;
+  performanceThresholds?: {
+    lcp: number;
+    fid: number;
+    cls: number;
+    fcp: number;
+    ttfb: number;
+  };
+  errorSamplingRate?: number;
+  performanceSamplingRate?: number;
+}
+
+// Enhanced Monitoring Class
+class EnhancedMonitoring {
+  private config: MonitoringConfig;
+  private sessionId: string;
+  private userId?: string;
+  private errorQueue: ErrorReport[] = [];
+  private performanceQueue: PerformanceMetric[] = [];
+  private alerts: CustomAlert[] = [];
+  private isInitialized = false;
+  private performanceObserver?: PerformanceObserver;
+
+  constructor(config: MonitoringConfig) {
+    this.config = {
+      enableErrorReporting: true,
+      enablePerformanceMonitoring: true,
+      enableWebVitals: true,
+      enableConsoleCapture: true,
+      enableNetworkMonitoring: true,
+      performanceThresholds: {
+        lcp: 2500, // Large Contentful Paint
+        fid: 100,  // First Input Delay
+        cls: 0.1,  // Cumulative Layout Shift
+        fcp: 1800, // First Contentful Paint
+        ttfb: 800  // Time to First Byte
+      },
+      errorSamplingRate: 1.0,
+      performanceSamplingRate: 0.1,
+      ...config
+    };
+    this.sessionId = uuidv4();
+
+    if (typeof window !== 'undefined') {
+      this.initializeBrowserMonitoring();
+    }
+  }
+
+  private initializeBrowserMonitoring() {
+    // Initialize Sentry
+    if (this.config.sentryDsn) {
+      this.initializeSentry();
+    }
+
+    // Set up error handling
+    if (this.config.enableErrorReporting) {
+      this.setupErrorHandling();
+    }
+
+    // Set up performance monitoring
+    if (this.config.enablePerformanceMonitoring) {
+      this.setupPerformanceMonitoring();
+    }
+
+    // Set up Web Vitals monitoring
+    if (this.config.enableWebVitals) {
+      this.setupWebVitalsMonitoring();
+    }
+
+    // Set up console capture
+    if (this.config.enableConsoleCapture) {
+      this.setupConsoleCapture();
+    }
+
+    // Set up network monitoring
+    if (this.config.enableNetworkMonitoring) {
+      this.setupNetworkMonitoring();
+    }
+
+    this.isInitialized = true;
+  }
+
+  private async initializeSentry() {
+    try {
+      // Dynamic import for Sentry
+      const Sentry = await import('@sentry/browser');
+      const { Integrations } = await import('@sentry/tracing');
+
+      Sentry.init({
+        dsn: this.config.sentryDsn,
+        integrations: [
+          new Integrations.BrowserTracing(),
+        ],
+        tracesSampleRate: this.config.performanceSamplingRate || 0.1,
+        beforeSend: (event) => {
+          // Apply sampling for errors
+          if (Math.random() > (this.config.errorSamplingRate || 1.0)) {
+            return null;
+          }
+          return event;
+        }
+      });
+
+      // Set user context
+      if (this.userId) {
+        Sentry.setUser({ id: this.userId });
+      }
+    } catch (error) {
+      console.warn('Failed to initialize Sentry:', error);
+    }
+  }
+
+  private setupErrorHandling() {
+    // Global error handler
+    window.addEventListener('error', (event) => {
+      const errorReport: ErrorReport = {
+        id: uuidv4(),
+        message: event.message,
+        stack: event.error?.stack,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        timestamp: Date.now(),
+        url: window.location.href,
+        userId: this.userId,
+        sessionId: this.sessionId,
+        userAgent: navigator.userAgent,
+        severity: this.categorizeError(event.error),
+        fingerprint: this.generateErrorFingerprint(event.message, event.filename, event.lineno)
+      };
+
+      this.reportError(errorReport);
+    });
+
+    // Unhandled promise rejection handler
+    window.addEventListener('unhandledrejection', (event) => {
+      const errorReport: ErrorReport = {
+        id: uuidv4(),
+        message: `Unhandled Promise Rejection: ${event.reason}`,
+        stack: event.reason?.stack,
+        timestamp: Date.now(),
+        url: window.location.href,
+        userId: this.userId,
+        sessionId: this.sessionId,
+        userAgent: navigator.userAgent,
+        severity: 'high',
+        context: { type: 'unhandled_promise_rejection' },
+        fingerprint: this.generateErrorFingerprint(event.reason?.message || String(event.reason))
+      };
+
+      this.reportError(errorReport);
+    });
+  }
+
+  private setupPerformanceMonitoring() {
+    if ('PerformanceObserver' in window) {
+      // Monitor Long Tasks
+      try {
+        this.performanceObserver = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.entryType === 'longtask') {
+              this.recordPerformanceMetric({
+                id: uuidv4(),
+                name: 'long_task',
+                value: entry.duration,
+                unit: 'milliseconds',
+                timestamp: Date.now(),
+                url: window.location.href,
+                userId: this.userId,
+                sessionId: this.sessionId,
+                deviceInfo: this.getDeviceInfo()
+              });
+            }
+          }
+        });
+
+        this.performanceObserver.observe({ entryTypes: ['longtask'] });
+      } catch (error) {
+        console.warn('Long task monitoring not supported:', error);
+      }
+
+      // Monitor Navigation Timing
+      this.monitorNavigationTiming();
+
+      // Monitor Resource Timing
+      this.monitorResourceTiming();
+    }
+
+    // Monitor Memory Usage
+    this.monitorMemoryUsage();
+
+    // Monitor Frame Rate
+    this.monitorFrameRate();
+  }
+
+  private setupWebVitalsMonitoring() {
+    // Import web-vitals dynamically
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB, onINP }) => {
+      getCLS(this.onWebVital.bind(this));
+      getFID(this.onWebVital.bind(this));
+      getFCP(this.onWebVital.bind(this));
+      getLCP(this.onWebVital.bind(this));
+      getTTFB(this.onWebVital.bind(this));
+      if (onINP) {
+        onINP(this.onWebVital.bind(this));
+      }
+    }).catch(() => {
+      console.warn('Web Vitals library not available');
+    });
+  }
+
+  private onWebVital(metric: any) {
+    const webVitalMetric: WebVitalsMetric = {
+      name: metric.name,
+      value: metric.value,
+      rating: metric.rating,
+      delta: metric.delta,
+      id: metric.id,
+      timestamp: Date.now()
+    };
+
+    // Check against thresholds and create alerts
+    this.checkPerformanceThresholds(webVitalMetric);
+
+    // Record the metric
+    this.recordPerformanceMetric({
+      id: uuidv4(),
+      name: `web_vital_${metric.name.toLowerCase()}`,
+      value: metric.value,
+      unit: metric.name === 'CLS' ? 'score' : 'milliseconds',
+      timestamp: Date.now(),
+      url: window.location.href,
+      userId: this.userId,
+      sessionId: this.sessionId,
+      deviceInfo: this.getDeviceInfo()
+    });
+  }
+
+  private setupConsoleCapture() {
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      const errorReport: ErrorReport = {
+        id: uuidv4(),
+        message: args.join(' '),
+        timestamp: Date.now(),
+        url: window.location.href,
+        userId: this.userId,
+        sessionId: this.sessionId,
+        userAgent: navigator.userAgent,
+        severity: 'medium',
+        context: { type: 'console_error', args },
+        fingerprint: this.generateErrorFingerprint(args.join(' '))
+      };
+
+      this.reportError(errorReport);
+      originalConsoleError.apply(console, args);
+    };
+  }
+
+  private setupNetworkMonitoring() {
+    // Monitor fetch requests
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const startTime = performance.now();
+      
+      try {
+        const response = await originalFetch.apply(window, args);
+        const endTime = performance.now();
+        
+        // Record network performance
+        this.recordPerformanceMetric({
+          id: uuidv4(),
+          name: 'network_request',
+          value: endTime - startTime,
+          unit: 'milliseconds',
+          timestamp: Date.now(),
+          url: window.location.href,
+          userId: this.userId,
+          sessionId: this.sessionId,
+          deviceInfo: this.getDeviceInfo()
+        });
+
+        // Monitor failed requests
+        if (!response.ok) {
+          this.reportError({
+            id: uuidv4(),
+            message: `HTTP ${response.status}: ${response.statusText}`,
+            timestamp: Date.now(),
+            url: window.location.href,
+            userId: this.userId,
+            sessionId: this.sessionId,
+            userAgent: navigator.userAgent,
+            severity: response.status >= 500 ? 'high' : 'medium',
+            context: {
+              type: 'http_error',
+              status: response.status,
+              url: typeof args[0] === 'string' ? args[0] : (args[0] instanceof URL ? args[0].href : (args[0] as any)?.url)
+            }
+          });
+        }
+
+        return response;
+      } catch (error) {
+        const endTime = performance.now();
+        
+        this.reportError({
+          id: uuidv4(),
+          message: `Network Error: ${error}`,
+          stack: (error as Error).stack,
+          timestamp: Date.now(),
+          url: window.location.href,
+          userId: this.userId,
+          sessionId: this.sessionId,
+          userAgent: navigator.userAgent,
+          severity: 'high',
+          context: {
+            type: 'network_error',
+            duration: endTime - startTime,
+            url: typeof args[0] === 'string' ? args[0] : (args[0] instanceof URL ? args[0].href : (args[0] as any)?.url)
+          }
+        });
+
+        throw error;
+      }
+    };
+  }
+
+  private monitorNavigationTiming() {
+    if ('PerformanceNavigationTiming' in window) {
+      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      
+      const metrics = [
+        { name: 'dns_lookup', value: navigation.domainLookupEnd - navigation.domainLookupStart },
+        { name: 'tcp_connect', value: navigation.connectEnd - navigation.connectStart },
+        { name: 'request_response', value: navigation.responseEnd - navigation.requestStart },
+        { name: 'dom_processing', value: navigation.domComplete - navigation.domLoading },
+        { name: 'page_load', value: navigation.loadEventEnd - navigation.navigationStart }
+      ];
+
+      metrics.forEach(metric => {
+        if (metric.value > 0) {
+          this.recordPerformanceMetric({
+            id: uuidv4(),
+            name: metric.name,
+            value: metric.value,
+            unit: 'milliseconds',
+            timestamp: Date.now(),
+            url: window.location.href,
+            userId: this.userId,
+            sessionId: this.sessionId,
+            deviceInfo: this.getDeviceInfo()
+          });
+        }
+      });
+    }
+  }
+
+  private monitorResourceTiming() {
+    if ('PerformanceResourceTiming' in window) {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as PerformanceResourceTiming[]) {
+          this.recordPerformanceMetric({
+            id: uuidv4(),
+            name: 'resource_load',
+            value: entry.responseEnd - entry.requestStart,
+            unit: 'milliseconds',
+            timestamp: Date.now(),
+            url: window.location.href,
+            userId: this.userId,
+            sessionId: this.sessionId,
+            deviceInfo: this.getDeviceInfo()
+          });
+        }
+      });
+
+      observer.observe({ entryTypes: ['resource'] });
+    }
+  }
+
+  private monitorMemoryUsage() {
+    if ('memory' in performance) {
+      setInterval(() => {
+        const memory = (performance as any).memory;
+        this.recordPerformanceMetric({
+          id: uuidv4(),
+          name: 'memory_usage',
+          value: memory.usedJSHeapSize,
+          unit: 'bytes',
+          timestamp: Date.now(),
+          url: window.location.href,
+          userId: this.userId,
+          sessionId: this.sessionId,
+          deviceInfo: this.getDeviceInfo()
+        });
+      }, 30000); // Every 30 seconds
+    }
+  }
+
+  private monitorFrameRate() {
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    const countFrames = () => {
+      frameCount++;
+      const currentTime = performance.now();
+      
+      if (currentTime >= lastTime + 1000) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+        
+        this.recordPerformanceMetric({
+          id: uuidv4(),
+          name: 'frame_rate',
+          value: fps,
+          unit: 'fps',
+          timestamp: Date.now(),
+          url: window.location.href,
+          userId: this.userId,
+          sessionId: this.sessionId,
+          deviceInfo: this.getDeviceInfo()
+        });
+
+        frameCount = 0;
+        lastTime = currentTime;
+      }
+
+      requestAnimationFrame(countFrames);
+    };
+
+    requestAnimationFrame(countFrames);
+  }
+
+  private categorizeError(error: Error): 'low' | 'medium' | 'high' | 'critical' {
+    if (!error) return 'low';
+    
+    const message = error.message?.toLowerCase() || '';
+    const stack = error.stack?.toLowerCase() || '';
+
+    // Critical errors
+    if (message.includes('payment') || message.includes('transaction') || 
+        message.includes('biometric') || message.includes('auth')) {
+      return 'critical';
+    }
+
+    // High priority errors
+    if (message.includes('network') || message.includes('timeout') ||
+        message.includes('server') || stack.includes('async')) {
+      return 'high';
+    }
+
+    // Medium priority errors
+    if (message.includes('validation') || message.includes('format')) {
+      return 'medium';
+    }
+
+    return 'low';
+  }
+
+  private generateErrorFingerprint(message: string, filename?: string, line?: number): string {
+    const parts = [message, filename, line?.toString()].filter(Boolean);
+    return Buffer.from(parts.join('|')).toString('base64').substring(0, 16);
+  }
+
+  private checkPerformanceThresholds(metric: WebVitalsMetric) {
+    const thresholds = this.config.performanceThresholds!;
+    let threshold = 0;
+
+    switch (metric.name) {
+      case 'LCP':
+        threshold = thresholds.lcp;
+        break;
+      case 'FID':
+        threshold = thresholds.fid;
+        break;
+      case 'CLS':
+        threshold = thresholds.cls;
+        break;
+      case 'FCP':
+        threshold = thresholds.fcp;
+        break;
+      case 'TTFB':
+        threshold = thresholds.ttfb;
+        break;
+    }
+
+    if (metric.value > threshold) {
+      const alert: CustomAlert = {
+        id: uuidv4(),
+        type: 'performance',
+        message: `${metric.name} threshold exceeded: ${metric.value} > ${threshold}`,
+        threshold,
+        currentValue: metric.value,
+        severity: metric.rating === 'poor' ? 'critical' : 'warning',
+        timestamp: Date.now(),
+        resolved: false
+      };
+
+      this.createAlert(alert);
+    }
+  }
+
+  private getDeviceInfo(): DeviceInfo {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      screenResolution: `${screen.width}x${screen.height}`,
+      connectionType: (navigator as any).connection?.effectiveType,
+      memoryUsage: (performance as any).memory?.usedJSHeapSize,
+      batteryLevel: undefined // Would require battery API
+    };
+  }
+
+  // Public methods
+  public setUser(userId: string) {
+    this.userId = userId;
+    
+    // Update Sentry user context
+    if (typeof window !== 'undefined' && (window as any).Sentry) {
+      (window as any).Sentry.setUser({ id: userId });
+    }
+  }
+
+  public reportError(error: ErrorReport) {
+    this.errorQueue.push(error);
+    
+    // Send to Sentry if available
+    if (typeof window !== 'undefined' && (window as any).Sentry) {
+      (window as any).Sentry.captureException(new Error(error.message), {
+        contexts: {
+          error: {
+            fingerprint: error.fingerprint,
+            severity: error.severity
+          }
+        }
+      });
+    }
+
+    // Send to backend
+    this.flushErrors();
+  }
+
+  public recordPerformanceMetric(metric: PerformanceMetric) {
+    this.performanceQueue.push(metric);
+    
+    if (this.performanceQueue.length >= 10) {
+      this.flushPerformanceMetrics();
+    }
+  }
+
+  public createAlert(alert: CustomAlert) {
+    this.alerts.push(alert);
+    
+    // Send critical alerts immediately
+    if (alert.severity === 'critical') {
+      this.sendAlertNotification(alert);
+    }
+  }
+
+  public getRecentErrors(limit = 10): ErrorReport[] {
+    return this.errorQueue.slice(-limit);
+  }
+
+  public getPerformanceMetrics(limit = 50): PerformanceMetric[] {
+    return this.performanceQueue.slice(-limit);
+  }
+
+  public getActiveAlerts(): CustomAlert[] {
+    return this.alerts.filter(alert => !alert.resolved);
+  }
+
+  private async flushErrors() {
+    if (this.errorQueue.length === 0) return;
+
+    try {
+      await fetch('/api/monitoring/errors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ errors: this.errorQueue })
+      });
+      this.errorQueue = [];
+    } catch (error) {
+      console.warn('Failed to send error reports:', error);
+    }
+  }
+
+  private async flushPerformanceMetrics() {
+    if (this.performanceQueue.length === 0) return;
+
+    try {
+      await fetch('/api/monitoring/performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metrics: this.performanceQueue })
+      });
+      this.performanceQueue = [];
+    } catch (error) {
+      console.warn('Failed to send performance metrics:', error);
+    }
+  }
+
+  private async sendAlertNotification(alert: CustomAlert) {
+    try {
+      await fetch('/api/monitoring/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert })
+      });
+    } catch (error) {
+      console.warn('Failed to send alert notification:', error);
+    }
+  }
+
+  public destroy() {
+    if (this.performanceObserver) {
+      this.performanceObserver.disconnect();
+    }
+    this.flushErrors();
+    this.flushPerformanceMetrics();
+  }
+}
+
+// Global monitoring instance
+let monitoringInstance: EnhancedMonitoring | null = null;
+
+export const initializeMonitoring = (config: MonitoringConfig): EnhancedMonitoring => {
+  if (!monitoringInstance) {
+    monitoringInstance = new EnhancedMonitoring(config);
+  }
+  return monitoringInstance;
+};
+
+export const getMonitoring = (): EnhancedMonitoring | null => {
+  return monitoringInstance;
+};
+
+export default EnhancedMonitoring;

@@ -1,0 +1,64 @@
+{{#> base}}
+{{#*inline "content"}}
+<h1 style="color: #059669; text-align: center; margin-bottom: 30px;">Payment Successful!</h1>
+
+<p>Dear {{customerName}},</p>
+
+<p>We're pleased to confirm that your payment has been processed successfully through FacePay's secure biometric payment system.</p>
+
+<div class="highlight">
+    <h3 style="margin-top: 0; color: #059669;">Transaction Details</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Amount:</td>
+            <td style="padding: 8px 0; text-align: right;">${{amount}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Transaction ID:</td>
+            <td style="padding: 8px 0; text-align: right; font-family: monospace;">{{transactionId}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Date & Time:</td>
+            <td style="padding: 8px 0; text-align: right;">{{datetime}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Payment Method:</td>
+            <td style="padding: 8px 0; text-align: right;">{{paymentMethod}}</td>
+        </tr>
+        {{#if merchantName}}
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Merchant:</td>
+            <td style="padding: 8px 0; text-align: right;">{{merchantName}}</td>
+        </tr>
+        {{/if}}
+    </table>
+</div>
+
+<p>Your payment has been securely authenticated using Face ID technology, ensuring the highest level of security for your transactions.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{transactionUrl}}" class="button">View Transaction Details</a>
+</div>
+
+<div style="background-color: #f0fdf4; padding: 15px; border-radius: 5px; border-left: 4px solid #059669;">
+    <h4 style="margin-top: 0; color: #059669;">What's Next?</h4>
+    <ul style="margin-bottom: 0;">
+        <li>A receipt has been saved to your FacePay account</li>
+        <li>You'll receive merchant confirmation separately if applicable</li>
+        <li>Track this transaction in your <a href="{{dashboardUrl}}">payment history</a></li>
+    </ul>
+</div>
+
+<p>Thank you for choosing FacePay for your secure payment needs!</p>
+
+<p>Best regards,<br>
+The FacePay Team</p>
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<p style="font-size: 12px; color: #6b7280;">
+    <strong>Need Help?</strong><br>
+    If you have any questions about this transaction or need assistance, please contact our support team at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a> or visit our <a href="{{helpCenterUrl}}">Help Center</a>.
+</p>
+{{/inline}}
+{{/base}}

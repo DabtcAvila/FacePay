@@ -1,0 +1,509 @@
+import { Redis, Cluster } from 'ioredis';
+import { getRedisClient, generateCacheKey } from './redis';
+
+export interface CacheOptions {
+  ttl?: number; // Time to live in seconds
+  tags?: string[]; // Cache invalidation tags
+  namespace?: string; // Cache namespace
+  serialize?: boolean; // Whether to serialize data
+  compress?: boolean; // Whether to compress large data
+}
+
+export interface CacheEntry<T = any> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+  tags?: string[];
+}
+
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  totalKeys: number;
+  memoryUsage: string;
+}
+
+/**
+ * Unified cache system with multiple strategies
+ */
+export class CacheManager {
+  private client: Redis | Cluster;
+  private defaultTTL: number;
+  private keyPrefix: string;
+  private stats: { hits: number; misses: number };
+
+  constructor(options: {
+    defaultTTL?: number;
+    keyPrefix?: string;
+  } = {}) {
+    this.client = getRedisClient();
+    this.defaultTTL = options.defaultTTL || 3600; // 1 hour default
+    this.keyPrefix = options.keyPrefix || 'facepay:cache';
+    this.stats = { hits: 0, misses: 0 };
+  }
+
+  /**
+   * Cache-aside pattern: Get data from cache or source
+   */
+  async get<T = any>(
+    key: string, 
+    fallback?: () => Promise<T>,
+    options: CacheOptions = {}
+  ): Promise<T | null> {
+    try {
+      const cacheKey = this.generateKey(key, options.namespace);
+      const cached = await this.client.get(cacheKey);
+
+      if (cached) {
+        this.stats.hits++;
+        const entry: CacheEntry<T> = JSON.parse(cached);
+        
+        // Check if entry is expired (additional check beyond Redis TTL)
+        if (entry.timestamp + (entry.ttl * 1000) > Date.now()) {
+          return entry.data;
+        }
+      }
+
+      this.stats.misses++;
+
+      // If fallback is provided, execute it and cache the result
+      if (fallback) {
+        const data = await fallback();
+        await this.set(key, data, options);
+        return data;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      // If fallback is provided, execute it without caching
+      if (fallback) {
+        return await fallback();
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Set data in cache
+   */
+  async set<T = any>(
+    key: string, 
+    value: T, 
+    options: CacheOptions = {}
+  ): Promise<boolean> {
+    try {
+      const cacheKey = this.generateKey(key, options.namespace);
+      const ttl = options.ttl || this.defaultTTL;
+
+      const entry: CacheEntry<T> = {
+        data: value,
+        timestamp: Date.now(),
+        ttl,
+        tags: options.tags,
+      };
+
+      const serializedData = JSON.stringify(entry);
+      
+      // Set with TTL
+      await this.client.setex(cacheKey, ttl, serializedData);
+
+      // Store tags for invalidation
+      if (options.tags && options.tags.length > 0) {
+        await this.storeTags(cacheKey, options.tags);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Cache set error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete specific cache key
+   */
+  async delete(key: string, namespace?: string): Promise<boolean> {
+    try {
+      const cacheKey = this.generateKey(key, namespace);
+      const result = await this.client.del(cacheKey);
+      return result > 0;
+    } catch (error) {
+      console.error('Cache delete error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete multiple keys by pattern
+   */
+  async deletePattern(pattern: string, namespace?: string): Promise<number> {
+    try {
+      const searchPattern = this.generateKey(pattern, namespace);
+      const keys = await this.client.keys(searchPattern);
+      
+      if (keys.length === 0) {
+        return 0;
+      }
+
+      const result = await this.client.del(...keys);
+      return result;
+    } catch (error) {
+      console.error('Cache delete pattern error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Invalidate cache by tags
+   */
+  async invalidateByTags(tags: string[]): Promise<number> {
+    try {
+      let deletedCount = 0;
+
+      for (const tag of tags) {
+        const tagKey = `${this.keyPrefix}:tags:${tag}`;
+        const keys = await this.client.smembers(tagKey);
+        
+        if (keys.length > 0) {
+          // Delete all keys associated with this tag
+          const result = await this.client.del(...keys);
+          deletedCount += result;
+          
+          // Delete the tag set itself
+          await this.client.del(tagKey);
+        }
+      }
+
+      return deletedCount;
+    } catch (error) {
+      console.error('Cache invalidate by tags error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get multiple keys at once
+   */
+  async getMultiple<T = any>(
+    keys: string[], 
+    namespace?: string
+  ): Promise<Record<string, T | null>> {
+    try {
+      const cacheKeys = keys.map(key => this.generateKey(key, namespace));
+      const results = await this.client.mget(...cacheKeys);
+      
+      const output: Record<string, T | null> = {};
+      
+      for (let i = 0; i < keys.length; i++) {
+        const originalKey = keys[i];
+        const cachedValue = results[i];
+        
+        if (cachedValue) {
+          try {
+            const entry: CacheEntry<T> = JSON.parse(cachedValue);
+            output[originalKey] = entry.data;
+            this.stats.hits++;
+          } catch {
+            output[originalKey] = null;
+            this.stats.misses++;
+          }
+        } else {
+          output[originalKey] = null;
+          this.stats.misses++;
+        }
+      }
+      
+      return output;
+    } catch (error) {
+      console.error('Cache getMultiple error:', error);
+      return keys.reduce((acc, key) => {
+        acc[key] = null;
+        return acc;
+      }, {} as Record<string, T | null>);
+    }
+  }
+
+  /**
+   * Set multiple keys at once
+   */
+  async setMultiple<T = any>(
+    data: Record<string, T>, 
+    options: CacheOptions = {}
+  ): Promise<boolean> {
+    try {
+      const ttl = options.ttl || this.defaultTTL;
+      const pipeline = this.client.pipeline();
+
+      for (const [key, value] of Object.entries(data)) {
+        const cacheKey = this.generateKey(key, options.namespace);
+        const entry: CacheEntry<T> = {
+          data: value,
+          timestamp: Date.now(),
+          ttl,
+          tags: options.tags,
+        };
+
+        const serializedData = JSON.stringify(entry);
+        pipeline.setex(cacheKey, ttl, serializedData);
+
+        // Store tags for invalidation
+        if (options.tags && options.tags.length > 0) {
+          for (const tag of options.tags) {
+            const tagKey = `${this.keyPrefix}:tags:${tag}`;
+            pipeline.sadd(tagKey, cacheKey);
+            pipeline.expire(tagKey, ttl + 3600); // Tags live longer than cache entries
+          }
+        }
+      }
+
+      await pipeline.exec();
+      return true;
+    } catch (error) {
+      console.error('Cache setMultiple error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Increment a counter in cache
+   */
+  async increment(
+    key: string, 
+    by: number = 1, 
+    options: CacheOptions = {}
+  ): Promise<number> {
+    try {
+      const cacheKey = this.generateKey(key, options.namespace);
+      const result = await this.client.incrby(cacheKey, by);
+      
+      // Set TTL if it's a new key
+      if (options.ttl) {
+        await this.client.expire(cacheKey, options.ttl);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Cache increment error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get cache statistics
+   */
+  async getStats(): Promise<CacheStats> {
+    try {
+      const info = await this.client.info('memory');
+      const lines = info.split('\r\n');
+      const memoryUsage = lines.find(line => line.startsWith('used_memory_human:'))?.split(':')[1] || 'unknown';
+      
+      // Count total keys with our prefix
+      const keys = await this.client.keys(`${this.keyPrefix}:*`);
+      const totalKeys = keys.length;
+
+      const total = this.stats.hits + this.stats.misses;
+      const hitRate = total > 0 ? (this.stats.hits / total) * 100 : 0;
+
+      return {
+        hits: this.stats.hits,
+        misses: this.stats.misses,
+        hitRate: Math.round(hitRate * 100) / 100,
+        totalKeys,
+        memoryUsage: memoryUsage.trim(),
+      };
+    } catch (error) {
+      console.error('Cache getStats error:', error);
+      return {
+        hits: this.stats.hits,
+        misses: this.stats.misses,
+        hitRate: 0,
+        totalKeys: 0,
+        memoryUsage: 'unknown',
+      };
+    }
+  }
+
+  /**
+   * Clear all cache data
+   */
+  async clear(namespace?: string): Promise<boolean> {
+    try {
+      const pattern = namespace 
+        ? `${this.keyPrefix}:${namespace}:*`
+        : `${this.keyPrefix}:*`;
+      
+      const keys = await this.client.keys(pattern);
+      
+      if (keys.length > 0) {
+        await this.client.del(...keys);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Cache clear error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Warm cache with predefined data
+   */
+  async warmCache<T = any>(
+    warmupData: Record<string, () => Promise<T>>,
+    options: CacheOptions = {}
+  ): Promise<void> {
+    try {
+      const promises = Object.entries(warmupData).map(async ([key, dataFetcher]) => {
+        try {
+          const data = await dataFetcher();
+          await this.set(key, data, options);
+        } catch (error) {
+          console.error(`Cache warm error for key ${key}:`, error);
+        }
+      });
+
+      await Promise.all(promises);
+      console.log(`✅ Cache warmed with ${Object.keys(warmupData).length} entries`);
+    } catch (error) {
+      console.error('Cache warm error:', error);
+    }
+  }
+
+  /**
+   * Check if key exists in cache
+   */
+  async exists(key: string, namespace?: string): Promise<boolean> {
+    try {
+      const cacheKey = this.generateKey(key, namespace);
+      const result = await this.client.exists(cacheKey);
+      return result === 1;
+    } catch (error) {
+      console.error('Cache exists error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get TTL for a key
+   */
+  async getTTL(key: string, namespace?: string): Promise<number> {
+    try {
+      const cacheKey = this.generateKey(key, namespace);
+      return await this.client.ttl(cacheKey);
+    } catch (error) {
+      console.error('Cache getTTL error:', error);
+      return -1;
+    }
+  }
+
+  /**
+   * Generate cache key with namespace
+   */
+  private generateKey(key: string, namespace?: string): string {
+    return generateCacheKey(namespace || 'default', key, { prefix: this.keyPrefix });
+  }
+
+  /**
+   * Store tags for cache invalidation
+   */
+  private async storeTags(cacheKey: string, tags: string[]): Promise<void> {
+    const pipeline = this.client.pipeline();
+    
+    for (const tag of tags) {
+      const tagKey = `${this.keyPrefix}:tags:${tag}`;
+      pipeline.sadd(tagKey, cacheKey);
+      pipeline.expire(tagKey, this.defaultTTL + 3600); // Tags live longer
+    }
+    
+    await pipeline.exec();
+  }
+}
+
+// Singleton instance
+let cacheManager: CacheManager | null = null;
+
+/**
+ * Get the global cache manager instance
+ */
+export function getCacheManager(): CacheManager {
+  if (!cacheManager) {
+    cacheManager = new CacheManager();
+  }
+  return cacheManager;
+}
+
+/**
+ * Cache decorator for functions
+ */
+export function cached<T extends any[], R>(
+  key: string,
+  options: CacheOptions = {}
+) {
+  return function (
+    target: any,
+    propertyName: string,
+    descriptor: PropertyDescriptor
+  ) {
+    const method = descriptor.value;
+
+    descriptor.value = async function (...args: T): Promise<R> {
+      const cache = getCacheManager();
+      const cacheKey = `${key}:${JSON.stringify(args)}`;
+
+      // Try to get from cache first
+      const cached = await cache.get<R>(cacheKey);
+      if (cached !== null) {
+        return cached;
+      }
+
+      // Execute original method
+      const result = await method.apply(this, args);
+      
+      // Store in cache
+      await cache.set(cacheKey, result, options);
+      
+      return result;
+    };
+  };
+}
+
+/**
+ * Specific cache strategies for different data types
+ */
+export const CacheStrategies = {
+  // Short-term cache for API responses
+  API_RESPONSE: { ttl: 300, tags: ['api'] }, // 5 minutes
+
+  // Medium-term cache for database queries
+  DATABASE_QUERY: { ttl: 1800, tags: ['db'] }, // 30 minutes
+
+  // Long-term cache for static data
+  STATIC_DATA: { ttl: 86400, tags: ['static'] }, // 24 hours
+
+  // User session cache
+  USER_SESSION: { ttl: 3600, tags: ['session'] }, // 1 hour
+
+  // Payment data cache (short-lived for security)
+  PAYMENT_DATA: { ttl: 300, tags: ['payment'] }, // 5 minutes
+
+  // Biometric data cache (very short-lived)
+  BIOMETRIC_DATA: { ttl: 60, tags: ['biometric'] }, // 1 minute
+
+  // WebAuthn challenges (short-lived)
+  WEBAUTHN_CHALLENGE: { ttl: 300, tags: ['webauthn'] }, // 5 minutes
+
+  // Rate limiting windows
+  RATE_LIMIT: { ttl: 3600, tags: ['rate_limit'] }, // 1 hour
+
+  // Real-time data cache
+  REAL_TIME: { ttl: 30, tags: ['realtime'] }, // 30 seconds
+} as const;
+
+export default {
+  CacheManager,
+  getCacheManager,
+  cached,
+  CacheStrategies,
+};

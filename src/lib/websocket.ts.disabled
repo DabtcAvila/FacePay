@@ -1,0 +1,310 @@
+import { Server as SocketIOServer } from 'socket.io';
+import { NextApiRequest, NextApiResponse } from 'next';
+import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// WebSocket event types
+export interface NotificationPayload {
+  id: string;
+  type: 'payment' | 'security' | 'system' | 'promotion' | 'reminder';
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  userId: string;
+  timestamp: Date;
+  read: boolean;
+}
+
+export interface SocketUser {
+  userId: string;
+  email: string;
+  socketId: string;
+}
+
+class WebSocketManager {
+  private io: SocketIOServer | null = null;
+  private connectedUsers = new Map<string, SocketUser>();
+  private userSockets = new Map<string, Set<string>>(); // userId -> Set of socketIds
+
+  public initializeSocket(server: any): SocketIOServer {
+    this.io = new SocketIOServer(server, {
+      path: '/api/socket',
+      cors: {
+        origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true,
+      },
+      transports: ['websocket', 'polling'],
+    });
+
+    this.setupEventHandlers();
+    return this.io;
+  }
+
+  private setupEventHandlers() {
+    if (!this.io) return;
+
+    this.io.use(async (socket, next) => {
+      try {
+        const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+          return next(new Error('Authentication error: No token provided'));
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+        
+        // Verify user exists in database
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId }
+        });
+
+        if (!user) {
+          return next(new Error('Authentication error: User not found'));
+        }
+
+        socket.data.user = {
+          userId: user.id,
+          email: user.email,
+        };
+
+        next();
+      } catch (error) {
+        next(new Error('Authentication error: Invalid token'));
+      }
+    });
+
+    this.io.on('connection', (socket) => {
+      const user = socket.data.user;
+      console.log(`User ${user.email} connected with socket ${socket.id}`);
+
+      // Track connected user
+      this.connectedUsers.set(socket.id, {
+        userId: user.userId,
+        email: user.email,
+        socketId: socket.id,
+      });
+
+      // Track user's sockets
+      if (!this.userSockets.has(user.userId)) {
+        this.userSockets.set(user.userId, new Set());
+      }
+      this.userSockets.get(user.userId)!.add(socket.id);
+
+      // Join user-specific room
+      socket.join(`user:${user.userId}`);
+
+      // Send initial connection confirmation
+      socket.emit('connected', {
+        message: 'Successfully connected to FacePay notifications',
+        timestamp: new Date(),
+      });
+
+      // Handle notification acknowledgment
+      socket.on('notification:read', async (notificationId: string) => {
+        try {
+          await prisma.notification.update({
+            where: { 
+              id: notificationId,
+              userId: user.userId 
+            },
+            data: { read: true }
+          });
+
+          socket.emit('notification:read:success', { notificationId });
+        } catch (error) {
+          socket.emit('notification:read:error', { 
+            notificationId, 
+            error: 'Failed to mark notification as read' 
+          });
+        }
+      });
+
+      // Handle notification preferences update
+      socket.on('preferences:update', async (preferences: any) => {
+        try {
+          await prisma.notificationPreferences.upsert({
+            where: { userId: user.userId },
+            create: {
+              userId: user.userId,
+              ...preferences
+            },
+            update: preferences
+          });
+
+          socket.emit('preferences:update:success', preferences);
+        } catch (error) {
+          socket.emit('preferences:update:error', { 
+            error: 'Failed to update preferences' 
+          });
+        }
+      });
+
+      // Handle typing indicators for support chat
+      socket.on('typing:start', (data) => {
+        socket.to(`support:${user.userId}`).emit('typing:start', {
+          userId: user.userId,
+          email: user.email
+        });
+      });
+
+      socket.on('typing:stop', (data) => {
+        socket.to(`support:${user.userId}`).emit('typing:stop', {
+          userId: user.userId,
+          email: user.email
+        });
+      });
+
+      // Handle disconnect
+      socket.on('disconnect', (reason) => {
+        console.log(`User ${user.email} disconnected: ${reason}`);
+        
+        // Clean up tracking
+        this.connectedUsers.delete(socket.id);
+        
+        const userSocketSet = this.userSockets.get(user.userId);
+        if (userSocketSet) {
+          userSocketSet.delete(socket.id);
+          if (userSocketSet.size === 0) {
+            this.userSockets.delete(user.userId);
+          }
+        }
+      });
+    });
+  }
+
+  // Send notification to specific user
+  public async sendNotificationToUser(userId: string, notification: NotificationPayload) {
+    if (!this.io) {
+      console.error('WebSocket server not initialized');
+      return false;
+    }
+
+    try {
+      // Store notification in database
+      await prisma.notification.create({
+        data: {
+          id: notification.id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          data: notification.data ? JSON.stringify(notification.data) : null,
+          userId: notification.userId,
+          read: false,
+        }
+      });
+
+      // Send to all user's connected sockets
+      this.io.to(`user:${userId}`).emit('notification', notification);
+
+      console.log(`Notification sent to user ${userId}:`, notification.title);
+      return true;
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      return false;
+    }
+  }
+
+  // Send notification to multiple users
+  public async sendNotificationToUsers(userIds: string[], notification: Omit<NotificationPayload, 'userId'>) {
+    const promises = userIds.map(userId => 
+      this.sendNotificationToUser(userId, { ...notification, userId })
+    );
+    
+    const results = await Promise.allSettled(promises);
+    return results.filter(result => result.status === 'fulfilled').length;
+  }
+
+  // Broadcast to all connected users
+  public async broadcastNotification(notification: Omit<NotificationPayload, 'userId'>) {
+    if (!this.io) {
+      console.error('WebSocket server not initialized');
+      return false;
+    }
+
+    try {
+      // Get all connected user IDs
+      const userIds = Array.from(this.userSockets.keys());
+      
+      // Send to each user
+      const successCount = await this.sendNotificationToUsers(userIds, notification);
+      
+      console.log(`Broadcast notification sent to ${successCount}/${userIds.length} users`);
+      return successCount;
+    } catch (error) {
+      console.error('Error broadcasting notification:', error);
+      return 0;
+    }
+  }
+
+  // Get connected users count
+  public getConnectedUsersCount(): number {
+    return this.userSockets.size;
+  }
+
+  // Get user connection status
+  public isUserConnected(userId: string): boolean {
+    return this.userSockets.has(userId);
+  }
+
+  // Send system status update
+  public sendSystemStatus(status: 'online' | 'maintenance' | 'degraded', message?: string) {
+    if (!this.io) return;
+
+    this.io.emit('system:status', {
+      status,
+      message,
+      timestamp: new Date(),
+    });
+  }
+
+  // Send payment status update
+  public async sendPaymentUpdate(userId: string, paymentData: any) {
+    const notification: NotificationPayload = {
+      id: `payment-${paymentData.id}-${Date.now()}`,
+      type: 'payment',
+      title: 'Payment Update',
+      message: `Payment ${paymentData.status}: ${paymentData.amount}`,
+      data: paymentData,
+      userId,
+      timestamp: new Date(),
+      read: false,
+    };
+
+    return this.sendNotificationToUser(userId, notification);
+  }
+
+  // Send security alert
+  public async sendSecurityAlert(userId: string, alertType: string, details: any) {
+    const notification: NotificationPayload = {
+      id: `security-${alertType}-${Date.now()}`,
+      type: 'security',
+      title: 'Security Alert',
+      message: `Security event detected: ${alertType}`,
+      data: { alertType, ...details },
+      userId,
+      timestamp: new Date(),
+      read: false,
+    };
+
+    return this.sendNotificationToUser(userId, notification);
+  }
+}
+
+// Singleton instance
+export const webSocketManager = new WebSocketManager();
+
+// Next.js API handler for WebSocket
+export default function SocketHandler(req: NextApiRequest, res: NextApiResponse) {
+  if (res.socket && !(res.socket as any).server.io) {
+    console.log('Initializing Socket.io server...');
+    const io = webSocketManager.initializeSocket((res.socket as any).server);
+    (res.socket as any).server.io = io;
+  }
+
+  res.end();
+}
+
+export { WebSocketManager };

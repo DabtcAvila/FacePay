@@ -1,0 +1,538 @@
+import { PrismaClient } from '@prisma/client';
+import { NotificationPayload } from './websocket';
+import { NotificationConfig, NotificationRecipient } from './notifications';
+import { queueService } from './queue';
+
+const prisma = new PrismaClient();
+
+export interface RetryConfig {
+  maxAttempts: number;
+  baseDelay: number; // Base delay in milliseconds
+  maxDelay: number; // Maximum delay in milliseconds
+  backoffMultiplier: number;
+  jitter: boolean; // Add randomness to prevent thundering herd
+}
+
+export interface FallbackConfig {
+  channels: Array<'email' | 'sms' | 'push' | 'realtime'>;
+  escalationDelay: number; // Delay before trying fallback channels
+  criticalOnly: boolean; // Only use fallbacks for critical notifications
+}
+
+export interface FailedNotification {
+  id: string;
+  userId: string;
+  type: NotificationPayload['type'];
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  config: NotificationConfig;
+  recipient: NotificationRecipient;
+  attempt: number;
+  maxAttempts: number;
+  lastError: string;
+  nextRetryAt?: Date;
+  failedChannels: string[];
+  createdAt: Date;
+}
+
+class RetryMechanism {
+  private defaultRetryConfig: RetryConfig = {
+    maxAttempts: 3,
+    baseDelay: 1000, // 1 second
+    maxDelay: 30000, // 30 seconds
+    backoffMultiplier: 2,
+    jitter: true,
+  };
+
+  private defaultFallbackConfig: FallbackConfig = {
+    channels: ['realtime', 'email', 'sms'],
+    escalationDelay: 300000, // 5 minutes
+    criticalOnly: false,
+  };
+
+  private retryConfigs = new Map<string, RetryConfig>();
+  private fallbackConfigs = new Map<string, FallbackConfig>();
+
+  constructor() {
+    this.setupDefaultConfigs();
+  }
+
+  private setupDefaultConfigs() {
+    // Payment notifications - aggressive retry
+    this.retryConfigs.set('payment', {
+      maxAttempts: 5,
+      baseDelay: 500,
+      maxDelay: 60000,
+      backoffMultiplier: 1.5,
+      jitter: true,
+    });
+
+    this.fallbackConfigs.set('payment', {
+      channels: ['realtime', 'push', 'email', 'sms'],
+      escalationDelay: 120000, // 2 minutes
+      criticalOnly: false,
+    });
+
+    // Security notifications - immediate retry with all channels
+    this.retryConfigs.set('security', {
+      maxAttempts: 5,
+      baseDelay: 200,
+      maxDelay: 10000,
+      backoffMultiplier: 1.2,
+      jitter: false, // No jitter for security
+    });
+
+    this.fallbackConfigs.set('security', {
+      channels: ['realtime', 'push', 'email', 'sms'],
+      escalationDelay: 30000, // 30 seconds
+      criticalOnly: false,
+    });
+
+    // System notifications - moderate retry
+    this.retryConfigs.set('system', {
+      maxAttempts: 3,
+      baseDelay: 2000,
+      maxDelay: 120000,
+      backoffMultiplier: 2,
+      jitter: true,
+    });
+
+    this.fallbackConfigs.set('system', {
+      channels: ['realtime', 'email'],
+      escalationDelay: 600000, // 10 minutes
+      criticalOnly: true,
+    });
+
+    // Promotional notifications - minimal retry
+    this.retryConfigs.set('promotion', {
+      maxAttempts: 2,
+      baseDelay: 5000,
+      maxDelay: 300000,
+      backoffMultiplier: 3,
+      jitter: true,
+    });
+
+    this.fallbackConfigs.set('promotion', {
+      channels: ['realtime', 'push'],
+      escalationDelay: 1800000, // 30 minutes
+      criticalOnly: false,
+    });
+
+    // Reminder notifications - scheduled retry
+    this.retryConfigs.set('reminder', {
+      maxAttempts: 4,
+      baseDelay: 10000,
+      maxDelay: 3600000, // 1 hour
+      backoffMultiplier: 2.5,
+      jitter: true,
+    });
+
+    this.fallbackConfigs.set('reminder', {
+      channels: ['realtime', 'push', 'email'],
+      escalationDelay: 900000, // 15 minutes
+      criticalOnly: false,
+    });
+  }
+
+  // Calculate next retry delay with exponential backoff and jitter
+  private calculateRetryDelay(attempt: number, config: RetryConfig): number {
+    let delay = Math.min(
+      config.baseDelay * Math.pow(config.backoffMultiplier, attempt - 1),
+      config.maxDelay
+    );
+
+    if (config.jitter) {
+      // Add ±25% jitter
+      const jitterRange = delay * 0.25;
+      delay += (Math.random() - 0.5) * 2 * jitterRange;
+    }
+
+    return Math.max(delay, config.baseDelay);
+  }
+
+  // Store failed notification for retry
+  public async storeFailedNotification(
+    notification: Omit<FailedNotification, 'id' | 'attempt' | 'maxAttempts' | 'createdAt' | 'nextRetryAt'>,
+    attempt: number = 1
+  ): Promise<string> {
+    const retryConfig = this.retryConfigs.get(notification.type) || this.defaultRetryConfig;
+    const nextRetryDelay = this.calculateRetryDelay(attempt + 1, retryConfig);
+    const nextRetryAt = new Date(Date.now() + nextRetryDelay);
+
+    const failedNotification = await prisma.failedNotification.create({
+      data: {
+        userId: notification.userId,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        data: notification.data ? JSON.stringify(notification.data) : null,
+        config: JSON.stringify(notification.config),
+        recipient: JSON.stringify(notification.recipient),
+        attempt,
+        maxAttempts: retryConfig.maxAttempts,
+        lastError: notification.lastError,
+        nextRetryAt: attempt < retryConfig.maxAttempts ? nextRetryAt : null,
+        failedChannels: notification.failedChannels,
+      },
+    });
+
+    return failedNotification.id;
+  }
+
+  // Get failed notifications ready for retry
+  public async getRetryableNotifications(): Promise<FailedNotification[]> {
+    const now = new Date();
+    
+    const failed = await prisma.failedNotification.findMany({
+      where: {
+        nextRetryAt: { lte: now },
+        attempt: { lt: prisma.failedNotification.fields.maxAttempts },
+      },
+      orderBy: { nextRetryAt: 'asc' },
+      take: 100, // Process in batches
+    });
+
+    return failed.map(f => ({
+      ...f,
+      data: f.data ? JSON.parse(f.data as string) : undefined,
+      config: JSON.parse(f.config as string),
+      recipient: JSON.parse(f.recipient as string),
+    }));
+  }
+
+  // Retry a failed notification
+  public async retryNotification(failedNotification: FailedNotification): Promise<boolean> {
+    try {
+      const { notificationService } = await import('./notifications');
+      
+      // Increment attempt count
+      const newAttempt = failedNotification.attempt + 1;
+      
+      // Try to send the notification again
+      const result = await notificationService.sendNotification(
+        failedNotification.recipient,
+        failedNotification.type,
+        failedNotification.config,
+        {
+          title: failedNotification.title,
+          message: failedNotification.message,
+          ...failedNotification.data,
+        }
+      );
+
+      if (result.success) {
+        // Success! Remove from failed notifications
+        await prisma.failedNotification.delete({
+          where: { id: failedNotification.id },
+        });
+
+        // Log successful retry
+        await this.logRetryAction(failedNotification.id, 'success', newAttempt);
+        
+        return true;
+      } else {
+        // Still failing, update for next retry or mark as permanently failed
+        const retryConfig = this.retryConfigs.get(failedNotification.type) || this.defaultRetryConfig;
+        
+        if (newAttempt >= retryConfig.maxAttempts) {
+          // Max attempts reached, trigger fallback if configured
+          await this.triggerFallbackMechanism(failedNotification, result.errors);
+          
+          // Mark as permanently failed
+          await prisma.failedNotification.update({
+            where: { id: failedNotification.id },
+            data: {
+              attempt: newAttempt,
+              lastError: result.errors.join(', '),
+              nextRetryAt: null, // No more retries
+            },
+          });
+
+          await this.logRetryAction(failedNotification.id, 'max_attempts_reached', newAttempt);
+          
+          return false;
+        } else {
+          // Schedule next retry
+          const nextRetryDelay = this.calculateRetryDelay(newAttempt + 1, retryConfig);
+          const nextRetryAt = new Date(Date.now() + nextRetryDelay);
+
+          await prisma.failedNotification.update({
+            where: { id: failedNotification.id },
+            data: {
+              attempt: newAttempt,
+              lastError: result.errors.join(', '),
+              nextRetryAt,
+              failedChannels: [
+                ...new Set([...failedNotification.failedChannels, ...Object.keys(result.channels).filter(ch => !result.channels[ch])])
+              ],
+            },
+          });
+
+          await this.logRetryAction(failedNotification.id, 'scheduled_retry', newAttempt);
+          
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error(`Error retrying notification ${failedNotification.id}:`, error);
+      
+      // Update with error for next retry
+      const retryConfig = this.retryConfigs.get(failedNotification.type) || this.defaultRetryConfig;
+      const newAttempt = failedNotification.attempt + 1;
+      
+      if (newAttempt >= retryConfig.maxAttempts) {
+        await prisma.failedNotification.update({
+          where: { id: failedNotification.id },
+          data: {
+            attempt: newAttempt,
+            lastError: error.message,
+            nextRetryAt: null,
+          },
+        });
+      } else {
+        const nextRetryDelay = this.calculateRetryDelay(newAttempt + 1, retryConfig);
+        const nextRetryAt = new Date(Date.now() + nextRetryDelay);
+
+        await prisma.failedNotification.update({
+          where: { id: failedNotification.id },
+          data: {
+            attempt: newAttempt,
+            lastError: error.message,
+            nextRetryAt,
+          },
+        });
+      }
+
+      await this.logRetryAction(failedNotification.id, 'error', newAttempt, error.message);
+      
+      return false;
+    }
+  }
+
+  // Trigger fallback mechanism when all retries are exhausted
+  private async triggerFallbackMechanism(
+    failedNotification: FailedNotification,
+    lastErrors: string[]
+  ): Promise<void> {
+    const fallbackConfig = this.fallbackConfigs.get(failedNotification.type) || this.defaultFallbackConfig;
+    
+    // Check if fallback should be triggered
+    if (fallbackConfig.criticalOnly && failedNotification.config.priority !== 'critical') {
+      return;
+    }
+
+    // Find channels that haven't failed yet
+    const availableChannels = fallbackConfig.channels.filter(
+      channel => !failedNotification.failedChannels.includes(channel)
+    );
+
+    if (availableChannels.length === 0) {
+      console.warn(`No fallback channels available for notification ${failedNotification.id}`);
+      return;
+    }
+
+    // Create fallback notification config with only available channels
+    const fallbackConfig_ = {
+      ...failedNotification.config,
+      channels: {
+        realtime: availableChannels.includes('realtime'),
+        email: availableChannels.includes('email'),
+        sms: availableChannels.includes('sms'),
+        push: availableChannels.includes('push'),
+      },
+    };
+
+    // Schedule fallback notification with delay
+    await queueService.schedule(
+      'notification',
+      {
+        recipient: failedNotification.recipient,
+        notificationType: failedNotification.type,
+        config: fallbackConfig_,
+        customData: {
+          title: `[URGENT] ${failedNotification.title}`,
+          message: `This is a fallback attempt: ${failedNotification.message}`,
+          originalNotificationId: failedNotification.id,
+          ...failedNotification.data,
+        },
+        priority: 'critical',
+      },
+      new Date(Date.now() + fallbackConfig.escalationDelay)
+    );
+
+    await this.logRetryAction(
+      failedNotification.id, 
+      'fallback_triggered', 
+      failedNotification.attempt,
+      `Fallback channels: ${availableChannels.join(', ')}`
+    );
+  }
+
+  // Process retry queue - should be called by a scheduled job
+  public async processRetryQueue(): Promise<{ processed: number; successful: number; failed: number }> {
+    console.log('Processing notification retry queue...');
+    
+    const retryableNotifications = await this.getRetryableNotifications();
+    
+    if (retryableNotifications.length === 0) {
+      return { processed: 0, successful: 0, failed: 0 };
+    }
+
+    let successful = 0;
+    let failed = 0;
+
+    // Process in parallel but with concurrency limit
+    const concurrency = 5;
+    for (let i = 0; i < retryableNotifications.length; i += concurrency) {
+      const batch = retryableNotifications.slice(i, i + concurrency);
+      
+      const results = await Promise.allSettled(
+        batch.map(notification => this.retryNotification(notification))
+      );
+
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+          successful++;
+        } else {
+          failed++;
+        }
+      });
+
+      // Small delay between batches
+      if (i + concurrency < retryableNotifications.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    console.log(`Retry queue processed: ${retryableNotifications.length} total, ${successful} successful, ${failed} failed`);
+    
+    return {
+      processed: retryableNotifications.length,
+      successful,
+      failed,
+    };
+  }
+
+  // Cleanup old failed notifications
+  public async cleanupOldFailedNotifications(olderThanDays: number = 7): Promise<number> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+    const result = await prisma.failedNotification.deleteMany({
+      where: {
+        OR: [
+          { nextRetryAt: null, createdAt: { lt: cutoffDate } }, // Permanently failed
+          { attempt: { gte: prisma.failedNotification.fields.maxAttempts }, createdAt: { lt: cutoffDate } }, // Max attempts reached
+        ],
+      },
+    });
+
+    return result.count;
+  }
+
+  // Get retry statistics
+  public async getRetryStats(days: number = 7): Promise<{
+    totalFailed: number;
+    totalRetried: number;
+    successfulRetries: number;
+    permanentFailures: number;
+    byType: Record<string, { failed: number; retried: number; successful: number }>;
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const [failedNotifications, retryLogs] = await Promise.all([
+      prisma.failedNotification.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { type: true, attempt: true, maxAttempts: true },
+      }),
+      prisma.retryLog.findMany({
+        where: { timestamp: { gte: startDate } },
+        select: { action: true, notificationType: true },
+      }),
+    ]);
+
+    const stats = {
+      totalFailed: failedNotifications.length,
+      totalRetried: retryLogs.filter(log => log.action === 'scheduled_retry' || log.action === 'success').length,
+      successfulRetries: retryLogs.filter(log => log.action === 'success').length,
+      permanentFailures: failedNotifications.filter(f => f.attempt >= f.maxAttempts).length,
+      byType: {} as Record<string, { failed: number; retried: number; successful: number }>,
+    };
+
+    // Group by notification type
+    const types = ['payment', 'security', 'system', 'promotion', 'reminder'];
+    types.forEach(type => {
+      stats.byType[type] = {
+        failed: failedNotifications.filter(f => f.type === type).length,
+        retried: retryLogs.filter(log => log.notificationType === type && (log.action === 'scheduled_retry' || log.action === 'success')).length,
+        successful: retryLogs.filter(log => log.notificationType === type && log.action === 'success').length,
+      };
+    });
+
+    return stats;
+  }
+
+  // Log retry actions for analytics
+  private async logRetryAction(
+    failedNotificationId: string,
+    action: 'success' | 'scheduled_retry' | 'max_attempts_reached' | 'fallback_triggered' | 'error',
+    attempt: number,
+    details?: string
+  ): Promise<void> {
+    try {
+      await prisma.retryLog.create({
+        data: {
+          failedNotificationId,
+          action,
+          attempt,
+          details,
+          timestamp: new Date(),
+        },
+      });
+    } catch (error) {
+      console.warn('Failed to log retry action:', error);
+    }
+  }
+
+  // Health check for retry mechanism
+  public async healthCheck(): Promise<{
+    healthy: boolean;
+    pendingRetries: number;
+    overdueRetries: number;
+    oldestPendingRetry?: Date;
+  }> {
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+    const [pendingRetries, overdueRetries, oldest] = await Promise.all([
+      prisma.failedNotification.count({
+        where: { nextRetryAt: { not: null } },
+      }),
+      prisma.failedNotification.count({
+        where: { nextRetryAt: { lt: fiveMinutesAgo } },
+      }),
+      prisma.failedNotification.findFirst({
+        where: { nextRetryAt: { not: null } },
+        orderBy: { nextRetryAt: 'asc' },
+        select: { nextRetryAt: true },
+      }),
+    ]);
+
+    const healthy = overdueRetries < 10; // Arbitrary threshold
+
+    return {
+      healthy,
+      pendingRetries,
+      overdueRetries,
+      oldestPendingRetry: oldest?.nextRetryAt || undefined,
+    };
+  }
+}
+
+// Singleton instance
+export const retryMechanism = new RetryMechanism();
+
+// Export for use in scheduled jobs
+export { RetryMechanism };

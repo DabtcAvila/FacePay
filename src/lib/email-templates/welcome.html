@@ -1,0 +1,109 @@
+{{#> base}}
+{{#*inline "content"}}
+<h1 style="color: #2563eb; text-align: center; margin-bottom: 30px;">Welcome to FacePay! 🎉</h1>
+
+<p>Dear {{customerName}},</p>
+
+<p>Congratulations! You've successfully joined FacePay, the most secure and convenient biometric payment platform. We're excited to have you on board!</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <img src="{{welcomeImageUrl}}" alt="FacePay Welcome" style="max-width: 200px; height: auto; border-radius: 10px;">
+</div>
+
+<div class="highlight">
+    <h3 style="margin-top: 0; color: #2563eb;">Your Account Details</h3>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Account ID:</td>
+            <td style="padding: 8px 0; text-align: right; font-family: monospace;">{{accountId}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Email:</td>
+            <td style="padding: 8px 0; text-align: right;">{{email}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Registration Date:</td>
+            <td style="padding: 8px 0; text-align: right;">{{registrationDate}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; font-weight: bold;">Security Level:</td>
+            <td style="padding: 8px 0; text-align: right; color: #059669; font-weight: bold;">{{securityLevel}}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="background-color: #f0f9ff; padding: 15px; border-radius: 5px; border-left: 4px solid #2563eb;">
+    <h4 style="margin-top: 0; color: #2563eb;">Next Steps</h4>
+    <ol style="margin-bottom: 0;">
+        <li><strong>Set up Face ID:</strong> Complete your biometric authentication setup</li>
+        <li><strong>Add Payment Method:</strong> Link your preferred payment cards</li>
+        <li><strong>Verify Identity:</strong> Complete KYC verification for full access</li>
+        <li><strong>Configure Security:</strong> Set up additional security preferences</li>
+        <li><strong>Make Your First Payment:</strong> Try FacePay with a small test transaction</li>
+    </ol>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{setupUrl}}" class="button">Complete Setup</a>
+    <a href="{{dashboardUrl}}" class="button" style="background-color: #6b7280; margin-left: 10px;">Go to Dashboard</a>
+</div>
+
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; border-left: 4px solid #f59e0b;">
+    <h4 style="margin-top: 0; color: #92400e;">Why Choose FacePay?</h4>
+    <ul style="margin-bottom: 0;">
+        <li><strong>🔐 Advanced Security:</strong> Military-grade biometric authentication</li>
+        <li><strong>⚡ Lightning Fast:</strong> Payments in under 2 seconds</li>
+        <li><strong>🌍 Universal Acceptance:</strong> Works with all major payment networks</li>
+        <li><strong>📱 Cross-Platform:</strong> Available on web, mobile, and in-store</li>
+        <li><strong>💰 Cost Effective:</strong> Lower transaction fees than traditional methods</li>
+    </ul>
+</div>
+
+<h3 style="color: #2563eb;">Getting Started Resources</h3>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
+    <div style="background: #f8fafc; padding: 15px; border-radius: 5px; text-align: center;">
+        <h4 style="margin-top: 0;">📖 User Guide</h4>
+        <p style="font-size: 14px; margin-bottom: 10px;">Learn how to use all FacePay features</p>
+        <a href="{{userGuideUrl}}" style="color: #2563eb; text-decoration: none;">Read Guide →</a>
+    </div>
+    <div style="background: #f8fafc; padding: 15px; border-radius: 5px; text-align: center;">
+        <h4 style="margin-top: 0;">🎥 Video Tutorials</h4>
+        <p style="font-size: 14px; margin-bottom: 10px;">Watch step-by-step setup videos</p>
+        <a href="{{tutorialsUrl}}" style="color: #2563eb; text-decoration: none;">Watch Now →</a>
+    </div>
+</div>
+
+<h3 style="color: #2563eb;">Security First</h3>
+<p>Your security is our top priority. FacePay uses:</p>
+<ul>
+    <li>End-to-end encryption for all transactions</li>
+    <li>Advanced facial recognition with liveness detection</li>
+    <li>Multi-layer fraud prevention systems</li>
+    <li>24/7 security monitoring</li>
+    <li>Zero-knowledge architecture</li>
+</ul>
+
+<div style="text-align: center; margin: 30px 0; padding: 20px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; border-radius: 10px;">
+    <h3 style="margin-top: 0;">Ready to Experience the Future of Payments?</h3>
+    <p style="margin-bottom: 15px;">Join thousands of users who have already made the switch to secure, biometric payments.</p>
+    <a href="{{getStartedUrl}}" style="background: white; color: #2563eb; padding: 12px 24px; border-radius: 5px; text-decoration: none; font-weight: bold;">Get Started Now</a>
+</div>
+
+<p>We're here to help every step of the way. If you have any questions or need assistance, don't hesitate to reach out!</p>
+
+<p>Welcome to the future of secure payments!</p>
+
+<p>Best regards,<br>
+The FacePay Team</p>
+
+<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+<p style="font-size: 12px; color: #6b7280;">
+    <strong>Need Help Getting Started?</strong><br>
+    📧 <a href="mailto:{{supportEmail}}">{{supportEmail}}</a><br>
+    💬 <a href="{{liveChatUrl}}">Live Chat Support</a><br>
+    📱 <a href="{{appDownloadUrl}}">Download Mobile App</a><br>
+    🌐 <a href="{{helpCenterUrl}}">Visit Help Center</a>
+</p>
+{{/inline}}
+{{/base}}
