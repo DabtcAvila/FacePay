@@ -109,8 +109,8 @@ const THREAT_PATTERNS = {
 }
 
 // Security logger class
-class SecurityLogger {
-  private static instance: SecurityLogger
+class CoreSecurityLogger {
+  private static instance: CoreSecurityLogger
   private eventBuffer: SecurityEvent[] = []
   private bufferSize = 100
   private flushInterval = 30000 // 30 seconds
@@ -122,11 +122,11 @@ class SecurityLogger {
     }
   }
   
-  public static getInstance(): SecurityLogger {
-    if (!SecurityLogger.instance) {
-      SecurityLogger.instance = new SecurityLogger()
+  public static getInstance(): CoreSecurityLogger {
+    if (!CoreSecurityLogger.instance) {
+      CoreSecurityLogger.instance = new CoreSecurityLogger()
     }
-    return SecurityLogger.instance
+    return CoreSecurityLogger.instance
   }
   
   // Log security event
@@ -384,7 +384,46 @@ class SecurityLogger {
 }
 
 // Utility functions for easy logging
-export const securityLogger = SecurityLogger.getInstance()
+export const securityLogger = CoreSecurityLogger.getInstance()
+
+// Simple interface for admin API compatibility
+export class AdminSecurityLogger {
+  private component: string;
+
+  constructor(component: string) {
+    this.component = component;
+  }
+
+  async log(
+    action: string,
+    actor: string,
+    metadata: Record<string, any> = {}
+  ): Promise<void> {
+    try {
+      // Use the existing security logger system
+      await securityLogger.logEvent({
+        type: action as any, // Convert to SecurityEventType if needed
+        severity: SecuritySeverity.MEDIUM,
+        userId: actor === 'admin' ? undefined : actor,
+        ipAddress: 'localhost', // In real app, get from request
+        userAgent: 'admin-api',
+        path: `/admin/${this.component}`,
+        method: 'API',
+        details: {
+          ...metadata,
+          component: this.component,
+          action,
+          actor
+        }
+      });
+    } catch (error) {
+      console.error(`[${this.component}] Security logging failed:`, error);
+    }
+  }
+}
+
+// For backward compatibility with admin APIs
+export { AdminSecurityLogger as SecurityLogger }
 
 export function logAuthSuccess(userId: string, request: NextRequest, sessionId?: string): void {
   securityLogger.logEvent({
