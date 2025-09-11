@@ -25,7 +25,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/20</span>
+                <span class='fraction'>0/23</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/18</span>
+                <span class='fraction'>0/20</span>
             </div>
         
             
@@ -142,20 +142,25 @@
 <a name='L77'></a><a href='#L77'>77</a>
 <a name='L78'></a><a href='#L78'>78</a>
 <a name='L79'></a><a href='#L79'>79</a>
-<a name='L80'></a><a href='#L80'>80</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -168,6 +173,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -225,9 +231,11 @@
 import { prisma } from <span class="cstat-no" title="statement not covered" >'@/lib/prisma'</span>
 import { requireAuth, createErrorResponse, createSuccessResponse } from <span class="cstat-no" title="statement not covered" >'@/lib/auth-middleware'</span>
 import { generateAuthenticationOptions } from <span class="cstat-no" title="statement not covered" >'@simplewebauthn/server'</span>
+import { isoBase64URL } from <span class="cstat-no" title="statement not covered" >'@simplewebauthn/server/helpers'</span>
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 &nbsp;
-export async function <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >POST(r</span></span>equest: NextRequest) {
+export const <span class="cstat-no" title="statement not covered" >dynamic </span>= <span class="cstat-no" title="statement not covered" >'force-dynamic'</span>
+export async function <span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >POST(</span></span>request: NextRequest) {
 <span class="cstat-no" title="statement not covered" >  try {</span>
     // Require authentication to get user's credentials
     const auth = <span class="cstat-no" title="statement not covered" >await requireAuth(request)</span>
@@ -247,7 +255,8 @@ export async function <span class="cstat-no" title="statement not covered" ><spa
 &nbsp;
     // Only allow credentials owned by this user - force internal transport for platform authenticators
     const allowCredentials = <span class="cstat-no" title="statement not covered" >user.webauthnCredentials.map(<span class="fstat-no" title="function not covered" >cred =&gt; (<span class="cstat-no" title="statement not covered" >{</span></span></span>
-      id: cred.credentialId, // Use string directly as stored in base64url format
+      id: isoBase64URL.toBuffer(cred.credentialId), // Convert base64url to buffer
+      type: 'public-key' as const,
       transports: ['internal'] as AuthenticatorTransportFuture[], // Force platform authenticator transport
     }))
 &nbsp;
@@ -307,7 +316,7 @@ export async function <span class="cstat-no" title="statement not covered" ><spa
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-09-09T21:48:34.886Z
+                at 2025-09-11T05:23:17.954Z
             </div>
         <script src="../../../../prettify.js"></script>
         <script>
