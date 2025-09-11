@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs';
+// import * as Sentry from '@sentry/nextjs'; // Temporarily disabled
 import React from 'react';
 import { analytics } from './analytics';
 
@@ -37,67 +37,15 @@ class Monitoring {
     // Initialize Sentry
     if (dsn && (this.config.enableInProduction || enableInDevelopment)) {
       try {
-        Sentry.init({
-          dsn,
-          environment: process.env.NODE_ENV,
-          sampleRate: this.config.sampleRate,
-          tracesSampleRate: this.config.tracesSampleRate,
-          debug: process.env.NODE_ENV === 'development',
-          
-          // TODO: Update Sentry integrations for current version
-          // integrations: [
-          //   new Sentry.BrowserTracing({
-          //     routingInstrumentation: Sentry.nextRouterInstrumentation({
-          //       router: typeof window !== 'undefined' ? window.next?.router : undefined
-          //     }),
-          //   }),
-          //   new Sentry.Replay({
-          //     maskAllText: false,
-          //     blockAllMedia: false,
-          //     sampleRate: 0.1,
-          //     errorSampleRate: 1.0,
-          //   }),
-          // ],
-
-          beforeSend(event, hint) {
-            // Filter out development errors
-            if (process.env.NODE_ENV === 'development') {
-              const error = hint.originalException;
-              if (error instanceof Error && error.message.includes('ChunkLoadError')) {
-                return null; // Don't send chunk load errors in development
-              }
-            }
-
-            // Add custom context
-            event.contexts = {
-              ...event.contexts,
-              app: {
-                name: 'FacePay',
-                version: '1.0.0',
-                build: process.env.VERCEL_GIT_COMMIT_SHA || 'unknown'
-              }
-            };
-
-            return event;
-          },
-
-          beforeBreadcrumb(breadcrumb, hint) {
-            // Filter sensitive breadcrumbs
-            if (breadcrumb.category === 'console' && breadcrumb.level === 'log') {
-              return null;
-            }
-            return breadcrumb;
-          }
-        });
-
+        // Temporarily disabled - using console logging instead
+        console.log('🔍 Monitoring initialized (console mode)');
         this.isInitialized = true;
-        console.log('🔍 Sentry monitoring initialized');
         
         // Set user context if available
         this.setContext();
         
       } catch (error) {
-        console.error('Failed to initialize Sentry:', error);
+        console.error('Failed to initialize Monitoring:', error);
       }
     } else {
       console.log('🔍 Monitoring disabled - no DSN provided or not in production');
@@ -114,20 +62,20 @@ class Monitoring {
     if (!this.isInitialized) return;
 
     try {
-      Sentry.setContext('browser', {
-        name: navigator?.userAgent || 'unknown',
-        version: navigator?.appVersion || 'unknown'
-      });
-
-      if (typeof window !== 'undefined') {
-        Sentry.setContext('viewport', {
+      // Temporarily disabled - using console logging instead
+      console.log('🔍 [Monitoring Context]', {
+        browser: {
+          name: navigator?.userAgent || 'unknown',
+          version: navigator?.appVersion || 'unknown'
+        },
+        viewport: typeof window !== 'undefined' ? {
           width: window.innerWidth,
           height: window.innerHeight,
           devicePixelRatio: window.devicePixelRatio
-        });
-      }
+        } : null
+      });
     } catch (error) {
-      console.error('Error setting Sentry context:', error);
+      console.error('Error setting monitoring context:', error);
     }
   }
 
@@ -246,25 +194,14 @@ class Monitoring {
     }
 
     try {
-      if (context) {
-        Sentry.withScope((scope) => {
-          if (context.level) scope.setLevel(context.level);
-          if (context.user) scope.setUser(context.user);
-          if (context.tags) scope.setTags(context.tags);
-          if (context.extra) scope.setExtras(context.extra);
-          if (context.context) scope.setContext('additional', context.context);
-          
-          Sentry.captureException(error);
-        });
-      } else {
-        Sentry.captureException(error);
-      }
+      // Temporarily disabled - using console logging instead
+      console.error('🔍 [Monitoring Exception]', error, context);
 
       // Also track in analytics
       analytics.trackError(error, context?.context, context?.extra);
       
-    } catch (sentryError) {
-      console.error('Error capturing exception:', sentryError, error);
+    } catch (monitoringError) {
+      console.error('Error capturing exception:', monitoringError, error);
     }
   }
 
@@ -275,19 +212,9 @@ class Monitoring {
     }
 
     try {
-      if (context) {
-        Sentry.withScope((scope) => {
-          scope.setLevel(level);
-          if (context.user) scope.setUser(context.user);
-          if (context.tags) scope.setTags(context.tags);
-          if (context.extra) scope.setExtras(context.extra);
-          if (context.context) scope.setContext('additional', context.context);
-          
-          Sentry.captureMessage(message, level);
-        });
-      } else {
-        Sentry.captureMessage(message, level);
-      }
+      // Temporarily disabled - using console logging instead
+      const logFn = level === 'error' || level === 'fatal' ? console.error : level === 'warning' ? console.warn : console.log;
+      logFn('🔍 [Monitoring Message]', message, level, context);
     } catch (error) {
       console.error('Error capturing message:', error);
     }
@@ -298,8 +225,8 @@ class Monitoring {
     if (!this.isInitialized) return;
 
     try {
-      // Send to Sentry as measurement
-      Sentry.setMeasurement(name, value, 'millisecond');
+      // Temporarily disabled - using console logging instead
+      console.log('🔍 [Monitoring Performance]', name, value, 'ms', metadata);
       
       // Also track in analytics
       analytics.trackPerformance(name, value, 'ms');
@@ -365,7 +292,8 @@ class Monitoring {
     if (!this.isInitialized) return;
 
     try {
-      Sentry.setUser(user);
+      // Temporarily disabled - using console logging instead
+      console.log('🔍 [Monitoring User]', user);
       analytics.identify(user.id, user);
     } catch (error) {
       console.error('Error setting user:', error);
@@ -377,13 +305,8 @@ class Monitoring {
     if (!this.isInitialized) return;
 
     try {
-      Sentry.addBreadcrumb({
-        message,
-        category,
-        level,
-        data,
-        timestamp: Date.now() / 1000
-      });
+      // Temporarily disabled - using console logging instead
+      console.log('🔍 [Monitoring Breadcrumb]', message, category, level, data);
     } catch (error) {
       console.error('Error adding breadcrumb:', error);
     }
@@ -394,7 +317,9 @@ class Monitoring {
     if (!this.isInitialized) return null;
 
     try {
-      return Sentry.startTransaction({ name, op: operation });
+      // Temporarily disabled - using console logging instead
+      console.log('🔍 [Monitoring Transaction]', name, operation);
+      return { name, operation, startTime: Date.now() }; // Mock transaction object
     } catch (error) {
       console.error('Error starting transaction:', error);
       return null;
@@ -459,7 +384,8 @@ class Monitoring {
   cleanup() {
     try {
       this.performanceObserver?.disconnect();
-      Sentry.close();
+      // Sentry.close(); // Temporarily disabled
+      console.log('🔍 [Monitoring Cleanup]');
     } catch (error) {
       console.error('Error during monitoring cleanup:', error);
     }

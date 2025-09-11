@@ -1,4 +1,4 @@
-import mixpanel from 'mixpanel-browser';
+// import mixpanel from 'mixpanel-browser'; // Temporarily disabled
 
 // Analytics Configuration
 interface AnalyticsConfig {
@@ -31,26 +31,15 @@ class Analytics {
     // Initialize Mixpanel only in production or when explicitly enabled
     if (token && (this.config.enableInProduction || enableDebug)) {
       try {
-        mixpanel.init(token, {
-          debug: enableDebug,
-          track_pageview: true,
-          persistence: 'localStorage',
-          batch_requests: true,
-          batch_size: 50,
-          batch_flush_interval_ms: 5000,
-          secure_cookie: isProduction,
-          loaded: () => {
-            console.log('🎯 Mixpanel initialized successfully');
-          }
-        });
-        
+        // Temporarily disabled - using console logging instead
+        console.log('🎯 Analytics initialized (console mode)');
         this.isInitialized = true;
         this.track('Analytics Initialized', {
           environment: process.env.NODE_ENV,
           timestamp: new Date().toISOString()
         });
       } catch (error) {
-        console.error('Failed to initialize Mixpanel:', error);
+        console.error('Failed to initialize Analytics:', error);
       }
     } else {
       console.log('📊 Analytics disabled - no token provided or not in production');
@@ -78,7 +67,8 @@ class Analytics {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
-      mixpanel.track(eventName, enhancedProperties);
+      // mixpanel.track(eventName, enhancedProperties); // Temporarily disabled
+      console.log('📊 [Analytics Track]', eventName, enhancedProperties);
       
       if (this.config.enableDebug) {
         console.log('📊 [Analytics]', eventName, enhancedProperties);
@@ -93,13 +83,14 @@ class Analytics {
     if (!this.isInitialized || typeof window === 'undefined') return;
 
     try {
-      mixpanel.identify(userId);
-      if (traits) {
-        mixpanel.people.set({
-          ...traits,
-          $last_seen: new Date().toISOString()
-        });
-      }
+      // mixpanel.identify(userId); // Temporarily disabled
+      console.log('📊 [Analytics Identify]', userId, traits);
+      // if (traits) {
+      //   mixpanel.people.set({
+      //     ...traits,
+      //     $last_seen: new Date().toISOString()
+      //   });
+      // }
     } catch (error) {
       console.error('Analytics identify error:', error);
     }
@@ -125,7 +116,8 @@ class Analytics {
     });
     
     if (success) {
-      mixpanel.people.track_charge(amount);
+      // mixpanel.people.track_charge(amount); // Temporarily disabled
+      console.log('📊 [Analytics Charge]', amount);
     }
   }
 
@@ -240,8 +232,8 @@ class Analytics {
   flush() {
     if (this.isInitialized && typeof window !== 'undefined') {
       try {
-        // @ts-ignore - Mixpanel flush method
-        mixpanel.flush();
+        // mixpanel.flush(); // Temporarily disabled
+        console.log('📊 [Analytics Flush]');
       } catch (error) {
         console.error('Analytics flush error:', error);
       }
@@ -252,7 +244,8 @@ class Analytics {
   reset() {
     if (this.isInitialized && typeof window !== 'undefined') {
       try {
-        mixpanel.reset();
+        // mixpanel.reset(); // Temporarily disabled
+        console.log('📊 [Analytics Reset]');
       } catch (error) {
         console.error('Analytics reset error:', error);
       }
