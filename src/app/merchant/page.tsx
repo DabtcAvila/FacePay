@@ -131,14 +131,14 @@ export default function MerchantDashboard() {
 
   if (loading) {
     return (
-      <div className=\"p-6\">
-        <div className=\"animate-pulse\">
-          <div className=\"h-8 bg-gray-200 rounded w-1/4 mb-6\"></div>
-          <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8\">
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className=\"bg-white p-6 rounded-lg shadow\">
-                <div className=\"h-4 bg-gray-200 rounded w-1/2 mb-2\"></div>
-                <div className=\"h-8 bg-gray-200 rounded w-3/4\"></div>
+              <div key={i} className="bg-white p-6 rounded-lg shadow">
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded w-3/4"></div>
               </div>
             ))}
           </div>
@@ -149,14 +149,14 @@ export default function MerchantDashboard() {
 
   if (!data) {
     return (
-      <div className=\"p-6\">
-        <div className=\"text-center py-12\">
-          <AlertTriangle className=\"h-12 w-12 text-red-500 mx-auto mb-4\" />
-          <h3 className=\"text-lg font-medium text-gray-900 mb-2\">Failed to load dashboard</h3>
-          <p className=\"text-gray-600 mb-4\">There was an error loading your dashboard data.</p>
+      <div className="p-6">
+        <div className="text-center py-12">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load dashboard</h3>
+          <p className="text-gray-600 mb-4">There was an error loading your dashboard data.</p>
           <button
             onClick={loadDashboardData}
-            className=\"inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700\"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
           >
             Retry
           </button>
@@ -166,58 +166,58 @@ export default function MerchantDashboard() {
   }
 
   return (
-    <div className=\"p-6 max-w-7xl mx-auto\">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className=\"mb-8\">
-        <div className=\"flex items-center justify-between\">
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className=\"text-2xl font-bold text-gray-900\">
+            <h1 className="text-2xl font-bold text-gray-900">
               Welcome back, {data.merchant.companyName}
             </h1>
-            <p className=\"text-gray-600 mt-1\">
+            <p className="text-gray-600 mt-1">
               Here's what's happening with your business
             </p>
           </div>
           
-          <div className=\"flex items-center space-x-4\">
+          <div className="flex items-center space-x-4">
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
-              className=\"border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500\"
+              className="border-gray-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value=\"24h\">Last 24 Hours</option>
-              <option value=\"7d\">Last 7 Days</option>
-              <option value=\"30d\">Last 30 Days</option>
-              <option value=\"90d\">Last 90 Days</option>
-              <option value=\"1y\">Last Year</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+              <option value="1y">Last Year</option>
             </select>
             
-            <label className=\"flex items-center\">
+            <label className="flex items-center">
               <input
-                type=\"checkbox\"
+                type="checkbox"
                 checked={includeComparison}
                 onChange={(e) => setIncludeComparison(e.target.checked)}
-                className=\"rounded border-gray-300 text-indigo-600 focus:ring-indigo-500\"
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className=\"ml-2 text-sm text-gray-700\">Compare periods</span>
+              <span className="ml-2 text-sm text-gray-700">Compare periods</span>
             </label>
           </div>
         </div>
         
         {/* Status alerts */}
         {!data.merchant.isLive && (
-          <div className=\"mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4\">
-            <div className=\"flex\">
-              <AlertTriangle className=\"h-5 w-5 text-yellow-400\" />
-              <div className=\"ml-3\">
-                <h3 className=\"text-sm font-medium text-yellow-800\">
+          <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+            <div className="flex">
+              <AlertTriangle className="h-5 w-5 text-yellow-400" />
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">
                   Account Setup Incomplete
                 </h3>
-                <div className=\"mt-2 text-sm text-yellow-700\">
+                <div className="mt-2 text-sm text-yellow-700">
                   <p>Complete your KYC verification to start accepting live payments.</p>
                 </div>
-                <div className=\"mt-3\">
-                  <button className=\"text-sm font-medium text-yellow-800 hover:text-yellow-900\">
+                <div className="mt-3">
+                  <button className="text-sm font-medium text-yellow-800 hover:text-yellow-900">
                     Complete verification →
                   </button>
                 </div>
@@ -228,9 +228,9 @@ export default function MerchantDashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8\">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <MetricCard
-          title=\"Total Revenue\"
+          title="Total Revenue"
           value={formatCurrency(data.metrics.revenue.gross)}
           change={data.comparison?.growth.volume}
           icon={DollarSign}
@@ -238,7 +238,7 @@ export default function MerchantDashboard() {
         />
         
         <MetricCard
-          title=\"Transactions\"
+          title="Transactions"
           value={data.metrics.transactions.total.toLocaleString()}
           change={data.comparison?.growth.transactions}
           icon={CreditCard}
@@ -246,7 +246,7 @@ export default function MerchantDashboard() {
         />
         
         <MetricCard
-          title=\"Success Rate\"
+          title="Success Rate"
           value={`${data.metrics.transactions.successRate.toFixed(1)}%`}
           change={data.comparison?.growth.successRate}
           icon={CheckCircle}
@@ -254,7 +254,7 @@ export default function MerchantDashboard() {
         />
         
         <MetricCard
-          title=\"Active Users\"
+          title="Active Users"
           value={data.metrics.users.active.toLocaleString()}
           change={undefined}
           icon={Users}
@@ -262,18 +262,18 @@ export default function MerchantDashboard() {
       </div>
 
       {/* Charts and Tables */}
-      <div className=\"grid grid-cols-1 lg:grid-cols-3 gap-8\">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Activity */}
-        <div className=\"lg:col-span-2 bg-white rounded-lg shadow\">
-          <div className=\"px-6 py-4 border-b border-gray-200\">
-            <h3 className=\"text-lg font-medium text-gray-900\">Recent Transactions</h3>
+        <div className="lg:col-span-2 bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Recent Transactions</h3>
           </div>
           
-          <div className=\"overflow-hidden\">
-            <div className=\"divide-y divide-gray-200\">
+          <div className="overflow-hidden">
+            <div className="divide-y divide-gray-200">
               {data.insights.recentActivity.slice(0, 5).map((transaction) => (
-                <div key={transaction.id} className=\"px-6 py-4 flex items-center justify-between\">
-                  <div className=\"flex items-center\">
+                <div key={transaction.id} className="px-6 py-4 flex items-center justify-between">
+                  <div className="flex items-center">
                     <div className={`flex-shrink-0 h-2.5 w-2.5 rounded-full ${
                       transaction.status === 'completed' 
                         ? 'bg-green-400' 
@@ -282,21 +282,21 @@ export default function MerchantDashboard() {
                         : 'bg-yellow-400'
                     }`} />
                     
-                    <div className=\"ml-4\">
-                      <div className=\"text-sm font-medium text-gray-900\">
+                    <div className="ml-4">
+                      <div className="text-sm font-medium text-gray-900">
                         {formatCurrency(transaction.amount)} {transaction.currency}
                       </div>
-                      <div className=\"text-sm text-gray-500\">
+                      <div className="text-sm text-gray-500">
                         {transaction.user.name || transaction.user.email}
                       </div>
                     </div>
                   </div>
                   
-                  <div className=\"text-right\">
-                    <div className=\"text-sm text-gray-900\">
+                  <div className="text-right">
+                    <div className="text-sm text-gray-900">
                       {transaction.paymentMethod.type}
                     </div>
-                    <div className=\"text-sm text-gray-500\">
+                    <div className="text-sm text-gray-500">
                       {new Date(transaction.createdAt).toLocaleDateString()}
                     </div>
                   </div>
@@ -305,32 +305,32 @@ export default function MerchantDashboard() {
             </div>
           </div>
           
-          <div className=\"px-6 py-3 bg-gray-50 text-right\">
-            <button className=\"text-sm font-medium text-indigo-600 hover:text-indigo-500\">
+          <div className="px-6 py-3 bg-gray-50 text-right">
+            <button className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
               View all transactions →
             </button>
           </div>
         </div>
 
         {/* Payment Methods */}
-        <div className=\"bg-white rounded-lg shadow\">
-          <div className=\"px-6 py-4 border-b border-gray-200\">
-            <h3 className=\"text-lg font-medium text-gray-900\">Payment Methods</h3>
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Payment Methods</h3>
           </div>
           
-          <div className=\"p-6\">
-            <div className=\"space-y-4\">
+          <div className="p-6">
+            <div className="space-y-4">
               {data.insights.topPaymentMethods.map((method, index) => (
-                <div key={index} className=\"flex items-center justify-between\">
+                <div key={index} className="flex items-center justify-between">
                   <div>
-                    <div className=\"text-sm font-medium text-gray-900 capitalize\">
+                    <div className="text-sm font-medium text-gray-900 capitalize">
                       {method.type} ({method.provider})
                     </div>
-                    <div className=\"text-sm text-gray-500\">
+                    <div className="text-sm text-gray-500">
                       {method.count} transactions
                     </div>
                   </div>
-                  <div className=\"text-sm font-medium text-gray-900\">
+                  <div className="text-sm font-medium text-gray-900">
                     {formatCurrency(method.volume)}
                   </div>
                 </div>
@@ -341,45 +341,45 @@ export default function MerchantDashboard() {
       </div>
 
       {/* System Status */}
-      <div className=\"mt-8 bg-white rounded-lg shadow\">
-        <div className=\"px-6 py-4 border-b border-gray-200\">
-          <h3 className=\"text-lg font-medium text-gray-900\">System Health</h3>
+      <div className="mt-8 bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">System Health</h3>
         </div>
         
-        <div className=\"p-6\">
-          <div className=\"grid grid-cols-1 md:grid-cols-3 gap-6\">
-            <div className=\"text-center\">
-              <div className=\"flex items-center justify-center\">
-                <Activity className=\"h-8 w-8 text-green-500\" />
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="flex items-center justify-center">
+                <Activity className="h-8 w-8 text-green-500" />
               </div>
-              <div className=\"mt-2\">
-                <div className=\"text-sm font-medium text-gray-900\">API Status</div>
-                <div className=\"text-sm text-green-600\">Operational</div>
+              <div className="mt-2">
+                <div className="text-sm font-medium text-gray-900">API Status</div>
+                <div className="text-sm text-green-600">Operational</div>
               </div>
             </div>
             
-            <div className=\"text-center\">
-              <div className=\"flex items-center justify-center\">
-                <Clock className=\"h-8 w-8 text-blue-500\" />
+            <div className="text-center">
+              <div className="flex items-center justify-center">
+                <Clock className="h-8 w-8 text-blue-500" />
               </div>
-              <div className=\"mt-2\">
-                <div className=\"text-sm font-medium text-gray-900\">Webhook Success</div>
-                <div className=\"text-sm text-gray-600\">
+              <div className="mt-2">
+                <div className="text-sm font-medium text-gray-900">Webhook Success</div>
+                <div className="text-sm text-gray-600">
                   {data.metrics.webhooks.successRate.toFixed(1)}%
                 </div>
               </div>
             </div>
             
-            <div className=\"text-center\">
-              <div className=\"flex items-center justify-center\">
+            <div className="text-center">
+              <div className="flex items-center justify-center">
                 {data.metrics.errors.critical > 0 ? (
-                  <XCircle className=\"h-8 w-8 text-red-500\" />
+                  <XCircle className="h-8 w-8 text-red-500" />
                 ) : (
-                  <CheckCircle className=\"h-8 w-8 text-green-500\" />
+                  <CheckCircle className="h-8 w-8 text-green-500" />
                 )}
               </div>
-              <div className=\"mt-2\">
-                <div className=\"text-sm font-medium text-gray-900\">Error Rate</div>
+              <div className="mt-2">
+                <div className="text-sm font-medium text-gray-900">Error Rate</div>
                 <div className={`text-sm ${data.metrics.errors.critical > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {data.metrics.errors.total} errors
                 </div>
@@ -402,27 +402,27 @@ interface MetricCardProps {
 
 function MetricCard({ title, value, change, icon: Icon, trend }: MetricCardProps) {
   return (
-    <div className=\"bg-white overflow-hidden shadow rounded-lg\">
-      <div className=\"p-5\">
-        <div className=\"flex items-center\">
-          <div className=\"flex-shrink-0\">
-            <Icon className=\"h-6 w-6 text-gray-400\" />
+    <div className="bg-white overflow-hidden shadow rounded-lg">
+      <div className="p-5">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <Icon className="h-6 w-6 text-gray-400" />
           </div>
-          <div className=\"ml-5 w-0 flex-1\">
+          <div className="ml-5 w-0 flex-1">
             <dl>
-              <dt className=\"text-sm font-medium text-gray-500 truncate\">{title}</dt>
-              <dd className=\"flex items-baseline\">
-                <div className=\"text-2xl font-semibold text-gray-900\">{value}</div>
+              <dt className="text-sm font-medium text-gray-500 truncate">{title}</dt>
+              <dd className="flex items-baseline">
+                <div className="text-2xl font-semibold text-gray-900">{value}</div>
                 {change !== undefined && (
                   <div className={`ml-2 flex items-baseline text-sm font-semibold ${
                     trend === 'up' ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {trend === 'up' ? (
-                      <TrendingUp className=\"self-center flex-shrink-0 h-4 w-4\" />
+                      <TrendingUp className="self-center flex-shrink-0 h-4 w-4" />
                     ) : (
-                      <TrendingDown className=\"self-center flex-shrink-0 h-4 w-4\" />
+                      <TrendingDown className="self-center flex-shrink-0 h-4 w-4" />
                     )}
-                    <span className=\"ml-1\">{Math.abs(change).toFixed(1)}%</span>
+                    <span className="ml-1">{Math.abs(change).toFixed(1)}%</span>
                   </div>
                 )}
               </dd>
