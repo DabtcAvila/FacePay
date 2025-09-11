@@ -13,9 +13,7 @@
   },
   "functions": {
     "src/app/api/**/*.ts": {
-      "maxDuration": 30,
-      "memory": 1024,
-      "runtime": "nodejs18.x"
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -72,7 +70,7 @@
       ]
     },
     {
-      "source": "/(.*\\.(woff|woff2|eot|ttf|otf))",
+      "source": "/(.*\\.woff|.*\\.woff2|.*\\.eot|.*\\.ttf|.*\\.otf)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -91,7 +89,6 @@
     "silent": false,
     "autoAlias": true
   },
-  "regions": ["iad1", "sfo1"],
   "trailingSlash": false,
   "cleanUrls": true
 }
