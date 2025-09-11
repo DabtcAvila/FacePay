@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FacePay SDK - Vanilla JavaScript Example</title>
+  <script src="../facepay-sdk.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .example-section {
+      margin: 40px 0;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    button {
+      background: #4F46E5;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 8px 8px 8px 0;
+    }
+    button:hover { background: #4338CA; }
+    button:disabled { background: #9CA3AF; cursor: not-allowed; }
+    .status { margin: 10px 0; padding: 10px; border-radius: 4px; }
+    .success { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+    .error { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
+    .info { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+    pre { background: #f3f4f6; padding: 15px; border-radius: 6px; overflow-x: auto; }
+    .amount-input { width: 100px; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>🔐 FacePay SDK - Vanilla JavaScript Example</h1>
+  <p>This example shows how to integrate FacePay biometric payment authentication into a vanilla JavaScript application.</p>
+
+  <!-- Basic Integration -->
+  <div class="example-section">
+    <h2>📱 Basic Integration</h2>
+    <p>Initialize the SDK and check device support:</p>
+    
+    <button onclick="initializeSDK()">Initialize SDK</button>
+    <button onclick="checkSupport()" disabled id="supportBtn">Check Support</button>
+    
+    <div id="initStatus"></div>
+    
+    <pre><code>// Initialize FacePay SDK
+FacePay.init('pk_test_your_api_key_here');
+
+// Check if biometric auth is supported
+const support = await FacePay.isSupported();
+console.log('Supported:', support.supported);</code></pre>
+  </div>
+
+  <!-- Payment Flow -->
+  <div class="example-section">
+    <h2>💳 Payment Flow</h2>
+    <p>Authenticate user and process payment:</p>
+    
+    <label>Amount: $<input type="number" id="amount" class="amount-input" value="99.99" step="0.01"></label>
+    <button onclick="processPayment()" disabled id="payBtn">Pay with Biometrics</button>
+    
+    <div id="paymentStatus"></div>
+    
+    <pre><code>// Process biometric payment
+await FacePay.authenticate({
+  amount: 99.99,
+  currency: 'USD',
+  userId: 'user@example.com',
+  onSuccess: (result) => {
+    console.log('Payment successful!', result);
+  },
+  onError: (error) => {
+    console.error('Payment failed:', error);
+  }
+});</code></pre>
+  </div>
+
+  <!-- Advanced Features -->
+  <div class="example-section">
+    <h2>🔧 Advanced Features</h2>
+    <p>Explore advanced SDK features:</p>
+    
+    <button onclick="getVersion()">Get SDK Version</button>
+    <button onclick="enableDebug()">Enable Debug Mode</button>
+    <button onclick="runDiagnostics()">Run Diagnostics</button>
+    
+    <div id="advancedStatus"></div>
+    
+    <pre><code>// Get version info
+const version = FacePay.getVersion();
+
+// Enable debug mode
+FacePay.enableDebug();
+
+// Check device capabilities
+const support = await FacePay.isSupported();
+console.log('Device info:', support.device);</code></pre>
+  </div>
+
+  <!-- Error Handling -->
+  <div class="example-section">
+    <h2>⚠️ Error Handling</h2>
+    <p>Proper error handling with the SDK:</p>
+    
+    <button onclick="simulateError()">Simulate Error</button>
+    <button onclick="handleCancellation()">Test User Cancellation</button>
+    
+    <div id="errorStatus"></div>
+    
+    <pre><code>try {
+  await FacePay.authenticate(params);
+} catch (error) {
+  if (error.code === 'USER_CANCELLED') {
+    console.log('User cancelled authentication');
+  } else if (error.code === 'NOT_SUPPORTED') {
+    console.log('Biometrics not supported, show fallback');
+  } else {
+    console.error('Authentication error:', error.message);
+  }
+}</code></pre>
+  </div>
+
+  <script>
+    let facePaySDK = new FacePay();
+
+    function showStatus(elementId, message, type = 'info') {
+      const element = document.getElementById(elementId);
+      element.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+
+    async function initializeSDK() {
+      try {
+        // Initialize with demo API key
+        facePaySDK.init('pk_test_demo_key', {
+          environment: 'development',
+          debug: true,
+          stripeKey: 'pk_test_stripe_demo_key'
+        });
+        
+        showStatus('initStatus', '✅ SDK initialized successfully!', 'success');
+        document.getElementById('supportBtn').disabled = false;
+        document.getElementById('payBtn').disabled = false;
+        
+      } catch (error) {
+        showStatus('initStatus', `❌ Initialization failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function checkSupport() {
+      try {
+        const support = await facePaySDK.isSupported();
+        
+        if (support.supported) {
+          showStatus('initStatus', 
+            `✅ Biometric authentication supported!<br>
+            📱 Device: ${support.device.isMobile ? 'Mobile' : 'Desktop'}<br>
+            🔐 Type: ${support.type}<br>
+            🌐 Platform: ${support.device.platform}`, 
+            'success'
+          );
+        } else {
+          showStatus('initStatus', 
+            `❌ Biometric authentication not supported on this device.<br>
+            📱 Device: ${support.device.platform}<br>
+            ⚠️ Reason: No biometric sensors detected`, 
+            'error'
+          );
+        }
+      } catch (error) {
+        showStatus('initStatus', `❌ Support check failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function processPayment() {
+      const amount = parseFloat(document.getElementById('amount').value);
+      
+      if (!amount || amount <= 0) {
+        showStatus('paymentStatus', '❌ Please enter a valid amount', 'error');
+        return;
+      }
+
+      showStatus('paymentStatus', '🔄 Processing payment...', 'info');
+
+      try {
+        const result = await facePaySDK.authenticate({
+          amount: amount,
+          currency: 'USD',
+          userId: 'demo@example.com',
+          showModal: true,
+          onSuccess: (result) => {
+            console.log('Payment successful!', result);
+          },
+          onError: (error) => {
+            console.error('Payment failed:', error);
+          },
+          onCancel: (error) => {
+            console.log('Payment cancelled by user');
+          }
+        });
+
+        if (result.success) {
+          showStatus('paymentStatus', 
+            `✅ Payment successful!<br>
+            💰 Amount: $${amount}<br>
+            👤 User: ${result.user.email || result.user.id || 'Demo User'}<br>
+            🕐 Time: ${new Date(result.metadata.timestamp).toLocaleTimeString()}`, 
+            'success'
+          );
+        }
+
+      } catch (error) {
+        let message = `❌ Payment failed: ${error.message}`;
+        
+        if (error.code === 'USER_CANCELLED') {
+          message = '⏹️ Payment cancelled by user';
+        } else if (error.code === 'NOT_SUPPORTED') {
+          message = '❌ Biometric authentication not supported. Please use card payment.';
+        } else if (error.code === 'TIMEOUT') {
+          message = '⏰ Authentication timed out. Please try again.';
+        }
+        
+        showStatus('paymentStatus', message, 'error');
+      }
+    }
+
+    async function getVersion() {
+      try {
+        const version = facePaySDK.getVersion();
+        showStatus('advancedStatus', 
+          `📦 SDK Version: ${version.version}<br>
+          🚀 Features: ${Object.keys(version.features).filter(f => version.features[f]).join(', ')}<br>
+          ✅ Initialized: ${version.initialized}`, 
+          'success'
+        );
+      } catch (error) {
+        showStatus('advancedStatus', `❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    function enableDebug() {
+      facePaySDK.enableDebug();
+      showStatus('advancedStatus', '🐛 Debug mode enabled! Check console for detailed logs.', 'info');
+    }
+
+    async function runDiagnostics() {
+      try {
+        const support = await facePaySDK.isSupported();
+        showStatus('advancedStatus', 
+          `🔍 Device Diagnostics:<br>
+          📱 Mobile: ${support.device.isMobile}<br>
+          🔐 Biometrics: ${support.device.biometricSupported}<br>
+          🌐 HTTPS: ${support.device.isHTTPS}<br>
+          🗣️ Language: ${support.device.language}<br>
+          ⏰ Timezone: ${support.device.timezone}`, 
+          'info'
+        );
+      } catch (error) {
+        showStatus('advancedStatus', `❌ Diagnostics failed: ${error.message}`, 'error');
+      }
+    }
+
+    function simulateError() {
+      showStatus('errorStatus', 
+        `⚠️ Simulated Error:<br>
+        Code: AUTHENTICATION_FAILED<br>
+        Message: Biometric authentication failed<br>
+        Recoverable: true<br>
+        Suggestion: Please try again or use alternative payment`, 
+        'error'
+      );
+    }
+
+    function handleCancellation() {
+      showStatus('errorStatus', 
+        `⏹️ User Cancellation:<br>
+        Code: USER_CANCELLED<br>
+        Message: User cancelled biometric prompt<br>
+        Recoverable: true<br>
+        Suggestion: Please try again when ready`, 
+        'info'
+      );
+    }
+
+    // Auto-initialize on page load for demo
+    window.addEventListener('load', () => {
+      setTimeout(initializeSDK, 1000);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+{
+  "name": "facepay-shopify-app",
+  "private": true,
+  "description": "Biometric authentication and express checkout for Shopify stores",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "remix build",
+    "dev": "shopify app dev",
+    "config:link": "shopify app config link",
+    "config:push": "shopify app config push",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "config:use": "shopify app config use",
+    "env": "shopify app env",
+    "log": "shopify app logs",
+    "open": "shopify app open",
+    "start": "remix-serve build/index.js",
+    "docker-start": "npm run setup && npm run start",
+    "setup": "prisma generate && prisma migrate deploy",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "shopify": "shopify",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.6.0",
+    "@remix-run/node": "^2.0.0",
+    "@remix-run/react": "^2.0.0",
+    "@remix-run/serve": "^2.0.0",
+    "@shopify/app-bridge": "^4.1.2",
+    "@shopify/app-bridge-react": "^4.1.2",
+    "@shopify/polaris": "^12.0.0",
+    "@shopify/polaris-icons": "^8.0.0",
+    "@shopify/shopify-api": "^8.1.1",
+    "@shopify/shopify-app-remix": "^2.8.0",
+    "@shopify/shopify-app-session-storage-prisma": "^4.0.5",
+    "@simplewebauthn/browser": "^9.0.1",
+    "@simplewebauthn/server": "^9.0.2",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "isbot": "^3.6.8",
+    "prisma": "^5.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remix": "^2.0.0",
+    "crypto": "^1.0.1",
+    "face-api.js": "^0.22.2",
+    "@tensorflow/tfjs": "^4.15.0",
+    "@tensorflow/tfjs-node": "^4.15.0"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.0.0",
+    "@shopify/app-cli": "^3.49.5",
+    "@types/node": "^20.6.2",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.42.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-import": "^2.28.1",
+    "typescript": "^5.1.0",
+    "vite": "^4.4.0",
+    "vitest": "^0.34.0"
+  },
+  "workspaces": [
+    "extensions/*"
+  ],
+  "trustedDependencies": [
+    "@shopify/plugin-cloudflare"
+  ],
+  "resolutions": {
+    "undici": "6.6.2"
+  },
+  "overrides": {
+    "undici": "6.6.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

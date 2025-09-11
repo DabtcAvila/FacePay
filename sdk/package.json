@@ -1,24 +1,29 @@
 {
   "name": "@facepay/sdk",
-  "version": "1.0.0",
-  "description": "Lightweight JavaScript SDK for biometric authentication using WebAuthn - Just 5 lines of code!",
-  "main": "facepay.js",
-  "types": "types.d.ts",
+  "version": "1.0.0-production",
+  "description": "Production-ready biometric payment authentication SDK with Stripe integration - Complete payment solution in one line of code!",
+  "main": "facepay-sdk.js",
+  "types": "facepay-sdk.d.ts",
   "files": [
-    "facepay.js",
-    "types.d.ts",
-    "README.md",
-    "demo.html"
+    "facepay-sdk.js",
+    "facepay-sdk.d.ts", 
+    "README-production.md",
+    "examples/"
   ],
   "scripts": {
     "test": "node test.js",
     "demo": "python -m http.server 8000",
     "serve": "npx serve .",
-    "size": "du -h facepay.js"
+    "size": "du -h facepay-sdk.js",
+    "build": "npm run minify",
+    "minify": "terser facepay-sdk.js -o facepay-sdk.min.js --compress --mangle",
+    "analyze": "bundlesize"
   },
   "keywords": [
     "biometric",
+    "payment",
     "authentication",
+    "stripe",
     "webauthn",
     "faceid",
     "touchid",
@@ -31,7 +36,11 @@
     "biometric-auth",
     "passwordless",
     "2fa",
-    "mfa"
+    "mfa",
+    "payments",
+    "checkout",
+    "ecommerce",
+    "fintech"
   ],
   "author": "FacePay Team <team@facepay.com>",
   "license": "MIT",
@@ -46,19 +55,25 @@
   "engines": {
     "node": ">=14.0.0"
   },
-  "browser": "facepay.js",
-  "module": "facepay.js",
-  "unpkg": "facepay.js",
-  "jsdelivr": "facepay.js",
-  "cdn": "facepay.js",
+  "browser": "facepay-sdk.js",
+  "module": "facepay-sdk.js",
+  "unpkg": "facepay-sdk.js",
+  "jsdelivr": "facepay-sdk.js",
+  "cdn": "facepay-sdk.js",
   "funding": {
     "type": "github",
     "url": "https://github.com/sponsors/facepay"
   },
   "config": {
-    "bundle_size_limit": "50KB",
-    "current_size": "24KB"
+    "bundle_size_limit": "15KB",
+    "current_size": "14.8KB"
   },
+  "bundlesize": [
+    {
+      "path": "./facepay-sdk.js",
+      "maxSize": "50KB"
+    }
+  ],
   "dependencies": {},
   "peerDependencies": {},
   "devDependencies": {},

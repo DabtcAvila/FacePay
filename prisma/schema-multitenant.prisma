@@ -1,0 +1,775 @@
+// Multi-tenant FacePay Schema
+// This schema provides complete merchant isolation and multi-tenancy support
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// MULTI-TENANT CORE MODELS
+// ==========================================
+
+model Merchant {
+  id                String              @id @default(cuid())
+  email             String              @unique
+  companyName       String
+  businessType      String              // 'individual', 'llc', 'corporation', 'non_profit'
+  taxId             String?             // Business tax identification number
+  website           String?
+  country           String              @default("MX")
+  currency          String              @default("MXN")
+  timezone          String              @default("America/Mexico_City")
+  
+  // API Configuration
+  publicKey         String              @unique // Public API key (pk_live_...)
+  secretKey         String              @unique // Secret API key (sk_live_...)
+  webhookSecret     String              @unique // Webhook signing secret
+  testMode          Boolean             @default(false)
+  
+  // Billing & Plans
+  plan              String              @default("starter") // 'starter', 'growth', 'enterprise'
+  billingEmail      String
+  billingAddress    Json                // Complete billing address
+  creditLimit       Decimal             @default(0) @db.Decimal(15, 2)
+  currentBalance    Decimal             @default(0) @db.Decimal(15, 2)
+  
+  // KYC & Verification
+  kycStatus         String              @default("pending") // 'pending', 'in_review', 'verified', 'rejected'
+  verificationDocs  Json?               // Document IDs and verification status
+  riskScore         Int                 @default(0) // 0-100, higher = riskier
+  
+  // Business Settings
+  settings          Json                @default("{}")
+  logoUrl           String?
+  brandColor        String?             @default("#6366F1")
+  customDomain      String?             @unique
+  
+  // Status & Lifecycle
+  status            String              @default("active") // 'active', 'suspended', 'closed'
+  onboardedAt       DateTime?           // When KYC completed
+  firstTransactionAt DateTime?          // First successful transaction
+  isActive          Boolean             @default(true)
+  deletedAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  users             User[]
+  transactions      Transaction[]
+  webhooks          MerchantWebhook[]
+  apiKeys           MerchantApiKey[]
+  invoices          MerchantInvoice[]
+  usageRecords      MerchantUsage[]
+  supportTickets    SupportTicket[]
+  analytics         MerchantAnalytics[]
+  auditLogs         AuditLog[]
+  
+  // Performance Indexes
+  @@index([email])
+  @@index([publicKey])
+  @@index([secretKey])
+  @@index([status])
+  @@index([kycStatus])
+  @@index([plan])
+  @@index([country])
+  @@index([createdAt])
+  @@index([isActive])
+  @@index([testMode])
+  @@map("merchants")
+}
+
+model MerchantApiKey {
+  id            String    @id @default(cuid())
+  merchantId    String
+  keyId         String    @unique // Short identifier for the key
+  hashedKey     String    @unique // Hashed version of the actual key
+  name          String    // User-friendly name
+  permissions   String[]  // Array of permission strings
+  lastUsedAt    DateTime?
+  lastUsedIp    String?
+  expiresAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  merchant      Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([keyId])
+  @@index([hashedKey])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("merchant_api_keys")
+}
+
+model MerchantWebhook {
+  id            String    @id @default(cuid())
+  merchantId    String
+  url           String    // Webhook endpoint URL
+  events        String[]  // Events to subscribe to
+  secret        String    // Webhook signing secret
+  isActive      Boolean   @default(true)
+  lastTriggered DateTime?
+  successCount  Int       @default(0)
+  failureCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  merchant      Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries    WebhookDelivery[]
+  
+  @@index([merchantId])
+  @@index([isActive])
+  @@map("merchant_webhooks")
+}
+
+model WebhookDelivery {
+  id            String          @id @default(cuid())
+  webhookId     String
+  eventType     String
+  payload       Json
+  httpStatus    Int?
+  response      String?
+  attemptCount  Int             @default(1)
+  status        String          @default("pending") // 'pending', 'success', 'failed'
+  nextRetryAt   DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime        @default(now())
+  
+  webhook       MerchantWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  
+  @@index([webhookId])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  @@map("webhook_deliveries")
+}
+
+// Usage Tracking for Billing
+model MerchantUsage {
+  id            String   @id @default(cuid())
+  merchantId    String
+  period        String   // "YYYY-MM" for monthly billing
+  metric        String   // 'transactions', 'api_calls', 'storage_gb'
+  quantity      BigInt   @default(0)
+  cost          Decimal  @default(0) @db.Decimal(15, 2)
+  currency      String   @default("MXN")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  
+  @@unique([merchantId, period, metric])
+  @@index([merchantId])
+  @@index([period])
+  @@index([metric])
+  @@map("merchant_usage")
+}
+
+// Billing & Invoicing
+model MerchantInvoice {
+  id            String   @id @default(cuid())
+  merchantId    String
+  invoiceNumber String   @unique
+  period        String   // Billing period "YYYY-MM"
+  subtotal      Decimal  @db.Decimal(15, 2)
+  tax           Decimal  @default(0) @db.Decimal(15, 2)
+  total         Decimal  @db.Decimal(15, 2)
+  currency      String   @default("MXN")
+  status        String   @default("pending") // 'pending', 'paid', 'overdue', 'cancelled'
+  dueDate       DateTime
+  paidAt        DateTime?
+  pdfUrl        String?
+  lineItems     Json     // Detailed billing breakdown
+  paymentMethodId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([period])
+  @@map("merchant_invoices")
+}
+
+// Support System
+model SupportTicket {
+  id            String    @id @default(cuid())
+  merchantId    String
+  subject       String
+  description   String
+  status        String    @default("open") // 'open', 'in_progress', 'waiting', 'resolved', 'closed'
+  priority      String    @default("medium") // 'low', 'medium', 'high', 'urgent'
+  category      String    // 'technical', 'billing', 'general', 'api'
+  assignedTo    String?   // Admin user ID
+  lastReplyAt   DateTime?
+  resolvedAt    DateTime?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  merchant      Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  replies       TicketReply[]
+  
+  @@index([merchantId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@map("support_tickets")
+}
+
+model TicketReply {
+  id            String        @id @default(cuid())
+  ticketId      String
+  author        String        // 'merchant' or 'admin'
+  authorId      String?       // User/Admin ID
+  message       String
+  isInternal    Boolean       @default(false) // Internal admin notes
+  attachments   String[]      @default([])
+  createdAt     DateTime      @default(now())
+  
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_replies")
+}
+
+// Merchant Analytics
+model MerchantAnalytics {
+  id            String   @id @default(cuid())
+  merchantId    String
+  date          DateTime @db.Date // Daily analytics
+  metric        String   // 'transaction_volume', 'transaction_count', 'revenue', etc.
+  value         Decimal  @db.Decimal(20, 4)
+  currency      String?
+  metadata      Json?    // Additional context
+  createdAt     DateTime @default(now())
+  
+  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  
+  @@unique([merchantId, date, metric])
+  @@index([merchantId])
+  @@index([date])
+  @@index([metric])
+  @@map("merchant_analytics")
+}
+
+// ==========================================
+// UPDATED USER & TRANSACTION MODELS
+// ==========================================
+
+model User {
+  id                String              @id @default(cuid())
+  merchantId        String              // Multi-tenant isolation
+  email             String              
+  name              String?
+  creditBalance     BigInt              @default(0)
+  currentChallenge  String?
+  isActive          Boolean             @default(true)
+  deletedAt         DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  merchant            Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  biometricData       BiometricData[]
+  paymentMethods      PaymentMethod[]
+  transactions        Transaction[]
+  webauthnCredentials WebauthnCredential[]
+  auditLogs           AuditLog[]
+  
+  // Multi-tenant unique constraint
+  @@unique([merchantId, email])
+  @@index([merchantId])
+  @@index([email])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([lastLoginAt])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model BiometricData {
+  id          String   @id @default(cuid())
+  merchantId  String   // Multi-tenant isolation
+  userId      String
+  type        String
+  data        String   // Encrypted biometric template
+  deviceId    String?
+  confidence  Float?
+  isActive    Boolean  @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([type])
+  @@index([isActive])
+  @@index([userId, type, isActive])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("biometric_data")
+}
+
+model WebauthnCredential {
+  id           String   @id @default(cuid())
+  merchantId   String   // Multi-tenant isolation
+  credentialId String   @unique
+  publicKey    String
+  counter      BigInt   @default(0)
+  transports   String[] @default(["internal"])
+  backedUp     Boolean  @default(false)
+  deviceType   String   @default("unknown")
+  deviceName   String?
+  userId       String
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([credentialId])
+  @@index([isActive])
+  @@index([userId, isActive])
+  @@index([lastUsedAt])
+  @@index([deletedAt])
+  @@map("webauthn_credentials")
+}
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  merchantId  String   // Multi-tenant isolation
+  userId      String
+  type        String
+  provider    String
+  details     Json
+  nickname    String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  deletedAt   DateTime?
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([type])
+  @@index([provider])
+  @@index([isDefault])
+  @@index([isActive])
+  @@index([userId, isActive])
+  @@index([userId, isDefault, isActive])
+  @@index([lastUsedAt])
+  @@index([expiresAt])
+  @@index([deletedAt])
+  @@map("payment_methods")
+}
+
+model Transaction {
+  id              String    @id @default(cuid())
+  merchantId      String    // Multi-tenant isolation
+  userId          String
+  amount          Decimal   @db.Decimal(15, 2)
+  currency        String    @default("MXN")
+  status          String    @default("pending")
+  paymentMethodId String
+  description     String?
+  reference       String?
+  fee             Decimal?  @db.Decimal(15, 2)
+  merchantFee     Decimal?  @db.Decimal(15, 2) // Fee charged to merchant
+  metadata        Json?
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+  
+  merchant      Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  refunds       Refund[]
+  receipts      Receipt[]
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([status])
+  @@index([currency])
+  @@index([paymentMethodId])
+  @@index([createdAt])
+  @@index([completedAt])
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@index([status, createdAt])
+  @@index([amount])
+  @@index([reference])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("transactions")
+}
+
+model Refund {
+  id            String    @id @default(cuid())
+  merchantId    String    // Multi-tenant isolation
+  transactionId String
+  amount        Decimal   @db.Decimal(15, 2)
+  reason        String
+  status        String    @default("pending")
+  reference     String?
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+  processedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  metadata      Json?
+  
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([transactionId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([processedAt])
+  @@index([amount])
+  @@index([reference])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("refunds")
+}
+
+model Receipt {
+  id            String    @id @default(cuid())
+  merchantId    String    // Multi-tenant isolation
+  transactionId String
+  receiptNumber String    @unique
+  format        String    @default("json")
+  data          Json
+  fileUrl       String?
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+  generatedAt   DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  @@index([merchantId])
+  @@index([transactionId])
+  @@index([receiptNumber])
+  @@index([format])
+  @@index([generatedAt])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("receipts")
+}
+
+// Enhanced Audit Log with merchant isolation
+model AuditLog {
+  id          String    @id @default(cuid())
+  merchantId  String?   // Multi-tenant isolation (nullable for system logs)
+  userId      String?
+  tableName   String
+  recordId    String
+  action      String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  
+  merchant Merchant? @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([tableName])
+  @@index([recordId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([merchantId, tableName, recordId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// ==========================================
+// ANALYTICS WITH MERCHANT ISOLATION
+// ==========================================
+
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  merchantId String   // Multi-tenant isolation
+  name       String
+  properties Json
+  timestamp  DateTime
+  userId     String?
+  sessionId  String
+  url        String
+  userAgent  String
+  source     String
+  createdAt  DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([name])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([source])
+  @@index([merchantId, name, timestamp])
+  @@index([merchantId, userId, timestamp])
+  @@map("analytics_events")
+}
+
+model ConversionEvent {
+  id         String   @id
+  merchantId String   // Multi-tenant isolation
+  eventName  String
+  userId     String?
+  sessionId  String
+  value      Decimal  @db.Decimal(15, 2)
+  currency   String   @default("USD")
+  timestamp  DateTime
+  properties Json?
+  createdAt  DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([eventName])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([merchantId, eventName, timestamp])
+  @@index([merchantId, userId, timestamp])
+  @@map("conversion_events")
+}
+
+model UserJourneyStep {
+  id         String   @id
+  merchantId String   // Multi-tenant isolation
+  userId     String?
+  sessionId  String
+  step       String
+  category   String
+  timestamp  DateTime
+  properties Json?
+  createdAt  DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([step])
+  @@index([category])
+  @@index([timestamp])
+  @@index([merchantId, userId, timestamp])
+  @@index([merchantId, sessionId, timestamp])
+  @@map("user_journey_steps")
+}
+
+model BiometricEvent {
+  id         String   @id
+  merchantId String   // Multi-tenant isolation
+  userId     String?
+  sessionId  String
+  method     String
+  success    Boolean
+  errorCode  String?
+  duration   Int?
+  timestamp  DateTime
+  properties Json?
+  createdAt  DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([method])
+  @@index([success])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([merchantId, method, success])
+  @@index([merchantId, method, timestamp])
+  @@index([merchantId, userId, timestamp])
+  @@map("biometric_events")
+}
+
+model ErrorReport {
+  id          String   @id
+  merchantId  String?  // Multi-tenant isolation (nullable for system errors)
+  message     String
+  stack       String?
+  filename    String?
+  lineno      Int?
+  colno       Int?
+  timestamp   DateTime
+  url         String
+  userId      String?
+  sessionId   String
+  userAgent   String
+  severity    String
+  context     Json?
+  fingerprint String?
+  createdAt   DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([severity])
+  @@index([timestamp])
+  @@index([fingerprint])
+  @@index([userId])
+  @@index([url])
+  @@index([merchantId, severity, timestamp])
+  @@index([fingerprint, timestamp])
+  @@map("error_reports")
+}
+
+model PerformanceMetric {
+  id         String   @id
+  merchantId String?  // Multi-tenant isolation (nullable for system metrics)
+  name       String
+  value      Float
+  unit       String
+  timestamp  DateTime
+  url        String
+  userId     String?
+  sessionId  String
+  deviceInfo Json
+  createdAt  DateTime @default(now())
+  
+  @@index([merchantId])
+  @@index([name])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([url])
+  @@index([merchantId, name, timestamp])
+  @@index([url, timestamp])
+  @@map("performance_metrics")
+}
+
+model Alert {
+  id        String   @id
+  merchantId String? // Multi-tenant isolation (nullable for system alerts)
+  type      String
+  message   String
+  severity  String
+  timestamp DateTime
+  resolved  Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([merchantId])
+  @@index([type])
+  @@index([severity])
+  @@index([resolved])
+  @@index([timestamp])
+  @@index([merchantId, type, severity])
+  @@index([resolved, timestamp])
+  @@map("alerts")
+}
+
+// ==========================================
+// A/B TESTING WITH MERCHANT ISOLATION
+// ==========================================
+
+model ABTest {
+  id            String          @id @default(cuid())
+  merchantId    String          // Multi-tenant isolation
+  name          String
+  description   String
+  status        String          @default("draft")
+  startDate     DateTime
+  endDate       DateTime?
+  traffic       Int             @default(100)
+  metrics       Json
+  createdBy     String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  variants     ABTestVariant[]
+  assignments  ABTestAssignment[]
+  results      ABTestResult[]
+  
+  @@index([merchantId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([createdAt])
+  @@map("ab_tests")
+}
+
+model ABTestVariant {
+  id          String   @id @default(cuid())
+  testId      String
+  name        String
+  description String
+  weight      Int
+  config      Json
+  isControl   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  
+  test        ABTest             @relation(fields: [testId], references: [id], onDelete: Cascade)
+  assignments ABTestAssignment[]
+  results     ABTestResult[]
+  
+  @@index([testId])
+  @@index([isControl])
+  @@map("ab_test_variants")
+}
+
+model ABTestAssignment {
+  id           String   @id @default(cuid())
+  testId       String
+  variantId    String
+  userId       String?
+  sessionId    String
+  assignedAt   DateTime @default(now())
+  exposureLogged Boolean @default(false)
+  
+  test    ABTest        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  variant ABTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  @@unique([testId, userId])
+  @@unique([testId, sessionId])
+  @@index([testId])
+  @@index([variantId])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([assignedAt])
+  @@map("ab_test_assignments")
+}
+
+model ABTestResult {
+  id        String   @id @default(cuid())
+  testId    String
+  variantId String
+  metric    String
+  value     Float
+  userId    String?
+  sessionId String
+  timestamp DateTime @default(now())
+  
+  test    ABTest        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  variant ABTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  @@index([testId])
+  @@index([variantId])
+  @@index([metric])
+  @@index([timestamp])
+  @@index([testId, metric])
+  @@index([variantId, metric])
+  @@map("ab_test_results")
+}

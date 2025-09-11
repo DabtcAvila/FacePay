@@ -1,0 +1,17 @@
+# Theme Extension Configuration
+type = "theme_app_extension"
+name = "FacePay Theme Extension"
+
+[extension_points]
+
+[extension_points.cart]
+target = "cart.liquid"
+
+[extension_points.product]
+target = "product.liquid"
+
+[extension_points.customer_login]
+target = "customers/login.liquid"
+
+[extension_points.customer_register]
+target = "customers/register.liquid"

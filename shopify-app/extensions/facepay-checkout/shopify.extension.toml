@@ -1,0 +1,20 @@
+# Shopify Extension Configuration
+type = "checkout_ui_extension"
+name = "FacePay Checkout"
+handle = "facepay-checkout"
+ 
+[extensions.checkout_ui_extension]
+metafield_namespaces = ["facepay"]
+
+[extensions.checkout_ui_extension.capabilities]
+api_access = true
+block_progress = true
+network_access = true
+
+[extensions.checkout_ui_extension.settings]
+fields = [
+  { key = "enabled", type = "boolean", name = "Enable FacePay", default = true },
+  { key = "position", type = "single_line_text_field", name = "Position", default = "customer_information" },
+  { key = "button_text", type = "single_line_text_field", name = "Button Text", default = "Pay with Face ID" },
+  { key = "brand_color", type = "color", name = "Brand Color", default = "#007aff" }
+]

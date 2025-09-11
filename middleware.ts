@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { compressionMiddleware } from './src/middleware/compression'
+import { multitenantMiddleware } from './src/middleware/multitenancy'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const searchParams = request.nextUrl.searchParams
   const url = request.nextUrl.clone()
+
+  // Apply multi-tenant middleware first for API routes
+  const multitenantResponse = await multitenantMiddleware.handle(request)
+  if (multitenantResponse) {
+    return multitenantResponse
+  }
 
   // Apply compression to all requests
   const response = compressionMiddleware(request)

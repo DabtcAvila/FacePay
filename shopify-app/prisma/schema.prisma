@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id          String    @id
+  shop        String
+  state       String
+  isOnline    Boolean   @default(false)
+  scope       String?
+  expires     DateTime?
+  accessToken String
+  userId      BigInt?
+  firstName   String?
+  lastName    String?
+  email       String?
+  accountOwner Boolean @default(false)
+  locale      String?
+  collaborator Boolean? @default(false)
+  emailVerified Boolean? @default(false)
+}
+
+model BiometricUser {
+  id            String    @id @default(cuid())
+  shopifyUserId String?   @unique
+  customerId    String?   @unique
+  email         String    @unique
+  firstName     String?
+  lastName      String?
+  faceTemplate  String?   // Encrypted face template
+  webAuthnId    String?   // WebAuthn credential ID
+  isActive      Boolean   @default(true)
+  enrolledAt    DateTime  @default(now())
+  lastUsedAt    DateTime?
+  shop          String    // Shopify shop domain
+  
+  // Analytics
+  loginCount    Int       @default(0)
+  successfulPurchases Int @default(0)
+  
+  @@map("biometric_users")
+}
+
+model BiometricTransaction {
+  id              String    @id @default(cuid())
+  userId          String
+  orderId         String?
+  checkoutId      String?
+  shop            String
+  amount          Float?
+  currency        String?
+  status          String    // 'pending', 'verified', 'completed', 'failed'
+  biometricType   String    // 'face', 'webauthn'
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  
+  // Fraud detection
+  ipAddress       String?
+  userAgent       String?
+  riskScore       Float?    @default(0)
+  fraudFlags      String?   // JSON array of flags
+  
+  @@map("biometric_transactions")
+}
+
+model ShopSettings {
+  id                    String  @id @default(cuid())
+  shop                  String  @unique
+  isActive              Boolean @default(true)
+  
+  // Feature flags
+  enableFaceID          Boolean @default(true)
+  enableWebAuthn        Boolean @default(true)
+  enableExpressCheckout Boolean @default(true)
+  enableFraudPrevention Boolean @default(true)
+  
+  // Customization
+  brandColor            String? @default("#000000")
+  customMessage         String?
+  position              String? @default("checkout")
+  
+  // Analytics
+  totalUsers            Int     @default(0)
+  totalTransactions     Int     @default(0)
+  conversionImprovement Float?  @default(0)
+  fraudPrevented        Int     @default(0)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("shop_settings")
+}
+
+model Analytics {
+  id            String   @id @default(cuid())
+  shop          String
+  date          DateTime @default(now())
+  
+  // Metrics
+  biometricLogins      Int @default(0)
+  traditionalLogins    Int @default(0)
+  successfulCheckouts  Int @default(0)
+  abandonedCheckouts   Int @default(0)
+  fraudAttempts        Int @default(0)
+  
+  // Performance
+  avgCheckoutTime      Float? // in seconds
+  conversionRate       Float? // percentage
+  
+  @@unique([shop, date])
+  @@map("analytics")
+}

@@ -1,57 +1,62 @@
 /**
  * FacePay SDK TypeScript Definitions
- * Version: 1.0.0
+ * Version: 1.0.0-production
  * 
- * Fully typed interface for the FacePay biometric authentication SDK
+ * Production-ready biometric payment authentication SDK
  */
 
-declare module 'facepay' {
+declare namespace FacePay {
   
   /**
    * Error codes used throughout the SDK
    */
-  export const ERROR_CODES: {
-    readonly NOT_SUPPORTED: 'NOT_SUPPORTED';
-    readonly USER_CANCELLED: 'USER_CANCELLED';
-    readonly TIMEOUT: 'TIMEOUT';
-    readonly SECURITY_ERROR: 'SECURITY_ERROR';
-    readonly NETWORK_ERROR: 'NETWORK_ERROR';
-    readonly INVALID_CONFIG: 'INVALID_CONFIG';
-    readonly REGISTRATION_FAILED: 'REGISTRATION_FAILED';
-    readonly AUTHENTICATION_FAILED: 'AUTHENTICATION_FAILED';
-    readonly VERIFICATION_FAILED: 'VERIFICATION_FAILED';
-  };
+  export const enum ErrorCodes {
+    NOT_SUPPORTED = 'NOT_SUPPORTED',
+    USER_CANCELLED = 'USER_CANCELLED',
+    TIMEOUT = 'TIMEOUT',
+    NETWORK_ERROR = 'NETWORK_ERROR',
+    PAYMENT_FAILED = 'PAYMENT_FAILED',
+    AUTHENTICATION_FAILED = 'AUTHENTICATION_FAILED',
+    INVALID_CONFIG = 'INVALID_CONFIG',
+    STRIPE_ERROR = 'STRIPE_ERROR'
+  }
 
   /**
    * Custom error class for FacePay SDK operations
    */
   export class FacePayError extends Error {
     readonly name: 'FacePayError';
-    readonly code: keyof typeof ERROR_CODES;
+    readonly code: ErrorCodes;
     readonly isRecoverable: boolean;
-    readonly suggestedAction: string;
+    readonly metadata: Record<string, any>;
     readonly timestamp: string;
 
     constructor(
-      code: keyof typeof ERROR_CODES,
+      code: ErrorCodes,
       message: string,
       isRecoverable?: boolean,
-      suggestedAction?: string
+      metadata?: Record<string, any>
     );
   }
 
   /**
    * SDK Configuration options
    */
-  export interface FacePayConfig {
-    /** API key for authentication with FacePay backend */
-    apiKey?: string;
-    /** Base URL for API endpoints */
-    baseUrl?: string;
+  export interface InitConfig {
+    /** Stripe publishable key for payment processing */
+    stripeKey?: string;
+    /** Environment: development, staging, or production */
+    environment?: 'development' | 'staging' | 'production';
     /** Timeout in milliseconds (default: 60000) */
     timeout?: number;
     /** Enable debug logging */
     debug?: boolean;
+    /** UI theme */
+    theme?: 'light' | 'dark' | 'auto';
+    /** Custom CSS for styling */
+    customCSS?: string;
+    /** Locale for internationalization */
+    locale?: string;
   }
 
   /**

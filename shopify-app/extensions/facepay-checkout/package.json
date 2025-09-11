@@ -1,0 +1,16 @@
+{
+  "name": "facepay-checkout-extension",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@shopify/ui-extensions": "^2024.1.0",
+    "@shopify/ui-extensions-react": "^2024.1.0",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "@vitejs/plugin-react": "^4.0.4",
+    "typescript": "^5.0.0",
+    "vite": "^4.4.0"
+  }
+}

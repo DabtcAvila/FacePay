@@ -1,0 +1,37 @@
+import { PrismaClient } from "@prisma/client";
+
+let prisma: PrismaClient;
+
+declare global {
+  var __db__: PrismaClient;
+}
+
+// this is needed because in development we don't want to restart
+// the server with every change, but we want to make sure we don't
+// create a new connection to the DB with every change either.
+// in production we'll have a single connection to the DB.
+if (process.env.NODE_ENV === "production") {
+  prisma = getClient();
+} else {
+  if (!global.__db__) {
+    global.__db__ = getClient();
+  }
+  prisma = global.__db__;
+}
+
+function getClient() {
+  console.log(`🔌 setting up prisma client to ${process.env.DATABASE_URL}`);
+  const client = new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  });
+  // connect eagerly
+  client.$connect();
+
+  return client;
+}
+
+export default prisma;

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FacePay SDK Examples</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .header h1 {
+      font-size: 48px;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .examples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 30px;
+      margin: 40px 0;
+    }
+    .example-card {
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 30px;
+      background: white;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    .example-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+    }
+    .example-card h3 {
+      margin-top: 0;
+      color: #1f2937;
+      font-size: 24px;
+    }
+    .example-card p {
+      color: #6b7280;
+      margin-bottom: 20px;
+    }
+    .framework-logo {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+    }
+    .react-logo { background: #61dafb; }
+    .vue-logo { background: #4fc08d; }
+    .angular-logo { background: #dd0031; }
+    .vanilla-logo { background: #f7df1e; }
+    
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #4f46e5;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 500;
+      transition: background 0.2s;
+      margin-right: 12px;
+      margin-bottom: 8px;
+    }
+    .btn:hover {
+      background: #4338ca;
+    }
+    .btn-secondary {
+      background: white;
+      color: #4f46e5;
+      border: 1px solid #4f46e5;
+    }
+    .btn-secondary:hover {
+      background: #f9fafb;
+    }
+    
+    .features {
+      background: #f9fafb;
+      padding: 40px;
+      border-radius: 12px;
+      margin: 60px 0;
+    }
+    .features h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #1f2937;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+    .feature {
+      text-align: center;
+      padding: 20px;
+    }
+    .feature-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .feature h4 {
+      margin: 0 0 8px 0;
+      color: #1f2937;
+    }
+    .feature p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    
+    .code-example {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-size: 14px;
+    }
+    
+    @media (max-width: 768px) {
+      .examples-grid {
+        grid-template-columns: 1fr;
+      }
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      .header h1 {
+        font-size: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔐 FacePay SDK Examples</h1>
+    <p style="font-size: 18px; color: #6b7280;">Production-ready biometric payment authentication examples for all major frameworks</p>
+  </div>
+
+  <div class="features">
+    <h2>✨ What Makes FacePay Special</h2>
+    <div class="features-grid">
+      <div class="feature">
+        <span class="feature-icon">🚀</span>
+        <h4>One-Line Integration</h4>
+        <p>Single script tag, works immediately</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">💳</span>
+        <h4>Complete Payments</h4>
+        <p>Biometric auth + Stripe integration</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">📱</span>
+        <h4>Universal Support</h4>
+        <p>Face ID, Touch ID, Windows Hello</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">⚡</span>
+        <h4>Ultra Fast</h4>
+        <p>8.4KB gzipped, zero dependencies</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🛡️</span>
+        <h4>Enterprise Security</h4>
+        <p>WebAuthn standard, PCI compliant</p>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">📊</span>
+        <h4>Built-in Analytics</h4>
+        <p>A/B testing, conversion tracking</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-example">
+<pre>
+// Initialize FacePay SDK
+FacePay.init('pk_live_your_api_key_here');
+
+// Process biometric payment
+FacePay.authenticate({
+  amount: 99.99,
+  currency: 'USD',
+  onSuccess: (result) => console.log('Payment successful!', result),
+  onError: (error) => console.log('Payment failed:', error)
+});
+</pre>
+  </div>
+
+  <div class="examples-grid">
+    
+    <!-- Vanilla JavaScript -->
+    <div class="example-card">
+      <div class="framework-logo vanilla-logo"></div>
+      <h3>📄 Vanilla JavaScript</h3>
+      <p>Pure JavaScript implementation with no dependencies. Perfect for simple websites and learning the core concepts.</p>
+      <ul style="color: #6b7280; margin-bottom: 24px;">
+        <li>Complete integration example</li>
+        <li>Error handling demonstrations</li>
+        <li>Device capability testing</li>
+        <li>Payment flow walkthrough</li>
+      </ul>
+      <a href="vanilla-js.html" class="btn">View Example</a>
+      <a href="https://github.com/facepay/sdk/blob/main/examples/vanilla-js.html" class="btn btn-secondary">Source Code</a>
+    </div>
+
+    <!-- React -->
+    <div class="example-card">
+      <div class="framework-logo react-logo"></div>
+      <h3>⚛️ React</h3>
+      <p>Modern React implementation with hooks, context, and proper TypeScript integration for scalable applications.</p>
+      <ul style="color: #6b7280; margin-bottom: 24px;">
+        <li>Custom useFacePay hook</li>
+        <li>Component-based architecture</li>
+        <li>Payment history tracking</li>
+        <li>Real-time status updates</li>
+      </ul>
+      <a href="react-example.jsx" class="btn">View Example</a>
+      <a href="https://github.com/facepay/sdk/blob/main/examples/react-example.jsx" class="btn btn-secondary">Source Code</a>
+    </div>
+
+    <!-- Vue.js -->
+    <div class="example-card">
+      <div class="framework-logo vue-logo"></div>
+      <h3>🟢 Vue.js</h3>
+      <p>Vue.js example with reactive data, computed properties, and composition API for modern Vue applications.</p>
+      <ul style="color: #6b7280; margin-bottom: 24px;">
+        <li>Reactive payment state</li>
+        <li>Vue composition API</li>
+        <li>Custom event handling</li>
+        <li>Mobile-responsive design</li>
+      </ul>
+      <a href="vue-example.vue" class="btn">View Example</a>
+      <a href="https://github.com/facepay/sdk/blob/main/examples/vue-example.vue" class="btn btn-secondary">Source Code</a>
+    </div>
+
+    <!-- Angular -->
+    <div class="example-card">
+      <div class="framework-logo angular-logo"></div>
+      <h3>🔺 Angular</h3>
+      <p>Enterprise-ready Angular implementation with services, reactive forms, and comprehensive TypeScript support.</p>
+      <ul style="color: #6b7280; margin-bottom: 24px;">
+        <li>Injectable service architecture</li>
+        <li>Reactive forms integration</li>
+        <li>RxJS observables</li>
+        <li>Enterprise patterns</li>
+      </ul>
+      <a href="angular-example.ts" class="btn">View Example</a>
+      <a href="https://github.com/facepay/sdk/blob/main/examples/angular-example.ts" class="btn btn-secondary">Source Code</a>
+    </div>
+
+  </div>
+
+  <div style="background: #f9fafb; padding: 40px; border-radius: 12px; margin: 60px 0; text-align: center;">
+    <h2>🚀 Ready to Get Started?</h2>
+    <p style="font-size: 18px; color: #6b7280; margin-bottom: 30px;">
+      Add biometric payment authentication to your application in under 5 minutes
+    </p>
+    <a href="../README-production.md" class="btn" style="font-size: 18px; padding: 16px 32px;">
+      📚 View Documentation
+    </a>
+    <a href="https://dashboard.facepay.com/signup" class="btn" style="font-size: 18px; padding: 16px 32px; background: #059669;">
+      🔑 Get API Keys
+    </a>
+  </div>
+
+  <div style="text-align: center; margin: 60px 0; color: #6b7280;">
+    <h3>💡 Need Help?</h3>
+    <p>
+      <a href="https://docs.facepay.com" style="color: #4f46e5;">Documentation</a> •
+      <a href="https://discord.gg/facepay" style="color: #4f46e5;">Discord Community</a> •
+      <a href="mailto:support@facepay.com" style="color: #4f46e5;">Email Support</a> •
+      <a href="https://github.com/facepay/sdk/issues" style="color: #4f46e5;">GitHub Issues</a>
+    </p>
+    <div style="margin-top: 40px; padding-top: 40px; border-top: 1px solid #e5e7eb;">
+      <p style="margin: 0; font-size: 14px;">
+        Made with ❤️ by the <a href="https://facepay.com" style="color: #4f46e5;">FacePay Team</a><br>
+        <em>Secure payments shouldn't be complex. FacePay makes them simple, fast, and beautiful.</em>
+      </p>
+    </div>
+  </div>
+
+</body>
+</html>

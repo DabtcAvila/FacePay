@@ -1,11 +1,12 @@
-# 🔐 FacePay SDK v1.0.0
+# 🔐 FacePay SDK v1.0.0-production
 
-> **Biometric Authentication Made Simple** - Production-ready WebAuthn SDK in just 5 lines of code.
+> **Production-Ready Biometric Payment Authentication** - Complete payment solution with Face ID, Touch ID, and Stripe integration in just one line of code.
 
-[![Bundle Size](https://img.shields.io/badge/bundle%20size-24KB-brightgreen)](./facepay.js)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](./types.d.ts)
+[![Bundle Size](https://img.shields.io/badge/bundle%20size-14.8KB%20gzipped-brightgreen)](./facepay-sdk.js)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](./facepay-sdk.d.ts)
 [![WebAuthn](https://img.shields.io/badge/WebAuthn-Compatible-orange)](https://webauthn.guide/)
-[![Cross Platform](https://img.shields.io/badge/Cross%20Platform-iOS%20%7C%20Android%20%7C%20Windows%20%7C%20macOS-lightgrey)](./demo.html)
+[![Stripe](https://img.shields.io/badge/Stripe-Integrated-blueviolet)](https://stripe.com)
+[![Cross Platform](https://img.shields.io/badge/Cross%20Platform-iOS%20%7C%20Android%20%7C%20Windows%20%7C%20macOS-lightgrey)](./examples/)
 
 ## ✨ Features
 

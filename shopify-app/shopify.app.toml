@@ -1,0 +1,39 @@
+# Shopify App Configuration
+name = "FacePay - Biometric Checkout"
+client_id = "your_client_id_here"
+application_url = "https://facepay-shopify.vercel.app"
+embedded = true
+
+[access_scopes]
+# Essential scopes for FacePay functionality
+scopes = "write_customers,read_customers,write_orders,read_orders,write_checkouts,read_checkouts,write_payment_gateways,read_payment_gateways,write_script_tags,read_script_tags,write_themes,read_themes,write_products,read_products,read_analytics,write_pixels,read_pixels"
+
+[auth]
+redirect_urls = [
+  "https://facepay-shopify.vercel.app/auth/callback",
+  "https://facepay-shopify.vercel.app/auth/shopify/callback"
+]
+
+[webhooks]
+api_version = "2024-01"
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "your-dev-store.myshopify.com"
+
+[app_proxy]
+url = "https://facepay-shopify.vercel.app"
+subpath = "apps"
+prefix = "facepay"
+
+# Extensions configuration
+[extensions]
+
+[extensions.checkout-ui-extensions]
+metafield_namespaces = ["facepay"]
+
+[app_preferences]
+url = "https://facepay-shopify.vercel.app/preferences"
