@@ -1,0 +1,23 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_ENABLE_MONITORING": "false",
+    "NEXT_PUBLIC_ENABLE_ANALYTICS": "false"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "functions": {
+    "src/app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "github": {
+    "silent": false,
+    "autoAlias": true
+  }
+}
