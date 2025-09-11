@@ -1017,6 +1017,3 @@ export class PaymentReconciliationService {
 
 // Export singleton instance
 export const paymentReconciliationService = PaymentReconciliationService.getInstance();
-
-// Export for testing
-export { PaymentReconciliationService };

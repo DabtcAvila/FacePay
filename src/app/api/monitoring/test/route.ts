@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < count; i++) {
       const id = `test_tx_${now}_${i}`;
       const userId = `user_${Math.floor(Math.random() * 100)}`;
-      const amount = Math.floor(Math.random() * 1000) + 10;
-      const timestamp = new Date(now - (i * 60000)); // Spread over last hour
+      let amount = Math.floor(Math.random() * 1000) + 10;
+      let timestamp = new Date(now - (i * 60000)); // Spread over last hour
 
       let status: 'pending' | 'completed' | 'failed' | 'cancelled';
       let errorCode: string | undefined;
