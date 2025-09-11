@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Eye, 
   Fingerprint, 
-  Shield, 
+  ShieldCheck, 
   Camera, 
   Sparkles,
   CheckCircle, 
@@ -690,7 +690,7 @@ export default function BiometricWithFallback({
 
   // Obtener información del método actual
   const getMethodInfo = useCallback(() => {
-    if (!capabilities) return { icon: Shield, name: 'Loading...', description: 'Checking capabilities...' }
+    if (!capabilities) return { icon: ShieldCheck, name: 'Loading...', description: 'Checking capabilities...' }
 
     switch (currentMethod) {
       case 'detecting':
@@ -722,7 +722,7 @@ export default function BiometricWithFallback({
         }
       default:
         return {
-          icon: Shield,
+          icon: ShieldCheck,
           name: 'Authentication',
           description: 'Choose your preferred method'
         }

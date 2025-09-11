@@ -1,4 +1,4 @@
-// Performance monitoring utility for FacePay
+// Enhanced Performance monitoring utility for FacePay
 import React from 'react';
 
 interface PerformanceMetrics {
@@ -9,6 +9,9 @@ interface PerformanceMetrics {
   ttfb?: number; // Time to First Byte
   domLoadTime?: number;
   bundleSize?: number;
+  memoryUsage?: number;
+  renderTime?: number;
+  apiResponseTime?: number;
 }
 
 interface ResourceTiming {

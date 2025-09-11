@@ -350,7 +350,7 @@ export default function TransactionsPage() {
             change="Hoy"
             changeType="neutral"
             icon={CreditCard}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Completadas"
@@ -358,7 +358,7 @@ export default function TransactionsPage() {
             change={`${((completedTransactions / transactions.length) * 100).toFixed(1)}% del total`}
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Volumen Total"
@@ -366,7 +366,7 @@ export default function TransactionsPage() {
             change="Hoy"
             changeType="positive"
             icon={DollarSign}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
           <KPICard
             title="Comisiones"
@@ -374,7 +374,7 @@ export default function TransactionsPage() {
             change="Hoy"
             changeType="positive"
             icon={TrendingUp}
-            iconColor="text-purple-600"
+            variant="transactions"
           />
         </div>
 

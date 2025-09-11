@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Zap, Camera, ArrowRight, Play, CheckCircle, Eye, Fingerprint, Smartphone, AlertTriangle, QrCode, Send, History, User } from 'lucide-react';
+import { ShieldCheck, Zap, Camera, ArrowRight, Play, CheckCircle, Eye, Fingerprint, Smartphone, AlertTriangle, QrCode, Send, History, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FaceScanAnimation from '@/components/FaceScanAnimation';
 import PaymentForm from '@/components/PaymentForm';
@@ -103,7 +103,7 @@ export default function MobileLandingPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-                <Shield className="w-5 h-5 text-white" />
+                <ShieldCheck className="w-5 h-5 text-white" />
               </div>
               <div>
                 <span className="font-bold text-lg text-gray-900">FacePay</span>
@@ -290,7 +290,7 @@ export default function MobileLandingPage() {
               onClick={handleBiometricAuth}
               className="w-full mx-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg py-4 rounded-2xl font-semibold shadow-xl"
             >
-              <Shield className="w-6 h-6 mr-3" />
+              <ShieldCheck className="w-6 h-6 mr-3" />
               {biometricReady ? 'Use Biometric Auth' : 'Try Demo Mode'}
             </Button>
           </motion.div>
@@ -381,7 +381,7 @@ export default function MobileLandingPage() {
           >
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <Shield className="w-6 h-6 text-green-600" />
+                <ShieldCheck className="w-6 h-6 text-green-600" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">Ultra Secure</h3>

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Eye, 
   Fingerprint, 
-  Shield, 
+  ShieldCheck, 
   CreditCard, 
   Smartphone, 
   Zap,
@@ -301,7 +301,7 @@ export default function DemoPage() {
               <h2 className="text-3xl font-bold text-white mb-2">Real Device Biometric Authentication</h2>
               <p className="text-green-200">Use your REAL Face ID, Touch ID, or Windows Hello</p>
               <div className="mt-2 inline-flex items-center space-x-2 bg-green-500/20 px-3 py-1 rounded-full text-green-300 text-sm">
-                <Shield className="w-4 h-4" />
+                <ShieldCheck className="w-4 h-4" />
                 <span>REAL BIOMETRICS - NOT SIMULATION</span>
               </div>
             </div>
@@ -334,7 +334,7 @@ export default function DemoPage() {
             {/* Warning notice */}
             <div className="mt-4 p-4 bg-red-500/20 border border-red-400/30 rounded-lg">
               <div className="flex items-center space-x-2 text-red-200 mb-2">
-                <Shield className="w-5 h-5" />
+                <ShieldCheck className="w-5 h-5" />
                 <span className="font-semibold">⚠️ REAL AUTHENTICATION WARNING</span>
               </div>
               <p className="text-red-100 text-sm">
@@ -396,7 +396,7 @@ export default function DemoPage() {
             </SimpleButton>
             
             <div className="flex items-center justify-center space-x-2 text-green-200 mt-4">
-              <Shield className="w-5 h-5" />
+              <ShieldCheck className="w-5 h-5" />
               <span>Secured by FacePay Technology</span>
             </div>
           </motion.div>
@@ -544,15 +544,15 @@ export default function DemoPage() {
                 REAL
               </div>
               
-              <Shield className="w-16 h-16 text-green-400 mx-auto mb-4" />
+              <ShieldCheck className="w-16 h-16 text-green-400 mx-auto mb-4" />
               <h3 className="text-2xl font-bold mb-2 text-green-100">Real Face ID</h3>
               <p className="text-gray-300 mb-4">Use your device's REAL Face ID, Touch ID, or Windows Hello</p>
               <div className="flex items-center justify-center space-x-2 mb-4 text-sm text-green-300">
-                <Shield className="w-4 h-4" />
+                <ShieldCheck className="w-4 h-4" />
                 <span>Real Device Biometrics</span>
               </div>
               <SimpleButton className="w-full bg-green-600 hover:bg-green-700">
-                <Shield className="w-4 h-4 mr-2" />
+                <ShieldCheck className="w-4 h-4 mr-2" />
                 Use Real Face ID
               </SimpleButton>
             </motion.div>
@@ -627,7 +627,7 @@ export default function DemoPage() {
 
             <div className="flex justify-center items-center space-x-8 text-sm text-gray-400 mt-8">
               <div className="flex items-center space-x-2">
-                <Shield className="w-4 h-4" />
+                <ShieldCheck className="w-4 h-4" />
                 <span>Enterprise Ready</span>
               </div>
               <div className="flex items-center space-x-2">
@@ -675,7 +675,7 @@ export default function DemoPage() {
               
               <div className="mt-6 p-4 bg-blue-500/20 rounded-lg border border-blue-400/30">
                 <div className="flex items-center space-x-2 text-blue-200 text-sm">
-                  <Shield className="w-4 h-4" />
+                  <ShieldCheck className="w-4 h-4" />
                   <span>Tip: Allow camera permissions for the full experience</span>
                 </div>
               </div>

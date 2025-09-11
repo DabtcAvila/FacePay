@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { 
   Settings, 
   Bell, 
-  Shield, 
+  ShieldCheck, 
   Globe, 
   Moon, 
   Sun, 
@@ -208,7 +208,7 @@ export default function SettingsPage() {
             <div className="p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="bg-green-100 p-2 rounded-lg">
-                  <Shield className="w-5 h-5 text-green-600" />
+                  <ShieldCheck className="w-5 h-5 text-green-600" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">Security</h3>
               </div>

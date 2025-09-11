@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { z } from 'zod'
 
@@ -96,8 +97,8 @@ export async function POST(request: NextRequest) {
 
     const options = await generateAuthenticationOptions({
       allowCredentials: allowCredentials.map(cred => ({
-        id: cred.id,
-        type: 'public-key',
+        id: cred.id as any, // TODO: Fix type conversion
+        type: 'public-key' as const,
         transports: cred.transports
       })),
       userVerification: 'required',

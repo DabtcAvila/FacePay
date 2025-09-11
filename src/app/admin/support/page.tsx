@@ -321,7 +321,7 @@ export default function SupportPage() {
             change="Requieren atención"
             changeType={openTickets > 0 ? "negative" : "positive"}
             icon={AlertTriangle}
-            iconColor="text-red-600"
+            variant="error"
           />
           <KPICard
             title="En Proceso"
@@ -329,7 +329,7 @@ export default function SupportPage() {
             change="Siendo atendidos"
             changeType="neutral"
             icon={Clock}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
           <KPICard
             title="Resueltos"
@@ -337,7 +337,7 @@ export default function SupportPage() {
             change={`${((resolvedTickets / tickets.length) * 100).toFixed(0)}% del total`}
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Tiempo Respuesta Promedio"
@@ -345,7 +345,7 @@ export default function SupportPage() {
             change="Último mes"
             changeType="neutral"
             icon={MessageSquare}
-            iconColor="text-blue-600"
+            variant="users"
           />
         </div>
 

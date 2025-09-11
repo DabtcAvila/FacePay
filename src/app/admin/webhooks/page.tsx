@@ -238,7 +238,7 @@ export default function WebhooksPage() {
             title="Total Webhooks"
             value={webhooks.length.toString()}
             icon={Webhook}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Activos"
@@ -246,7 +246,7 @@ export default function WebhooksPage() {
             change={`${((activeWebhooks / webhooks.length) * 100).toFixed(0)}% del total`}
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Con Errores"
@@ -254,7 +254,7 @@ export default function WebhooksPage() {
             change={failedWebhooks > 0 ? "Requieren atención" : "Todo OK"}
             changeType={failedWebhooks > 0 ? "negative" : "positive"}
             icon={AlertTriangle}
-            iconColor="text-red-600"
+            variant="error"
           />
           <KPICard
             title="Tasa Éxito Promedio"
@@ -262,7 +262,7 @@ export default function WebhooksPage() {
             change={`${totalDeliveries} entregas totales`}
             changeType="positive"
             icon={Send}
-            iconColor="text-purple-600"
+            variant="transactions"
           />
         </div>
 

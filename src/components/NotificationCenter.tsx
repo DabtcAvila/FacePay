@@ -11,7 +11,7 @@ import {
   MoreVertical,
   AlertCircle,
   DollarSign,
-  Shield,
+  ShieldCheck,
   Info,
   Gift,
   Clock,
@@ -40,7 +40,7 @@ const NotificationIcon = ({ type }: { type: NotificationPayload['type'] }) => {
     case 'payment':
       return <DollarSign {...iconProps} className="text-green-500" />;
     case 'security':
-      return <Shield {...iconProps} className="text-red-500" />;
+      return <ShieldCheck {...iconProps} className="text-red-500" />;
     case 'system':
       return <Info {...iconProps} className="text-blue-500" />;
     case 'promotion':

@@ -9,7 +9,7 @@ import {
   Users, 
   UserCheck, 
   UserX, 
-  Shield,
+  ShieldCheck,
   MoreHorizontal,
   Eye,
   Edit,
@@ -126,7 +126,7 @@ const BiometricBadge = ({ enabled }: { enabled: boolean }) => (
       ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
       : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
   }`}>
-    <Shield className="w-3 h-3 mr-1" />
+    <ShieldCheck className="w-3 h-3 mr-1" />
     {enabled ? 'Habilitado' : 'Deshabilitado'}
   </span>
 );
@@ -257,7 +257,7 @@ export default function UsersPage() {
             title="Total de Usuarios"
             value={users.length.toString()}
             icon={Users}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Usuarios Activos"
@@ -265,7 +265,7 @@ export default function UsersPage() {
             change={`${((activeUsers / users.length) * 100).toFixed(1)}% del total`}
             changeType="positive"
             icon={UserCheck}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Usuarios Inactivos"
@@ -273,15 +273,15 @@ export default function UsersPage() {
             change={`${((inactiveUsers / users.length) * 100).toFixed(1)}% del total`}
             changeType="neutral"
             icon={UserX}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
           <KPICard
             title="Biométrico Habilitado"
             value={biometricUsers.toString()}
             change={`${((biometricUsers / users.length) * 100).toFixed(1)}% del total`}
             changeType="positive"
-            icon={Shield}
-            iconColor="text-purple-600"
+            icon={ShieldCheck}
+            variant="transactions"
           />
         </div>
 

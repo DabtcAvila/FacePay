@@ -1,0 +1,61 @@
+{
+  "name": "FacePay - Biometric Payment Platform",
+  "short_name": "FacePay",
+  "description": "Secure payments with facial recognition and biometric authentication",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "business", "utilities"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon-16x16.png",
+      "sizes": "16x16",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png", 
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512", 
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pay with Face",
+      "short_name": "Face Pay",
+      "description": "Quick payment with facial recognition",
+      "url": "/biometric",
+      "icons": [{"src": "/favicon-32x32.png", "sizes": "32x32"}]
+    },
+    {
+      "name": "Transaction History",
+      "short_name": "History", 
+      "description": "View your payment history",
+      "url": "/history",
+      "icons": [{"src": "/favicon-32x32.png", "sizes": "32x32"}]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

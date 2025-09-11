@@ -4,6 +4,7 @@ import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/a
 import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server'
 import { analytics, EVENTS, FUNNELS } from '@/lib/analytics'
 import { monitoring } from '@/lib/monitoring'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 
 // Schema for registration initiation
@@ -77,7 +78,7 @@ async function handleRegistrationInitiation(user: any) {
 
     // Get existing credentials for the user to exclude them
     const existingCredentials = user.webauthnCredentials.map((cred: any) => ({
-      id: Buffer.from(cred.credentialId, 'base64url'),
+      id: cred.credentialId,
       type: 'public-key' as const,
     }))
 
@@ -85,7 +86,7 @@ async function handleRegistrationInitiation(user: any) {
     const options = await generateRegistrationOptions({
       rpName: process.env.WEBAUTHN_RP_NAME || 'FacePay',
       rpID: process.env.WEBAUTHN_RP_ID || 'localhost',
-      userID: Buffer.from(user.id, 'utf8'),
+      userID: user.id,
       userName: user.email,
       userDisplayName: user.name || user.email,
       timeout: 60000,

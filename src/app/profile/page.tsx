@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { 
   User, 
   Mail, 
-  Shield, 
+  ShieldCheck, 
   Key, 
   Bell, 
   Globe, 
@@ -156,7 +156,7 @@ export default function ProfilePage() {
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: User },
-    { id: 'security', name: 'Security', icon: Shield },
+    { id: 'security', name: 'Security', icon: ShieldCheck },
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'danger', name: 'Danger Zone', icon: Trash2 }
   ];
@@ -173,14 +173,19 @@ export default function ProfilePage() {
 
   return (
     <DashboardLayout activeTab="profile">
-      <div className="p-6">
+      <div className="p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-          <p className="text-gray-600 mt-1">Manage your account settings and preferences</p>
-        </div>
+        <motion.div 
+          className="mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Profile Settings</h1>
+          <p className="text-gray-600 mt-2 text-base sm:text-lg">Manage your account, security, and preferences</p>
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* Sidebar Navigation */}
           <div className="lg:col-span-1">
             <nav className="space-y-1">
@@ -208,7 +213,7 @@ export default function ProfilePage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="card-premium overflow-hidden">
               {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <motion.div
@@ -242,9 +247,7 @@ export default function ProfilePage() {
                         type="text"
                         value={profileData.name}
                         onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                        className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors.name ? 'border-red-300' : 'border-gray-300'
-                        }`}
+                        className={`form-input ${errors.name ? 'form-input-error' : ''}`}
                         placeholder="Enter your full name"
                       />
                       {errors.name && (
@@ -260,9 +263,7 @@ export default function ProfilePage() {
                         type="email"
                         value={profileData.email}
                         onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                        className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                          errors.email ? 'border-red-300' : 'border-gray-300'
-                        }`}
+                        className={`form-input ${errors.email ? 'form-input-error' : ''}`}
                         placeholder="Enter your email address"
                       />
                       {errors.email && (
@@ -270,19 +271,29 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    <div className="pt-4">
-                      <Button
-                        onClick={handleSaveProfile}
-                        disabled={saving}
-                        className="flex items-center space-x-2"
+                    <div className="pt-6">
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
-                        {saving ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        <span>{saving ? 'Saving...' : 'Save Changes'}</span>
-                      </Button>
+                        <Button
+                          onClick={handleSaveProfile}
+                          disabled={saving}
+                          className="btn-primary px-8 py-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {saving ? (
+                            <div className="flex items-center space-x-3">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                              <span>Saving Changes...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <Save className="w-5 h-5 mr-3" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
                     </div>
                   </div>
                 </motion.div>
@@ -301,7 +312,7 @@ export default function ProfilePage() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <Shield className="w-5 h-5 text-blue-600" />
+                          <ShieldCheck className="w-5 h-5 text-blue-600" />
                           <div>
                             <p className="font-medium text-gray-900">Face Recognition</p>
                             <p className="text-sm text-gray-600">Use your face to authenticate payments</p>
@@ -345,7 +356,7 @@ export default function ProfilePage() {
 
                       <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <Shield className="w-5 h-5 text-purple-600" />
+                          <ShieldCheck className="w-5 h-5 text-purple-600" />
                           <div>
                             <p className="font-medium text-gray-900">Require Biometric Auth</p>
                             <p className="text-sm text-gray-600">Always require biometric verification for payments</p>
@@ -375,7 +386,7 @@ export default function ProfilePage() {
                         Change Password
                       </Button>
                       <Button variant="outline" className="w-full justify-start">
-                        <Shield className="w-4 h-4 mr-2" />
+                        <ShieldCheck className="w-4 h-4 mr-2" />
                         Setup Two-Factor Authentication
                       </Button>
                     </div>

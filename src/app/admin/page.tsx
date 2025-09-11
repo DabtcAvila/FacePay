@@ -11,7 +11,7 @@ import {
   CreditCard,
   DollarSign,
   TrendingUp,
-  Shield,
+  ShieldCheck,
   AlertTriangle,
   Activity,
   Globe,
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
             change="+12.5% vs mes anterior"
             changeType="positive"
             icon={Users}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Transacciones Hoy"
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
             change="+8.2% vs ayer"
             changeType="positive"
             icon={CreditCard}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Ingresos del Mes"
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
             change="+15.3% vs mes anterior"
             changeType="positive"
             icon={DollarSign}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
           <KPICard
             title="Tasa de Éxito"
@@ -118,7 +118,7 @@ export default function AdminDashboard() {
             change="+0.8% vs mes anterior"
             changeType="positive"
             icon={TrendingUp}
-            iconColor="text-purple-600"
+            variant="transactions"
           />
         </div>
 
@@ -129,8 +129,8 @@ export default function AdminDashboard() {
             value="45"
             change="-23% vs mes anterior"
             changeType="positive"
-            icon={Shield}
-            iconColor="text-red-600"
+            icon={ShieldCheck}
+            variant="error"
           />
           <KPICard
             title="Alertas de Seguridad"
@@ -138,7 +138,7 @@ export default function AdminDashboard() {
             change="+2 desde ayer"
             changeType="negative"
             icon={AlertTriangle}
-            iconColor="text-orange-600"
+            variant="warning"
           />
           <KPICard
             title="Uptime del Sistema"
@@ -146,7 +146,7 @@ export default function AdminDashboard() {
             change="Sin cambios"
             changeType="neutral"
             icon={Activity}
-            iconColor="text-green-600"
+            variant="success"
           />
         </div>
 

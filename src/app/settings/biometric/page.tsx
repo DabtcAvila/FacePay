@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Fingerprint,
   Scan,
-  Shield,
+  ShieldCheck,
   Smartphone,
   CheckCircle2,
   AlertTriangle,
@@ -152,7 +152,7 @@ export default function BiometricSettingsPage() {
     switch (type) {
       case 'face': return Scan;
       case 'fingerprint': return Fingerprint;
-      default: return Shield;
+      default: return ShieldCheck;
     }
   };
 
@@ -227,7 +227,7 @@ export default function BiometricSettingsPage() {
     if (type === 'success') return CheckCircle2;
     if (type === 'failed') return AlertTriangle;
     if (type === 'blocked') return Lock;
-    return Shield;
+    return ShieldCheck;
   };
 
   const getEventColor = (type: string) => {
@@ -306,7 +306,7 @@ export default function BiometricSettingsPage() {
                         }`
                       })
                     ) : (
-                      <Shield className={`w-8 h-8 ${
+                      <ShieldCheck className={`w-8 h-8 ${
                         capabilities?.isSupported && settings.enabled 
                           ? 'text-green-600' 
                           : 'text-gray-400'
@@ -704,7 +704,7 @@ export default function BiometricSettingsPage() {
                         className: 'w-8 h-8 text-blue-600'
                       })
                     ) : (
-                      <Shield className="w-8 h-8 text-blue-600" />
+                      <ShieldCheck className="w-8 h-8 text-blue-600" />
                     )}
                   </div>
                   

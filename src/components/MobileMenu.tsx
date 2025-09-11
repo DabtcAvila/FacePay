@@ -10,7 +10,7 @@ import {
   History, 
   User, 
   Settings, 
-  Shield, 
+  ShieldCheck, 
   LogOut,
   Scan,
   Fingerprint,
@@ -56,7 +56,7 @@ const menuItems = [
   { icon: CreditCard, label: 'Payments', href: '/payments' },
   { icon: History, label: 'History', href: '/history' },
   { icon: User, label: 'Profile', href: '/profile' },
-  { icon: Shield, label: 'Security', href: '/security' },
+  { icon: ShieldCheck, label: 'Security', href: '/security' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]
 
@@ -177,7 +177,7 @@ export function MobileMenu({ className, onQuickAction }: MobileMenuProps) {
     switch (biometricStatus.type) {
       case 'face': return Eye
       case 'fingerprint': return Fingerprint
-      default: return Shield
+      default: return ShieldCheck
     }
   }
 

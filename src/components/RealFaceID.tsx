@@ -11,7 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Zap,
-  Shield,
+  ShieldCheck,
   Activity,
   Brain,
   Cpu,
@@ -531,7 +531,7 @@ export default function RealFaceID({
                 scale: { duration: 1, repeat: Infinity }
               }}
             >
-              <Shield className="w-7 h-7 text-green-500" />
+              <ShieldCheck className="w-7 h-7 text-green-500" />
             </motion.div>
           ) : (
             <motion.div
@@ -643,7 +643,7 @@ export default function RealFaceID({
           
           {enableWebAuthnFallback && (
             <Button variant="outline" className="flex items-center">
-              <Shield className="w-4 h-4 mr-2" />
+              <ShieldCheck className="w-4 h-4 mr-2" />
               Use Biometric Auth
             </Button>
           )}

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import AdminLayout from '@/components/Admin/Layout/AdminLayout';
 import { 
   Settings, 
-  Shield, 
+  ShieldCheck, 
   Bell, 
   Mail,
   Globe,
@@ -36,7 +36,7 @@ const settingsSections: SettingsSection[] = [
   {
     id: 'security',
     title: 'Seguridad',
-    icon: <Shield className="w-5 h-5" />,
+    icon: <ShieldCheck className="w-5 h-5" />,
     description: 'Configuraciones de seguridad y autenticación'
   },
   {

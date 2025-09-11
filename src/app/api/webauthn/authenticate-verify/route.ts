@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateTokens } from '@/lib/jwt'
 import { verifyAuthenticationResponse } from '@simplewebauthn/server'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 
 const verifyAuthenticationSchema = z.object({
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       expectedOrigin: process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000',
       expectedRPID: process.env.WEBAUTHN_RP_ID || 'localhost',
       authenticator: {
-        credentialID: webauthnCredential.credentialId,
+        credentialID: isoBase64URL.toBuffer(webauthnCredential.credentialId),
         credentialPublicKey: Buffer.from(webauthnCredential.publicKey, 'base64url'),
         counter: Number(webauthnCredential.counter),
       },

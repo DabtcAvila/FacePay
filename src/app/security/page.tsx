@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Shield, 
+  ShieldCheck, 
   Key, 
   Smartphone, 
   Eye, 
@@ -193,7 +193,7 @@ export default function SecurityPage() {
   };
 
   const tabs = [
-    { id: 'overview', name: 'Overview', icon: Shield },
+    { id: 'overview', name: 'Overview', icon: ShieldCheck },
     { id: 'biometric', name: 'Biometric', icon: Eye },
     { id: 'sessions', name: 'Active Sessions', icon: Smartphone },
     { id: 'activity', name: 'Security Log', icon: Clock }

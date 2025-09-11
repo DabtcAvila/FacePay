@@ -12,7 +12,8 @@ import {
   Bitcoin,
   CheckCircle,
   AlertCircle,
-  X
+  X,
+  ShieldCheck
 } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -229,24 +230,34 @@ export default function PaymentMethodsPage() {
 
   return (
     <DashboardLayout activeTab="payments">
-      <div className="p-6">
+      <div className="p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <motion.div 
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payment Methods</h1>
-            <p className="text-gray-600 mt-1">Manage your cards and crypto wallets</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Payment Methods</h1>
+            <p className="text-gray-600 mt-2 text-base sm:text-lg">Manage your cards, wallets, and crypto accounts</p>
           </div>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center space-x-2"
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Payment Method</span>
-          </Button>
-        </div>
+            <Button
+              onClick={() => setShowAddForm(true)}
+              className="btn-primary px-6 py-3 shadow-xl w-full sm:w-auto"
+            >
+              <Plus className="w-5 h-5 mr-3" />
+              <span>Add Payment Method</span>
+            </Button>
+          </motion.div>
+        </motion.div>
 
         {/* Payment Methods Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {paymentMethods.map((method, index) => {
             const Icon = getPaymentMethodIcon(method);
             return (
@@ -255,7 +266,7 @@ export default function PaymentMethodsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative"
+                className="card-premium p-6 hover-lift group relative overflow-hidden"
               >
                 {method.isDefault && (
                   <div className="absolute top-4 right-4">
@@ -317,33 +328,60 @@ export default function PaymentMethodsPage() {
           })}
 
           {paymentMethods.length === 0 && (
-            <div className="col-span-full text-center py-12">
-              <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No payment methods added</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Add a card or crypto wallet to get started
-              </p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6 }}
+              className="col-span-full text-center py-16"
+            >
+              <div className="max-w-md mx-auto">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <CreditCard className="w-12 h-12 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">No Payment Methods</h3>
+                <p className="text-gray-500 mb-6 text-base leading-relaxed">
+                  Add your first payment method to start making secure transactions with FacePay
+                </p>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button
+                    onClick={() => setShowAddForm(true)}
+                    className="btn-primary px-8 py-3 shadow-lg"
+                  >
+                    <Plus className="w-5 h-5 mr-3" />
+                    Add Your First Method
+                  </Button>
+                </motion.div>
+              </div>
+            </motion.div>
           )}
         </div>
 
         {/* Add Payment Method Modal */}
         {showAddForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="card-premium max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900">Add Payment Method</h2>
-                  <button
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Add Payment Method</h2>
+                    <p className="text-gray-600 text-sm mt-1">Securely connect your preferred payment option</p>
+                  </div>
+                  <motion.button
                     onClick={() => setShowAddForm(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
                   >
-                    <X className="w-5 h-5" />
-                  </button>
+                    <X className="w-6 h-6" />
+                  </motion.button>
                 </div>
 
                 <div className="space-y-6">
@@ -395,9 +433,7 @@ export default function PaymentMethodsPage() {
                             setFormData(prev => ({ ...prev, cardNumber: formatted }));
                           }}
                           placeholder="1234 5678 9012 3456"
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                            errors.cardNumber ? 'border-red-300' : 'border-gray-300'
-                          }`}
+                          className={`form-input ${errors.cardNumber ? 'form-input-error' : ''}`}
                           maxLength={19}
                         />
                         {errors.cardNumber && (
@@ -413,9 +449,7 @@ export default function PaymentMethodsPage() {
                           <select
                             value={formData.expiryMonth || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, expiryMonth: e.target.value }))}
-                            className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors.expiryMonth ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`form-input ${errors.expiryMonth ? 'form-input-error' : ''}`}
                           >
                             <option value="">Month</option>
                             {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
@@ -436,9 +470,7 @@ export default function PaymentMethodsPage() {
                           <select
                             value={formData.expiryYear || ''}
                             onChange={(e) => setFormData(prev => ({ ...prev, expiryYear: e.target.value }))}
-                            className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              errors.expiryYear ? 'border-red-300' : 'border-gray-300'
-                            }`}
+                            className={`form-input ${errors.expiryYear ? 'form-input-error' : ''}`}
                           >
                             <option value="">Year</option>
                             {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
@@ -465,9 +497,7 @@ export default function PaymentMethodsPage() {
                             setFormData(prev => ({ ...prev, cvc: value }));
                           }}
                           placeholder="123"
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                            errors.cvc ? 'border-red-300' : 'border-gray-300'
-                          }`}
+                          className={`form-input ${errors.cvc ? 'form-input-error' : ''}`}
                           maxLength={4}
                         />
                         {errors.cvc && (
@@ -487,7 +517,7 @@ export default function PaymentMethodsPage() {
                         <select
                           value={formData.provider}
                           onChange={(e) => setFormData(prev => ({ ...prev, provider: e.target.value as 'ethereum' | 'bitcoin' }))}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="form-input"
                         >
                           <option value="ethereum">Ethereum</option>
                           <option value="bitcoin">Bitcoin</option>
@@ -503,9 +533,7 @@ export default function PaymentMethodsPage() {
                           value={formData.walletAddress || ''}
                           onChange={(e) => setFormData(prev => ({ ...prev, walletAddress: e.target.value }))}
                           placeholder={formData.provider === 'ethereum' ? '0x...' : '1...'}
-                          className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                            errors.walletAddress ? 'border-red-300' : 'border-gray-300'
-                          }`}
+                          className={`form-input ${errors.walletAddress ? 'form-input-error' : ''}`}
                         />
                         {errors.walletAddress && (
                           <p className="mt-1 text-sm text-red-600">{errors.walletAddress}</p>
@@ -529,25 +557,43 @@ export default function PaymentMethodsPage() {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex space-x-3 pt-4">
-                    <Button
-                      onClick={handleAddPaymentMethod}
-                      disabled={processing}
+                  <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                    <motion.div
                       className="flex-1"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      {processing ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      ) : (
-                        'Add Payment Method'
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowAddForm(false)}
+                      <Button
+                        onClick={handleAddPaymentMethod}
+                        disabled={processing}
+                        className="btn-primary w-full py-4 text-lg shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {processing ? (
+                          <div className="flex items-center justify-center space-x-3">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            <span>Adding...</span>
+                          </div>
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-5 h-5 mr-3" />
+                            Add Payment Method
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                    <motion.div
                       className="flex-1"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                     >
-                      Cancel
-                    </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAddForm(false)}
+                        className="w-full py-4 text-lg border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50"
+                      >
+                        Cancel
+                      </Button>
+                    </motion.div>
                   </div>
                 </div>
               </div>

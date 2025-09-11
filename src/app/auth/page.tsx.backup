@@ -1,0 +1,16 @@
+'use client';
+
+import React, { useState } from 'react';
+
+export default function AuthPage() {
+  const [mode, setMode] = useState('signin');
+
+  return (
+    <div className="min-h-screen">
+      <div className="container">
+        <h1>Auth Page</h1>
+        <p>Current mode: {mode}</p>
+      </div>
+    </div>
+  );
+}

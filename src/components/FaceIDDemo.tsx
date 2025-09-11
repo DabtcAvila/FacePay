@@ -8,7 +8,7 @@ import {
   X, 
   AlertCircle, 
   Smartphone,
-  Shield,
+  ShieldCheck,
   Fingerprint,
   Eye,
   Loader2,
@@ -457,7 +457,7 @@ export default function FaceIDDemo({
                 ) : deviceInfo?.hasTouchID ? (
                   <><Fingerprint className="w-4 h-4 mr-2" />Touch ID</>
                 ) : (
-                  <><Shield className="w-4 h-4 mr-2" />Biometrics</>
+                  <><ShieldCheck className="w-4 h-4 mr-2" />Biometrics</>
                 )}
               </Button>
             )}
@@ -513,7 +513,7 @@ export default function FaceIDDemo({
               ) : deviceInfo?.hasTouchID ? (
                 <><Fingerprint className="w-4 h-4 mr-2" />Try Touch ID</>
               ) : (
-                <><Shield className="w-4 h-4 mr-2" />Try Biometrics</>
+                <><ShieldCheck className="w-4 h-4 mr-2" />Try Biometrics</>
               )}
             </Button>
           )}
@@ -552,7 +552,7 @@ export default function FaceIDDemo({
         ) : deviceInfo?.hasTouchID ? (
           <Fingerprint className="w-12 h-12 text-white" />
         ) : (
-          <Shield className="w-12 h-12 text-white" />
+          <ShieldCheck className="w-12 h-12 text-white" />
         )}
         
         {/* Loading ring */}
@@ -624,7 +624,7 @@ export default function FaceIDDemo({
               }}
             >
               {authMethod === 'animation' && <Sparkles className="w-3 h-3" />}
-              {authMethod === 'webauthn' && <Shield className="w-3 h-3" />}
+              {authMethod === 'webauthn' && <ShieldCheck className="w-3 h-3" />}
               {authMethod === 'camera' && <Camera className="w-3 h-3" />}
               <span className="text-xs font-medium">
                 {authMethod === 'animation' ? 'Visual Demo' :
@@ -706,7 +706,7 @@ export default function FaceIDDemo({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}
             >
-              <Shield className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4" />
               <span>Identity verified with FacePay technology</span>
             </motion.div>
           </motion.div>

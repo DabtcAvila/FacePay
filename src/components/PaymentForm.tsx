@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, Shield, Zap, DollarSign, Lock } from 'lucide-react';
+import { CreditCard, ShieldCheck, Zap, DollarSign, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FaceScanAnimation from './FaceScanAnimation';
 
@@ -99,37 +99,48 @@ export default function PaymentForm({
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 space-y-6">
+    <div className="max-w-md mx-auto card-premium p-8 space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Secure Payment</h2>
-        <p className="text-gray-600">Complete your transaction with biometric verification</p>
+        <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <ShieldCheck className="w-8 h-8 text-white" />
+        </div>
+        <h2 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Secure Payment</h2>
+        <p className="text-gray-600 text-base">Complete your transaction with biometric verification</p>
       </div>
 
       {/* Payment Steps Indicator */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-gray-50/50 rounded-2xl p-4 dark:bg-gray-800/50">
         {['Details', 'Verify', 'Process', 'Complete'].map((step, index) => {
           const currentIndex = ['details', 'verification', 'processing', 'complete'].indexOf(paymentStep);
           const isActive = index <= currentIndex;
           const isCurrent = index === currentIndex;
           
           return (
-            <div key={step} className="flex flex-col items-center">
+            <div key={step} className="flex flex-col items-center relative">
               <motion.div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
+                className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold shadow-sm ${
+                  isActive 
+                    ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                    : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                 }`}
                 animate={{ 
                   scale: isCurrent ? 1.1 : 1,
-                  backgroundColor: isActive ? '#3B82F6' : '#E5E7EB'
+                  boxShadow: isActive ? '0 10px 25px -3px rgba(59, 130, 246, 0.25), 0 4px 6px -2px rgba(59, 130, 246, 0.05)' : 'none'
                 }}
                 transition={{ duration: 0.3 }}
               >
                 {index + 1}
               </motion.div>
-              <span className={`text-xs mt-1 ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+              <span className={`text-xs mt-2 font-medium ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`}>
                 {step}
               </span>
+              {/* Connection line */}
+              {index < 3 && (
+                <div className={`absolute top-5 left-12 w-8 h-0.5 ${
+                  index < currentIndex ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                } transition-colors duration-300`} />
+              )}
             </div>
           );
         })}
@@ -147,24 +158,28 @@ export default function PaymentForm({
             className="space-y-4"
           >
             {/* Amount */}
-            <div className="bg-blue-50 rounded-lg p-4 text-center">
-              <div className="flex items-center justify-center mb-2">
-                <DollarSign className="w-6 h-6 text-blue-600 mr-1" />
-                <span className="text-3xl font-bold text-blue-900">{formData.amount.toFixed(2)}</span>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 text-center border border-blue-200/50 dark:border-blue-800/50">
+              <div className="flex items-center justify-center mb-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+                  <DollarSign className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {formData.amount.toFixed(2)}
+                </span>
               </div>
               {recipient && (
-                <p className="text-sm text-blue-700">To: {recipient}</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">To: {recipient}</p>
               )}
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="form-label">
                 Description (Optional)
               </label>
               <input
                 type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="form-input"
                 placeholder="What's this payment for?"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -173,30 +188,47 @@ export default function PaymentForm({
 
             {/* Payment Method Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
+              <label className="form-label">
                 Payment Method
               </label>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <motion.div
-                  className={`border-2 rounded-lg p-3 cursor-pointer transition-colors ${
-                    paymentMethod === 'face' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+                    paymentMethod === 'face' 
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg shadow-blue-500/10 dark:from-blue-900/20 dark:to-indigo-900/20 dark:border-blue-400' 
+                      : 'border-gray-200 bg-white/50 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50 dark:hover:bg-gray-700/50'
                   }`}
                   onClick={() => setPaymentMethod('face')}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                 >
                   <div className="flex items-center">
-                    <Shield className="w-5 h-5 text-blue-600 mr-3" />
-                    <div>
-                      <p className="font-medium text-gray-900">Biometric Verification</p>
-                      <p className="text-sm text-gray-500">Secure face recognition</p>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${
+                      paymentMethod === 'face'
+                        ? 'bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg'
+                        : 'bg-gray-100 dark:bg-gray-700'
+                    }`}>
+                      <ShieldCheck className={`w-6 h-6 ${
+                        paymentMethod === 'face' ? 'text-white' : 'text-gray-600 dark:text-gray-400'
+                      }`} />
                     </div>
-                    <div className="ml-auto">
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        paymentMethod === 'face' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 dark:text-white">Biometric Verification</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Secure face recognition • Instant</p>
+                    </div>
+                    <div className="ml-4">
+                      <div className={`w-5 h-5 rounded-full border-2 transition-all ${
+                        paymentMethod === 'face' 
+                          ? 'border-blue-500 bg-blue-500 shadow-sm' 
+                          : 'border-gray-300 dark:border-gray-600'
                       }`}>
                         {paymentMethod === 'face' && (
-                          <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5" />
+                          <motion.div 
+                            className="w-2 h-2 bg-white rounded-full mx-auto mt-1"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                          />
                         )}
                       </div>
                     </div>
@@ -204,25 +236,42 @@ export default function PaymentForm({
                 </motion.div>
 
                 <motion.div
-                  className={`border-2 rounded-lg p-3 cursor-pointer transition-colors ${
-                    paymentMethod === 'card' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                  className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
+                    paymentMethod === 'card' 
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg shadow-blue-500/10 dark:from-blue-900/20 dark:to-indigo-900/20 dark:border-blue-400' 
+                      : 'border-gray-200 bg-white/50 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50 dark:hover:bg-gray-700/50'
                   }`}
                   onClick={() => setPaymentMethod('card')}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                 >
                   <div className="flex items-center">
-                    <CreditCard className="w-5 h-5 text-gray-600 mr-3" />
-                    <div>
-                      <p className="font-medium text-gray-900">Credit Card</p>
-                      <p className="text-sm text-gray-500">Traditional payment</p>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${
+                      paymentMethod === 'card'
+                        ? 'bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg'
+                        : 'bg-gray-100 dark:bg-gray-700'
+                    }`}>
+                      <CreditCard className={`w-6 h-6 ${
+                        paymentMethod === 'card' ? 'text-white' : 'text-gray-600 dark:text-gray-400'
+                      }`} />
                     </div>
-                    <div className="ml-auto">
-                      <div className={`w-4 h-4 rounded-full border-2 ${
-                        paymentMethod === 'card' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 dark:text-white">Credit Card</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Traditional payment • Secure</p>
+                    </div>
+                    <div className="ml-4">
+                      <div className={`w-5 h-5 rounded-full border-2 transition-all ${
+                        paymentMethod === 'card' 
+                          ? 'border-blue-500 bg-blue-500 shadow-sm' 
+                          : 'border-gray-300 dark:border-gray-600'
                       }`}>
                         {paymentMethod === 'card' && (
-                          <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5" />
+                          <motion.div 
+                            className="w-2 h-2 bg-white rounded-full mx-auto mt-1"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                          />
                         )}
                       </div>
                     </div>
@@ -233,7 +282,9 @@ export default function PaymentForm({
 
             <Button 
               type="submit" 
-              className="w-full payment-flow-glow bg-blue-600 hover:bg-blue-700"
+              variant="payment"
+              size="lg"
+              className="w-full mt-6"
             >
               <Lock className="w-4 h-4 mr-2" />
               Proceed to Payment
@@ -244,7 +295,7 @@ export default function PaymentForm({
                 type="button"
                 onClick={onCancel}
                 variant="outline"
-                className="w-full mt-3 text-gray-600 hover:text-gray-800"
+                className="w-full mt-3"
               >
                 Cancel Payment
               </Button>
@@ -276,7 +327,7 @@ export default function PaymentForm({
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <div className="flex items-center">
-                <Shield className="w-5 h-5 text-yellow-600 mr-2" />
+                <ShieldCheck className="w-5 h-5 text-yellow-600 mr-2" />
                 <p className="text-sm text-yellow-800">
                   Your biometric data is processed securely and never stored
                 </p>

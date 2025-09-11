@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, Shield, Camera, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Mail, Lock, ShieldCheck, Camera, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import FaceScanAnimation from './FaceScanAnimation';
 
@@ -297,7 +297,7 @@ export default function RegistrationFlow({ onRegistrationComplete }: Registratio
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-start">
-                <Shield className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
+                <ShieldCheck className="w-5 h-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" />
                 <div className="text-sm">
                   <p className="font-medium text-blue-900 mb-1">Security Notice</p>
                   <p className="text-blue-800">

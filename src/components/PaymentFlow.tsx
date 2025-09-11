@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Fingerprint,
   Scan,
-  Shield,
+  ShieldCheck,
   Smartphone,
   Lock,
   X,
@@ -1287,7 +1287,7 @@ const PaymentFlow: React.FC<PaymentFlowProps> = ({
               transition={{ delay: 0.5 }}
               className="flex items-center justify-center space-x-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-3"
             >
-              <Shield className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4" />
               <span>
                 {authMode === 'faceid' 
                   ? 'Biometric data encrypted locally'

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
-import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
+import { AuthenticatorTransportFuture, PublicKeyCredentialDescriptorFuture } from '@simplewebauthn/types'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 
 export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Get existing credentials for the user to exclude them
-    const existingCredentials = user.webauthnCredentials.map(cred => ({
-      id: cred.credentialId,
+    const existingCredentials: PublicKeyCredentialDescriptorFuture[] = user.webauthnCredentials.map(cred => ({
+      id: isoBase64URL.toBuffer(cred.credentialId),
       type: 'public-key' as const,
       transports: ['internal', 'hybrid'] as AuthenticatorTransportFuture[],
     }))
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     const options = await generateRegistrationOptions({
       rpName: process.env.WEBAUTHN_RP_NAME || 'FacePay',
       rpID: process.env.WEBAUTHN_RP_ID || 'localhost', // or your domain
-      userID: Buffer.from(user.id, 'utf8'),
+      userID: user.id,
       userName: user.email,
       userDisplayName: user.name || user.email,
       timeout: 60000,

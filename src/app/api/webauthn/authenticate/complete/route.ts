@@ -4,6 +4,7 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middlewar
 import { generateTokens } from '@/lib/jwt'
 import { WebAuthnService } from '@/services/webauthn'
 import { verifyAuthenticationResponse } from '@simplewebauthn/server'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -96,8 +97,8 @@ export async function POST(request: NextRequest) {
 
     // Get credential for verification
     const credential_for_verification = {
-      credentialID: webauthnCredential.credentialId,
-      credentialPublicKey: Buffer.from(webauthnCredential.publicKey, 'base64url'),
+      credentialID: new Uint8Array(isoBase64URL.toBuffer(webauthnCredential.credentialId)),
+      credentialPublicKey: new Uint8Array(Buffer.from(webauthnCredential.publicKey, 'base64url')),
       counter: Number(webauthnCredential.counter),
     }
 

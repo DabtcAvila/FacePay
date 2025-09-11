@@ -6,7 +6,7 @@ import {
   Camera, 
   AlertCircle, 
   WifiOff, 
-  Shield, 
+  ShieldCheck, 
   Smartphone, 
   Eye, 
   Fingerprint,
@@ -160,7 +160,7 @@ export default function CameraStatusHelper({
               ) : deviceInfo.hasTouchID ? (
                 <><Fingerprint className="w-4 h-4 mr-2" />Use Touch ID</>
               ) : (
-                <><Shield className="w-4 h-4 mr-2" />Use Device Biometrics</>
+                <><ShieldCheck className="w-4 h-4 mr-2" />Use Device Biometrics</>
               )}
             </Button>
           )}
@@ -203,7 +203,7 @@ export default function CameraStatusHelper({
           ) : deviceInfo.hasTouchID ? (
             <><Fingerprint className="w-4 h-4 mr-2" />Try Touch ID</>
           ) : (
-            <><Shield className="w-4 h-4 mr-2" />Try Biometrics</>
+            <><ShieldCheck className="w-4 h-4 mr-2" />Try Biometrics</>
           )}
         </Button>
       )}

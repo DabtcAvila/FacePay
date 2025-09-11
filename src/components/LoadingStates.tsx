@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Shield, CreditCard, CheckCircle, Clock } from 'lucide-react';
+import { Loader2, ShieldCheck, CreditCard, CheckCircle, Clock } from 'lucide-react';
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
@@ -42,7 +42,7 @@ export const PaymentProcessing: React.FC<PaymentProcessingProps> = ({
   method
 }) => {
   const steps = [
-    { key: 'verifying', label: 'Verifying Identity', icon: Shield },
+    { key: 'verifying', label: 'Verifying Identity', icon: ShieldCheck },
     { key: 'processing', label: 'Processing Payment', icon: CreditCard },
     { key: 'confirming', label: 'Confirming Transaction', icon: CheckCircle }
   ];
@@ -50,25 +50,25 @@ export const PaymentProcessing: React.FC<PaymentProcessingProps> = ({
   const currentStepIndex = steps.findIndex(s => s.key === step);
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+    <div className="card-premium p-8 max-w-md w-full">
       <div className="text-center">
         <motion.div
-          className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6"
+          className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg"
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
           <LoadingSpinner size="lg" className="text-blue-600" />
         </motion.div>
 
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+        <h3 className="text-2xl font-bold text-gray-900 mb-2 tracking-tight">
           {steps[currentStepIndex]?.label}
         </h3>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 mb-6 text-base">
           Please wait while we securely process your transaction
         </p>
 
         {/* Progress Steps */}
-        <div className="flex justify-center items-center space-x-4 mb-6">
+        <div className="flex justify-center items-center space-x-2 mb-6 bg-gray-50/50 rounded-2xl p-4 dark:bg-gray-800/50">
           {steps.map((stepItem, index) => {
             const isActive = index <= currentStepIndex;
             const isCurrent = index === currentStepIndex;
@@ -77,22 +77,25 @@ export const PaymentProcessing: React.FC<PaymentProcessingProps> = ({
             return (
               <div key={stepItem.key} className="flex items-center">
                 <motion.div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    isActive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
+                    isActive 
+                      ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25' 
+                      : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
                   }`}
                   animate={{
                     scale: isCurrent ? [1, 1.1, 1] : 1,
-                    backgroundColor: isActive ? '#2563EB' : '#E5E7EB'
                   }}
                   transition={{ 
                     duration: isCurrent ? 1.5 : 0.3,
                     repeat: isCurrent ? Infinity : 0
                   }}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-6 h-6" />
                 </motion.div>
                 {index < steps.length - 1 && (
-                  <div className={`w-8 h-0.5 mx-2 ${isActive ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                  <div className={`w-6 h-0.5 mx-3 rounded-full transition-colors ${
+                    isActive ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                  }`} />
                 )}
               </div>
             );
@@ -101,27 +104,27 @@ export const PaymentProcessing: React.FC<PaymentProcessingProps> = ({
 
         {/* Transaction Details */}
         {amount && (
-          <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 space-y-3 border border-blue-200/50 dark:border-blue-800/50">
             <div className="flex justify-between text-sm">
-              <span className="text-blue-800">Amount:</span>
-              <span className="font-semibold text-blue-900">${amount.toFixed(2)}</span>
+              <span className="text-blue-800 dark:text-blue-300 font-medium">Amount:</span>
+              <span className="font-bold text-blue-900 dark:text-blue-100">${amount.toFixed(2)}</span>
             </div>
             {method && (
               <div className="flex justify-between text-sm">
-                <span className="text-blue-800">Method:</span>
-                <span className="text-blue-900">{method}</span>
+                <span className="text-blue-800 dark:text-blue-300 font-medium">Method:</span>
+                <span className="text-blue-900 dark:text-blue-100 font-semibold">{method}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
-              <span className="text-blue-800">Status:</span>
-              <span className="text-blue-900">{steps[currentStepIndex]?.label}</span>
+              <span className="text-blue-800 dark:text-blue-300 font-medium">Status:</span>
+              <span className="text-blue-900 dark:text-blue-100 font-semibold">{steps[currentStepIndex]?.label}</span>
             </div>
           </div>
         )}
 
         {/* Security Notice */}
         <div className="mt-6 flex items-center justify-center text-xs text-gray-500">
-          <Shield className="w-3 h-3 mr-1" />
+          <ShieldCheck className="w-3 h-3 mr-1" />
           <span>Your data is encrypted and secure</span>
         </div>
       </div>
@@ -215,21 +218,23 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4"
+        className="card-premium p-8 max-w-sm w-full mx-4"
       >
         <div className="text-center">
-          <LoadingSpinner size="lg" className="text-blue-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <LoadingSpinner size="lg" className="text-blue-600" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2 tracking-tight">
             {message}
           </h3>
           {subMessage && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 leading-relaxed">
               {subMessage}
             </p>
           )}
@@ -252,19 +257,19 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 }) => {
   return (
     <div className={`w-full ${className}`}>
-      <div className="flex justify-between items-center mb-1">
+      <div className="flex justify-between items-center mb-2">
         {showPercentage && (
-          <span className="text-sm font-medium text-blue-700">
+          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
             {Math.round(progress)}%
           </span>
         )}
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 shadow-inner">
         <motion.div
-          className="bg-blue-600 h-2 rounded-full"
+          className="bg-gradient-to-r from-blue-600 to-purple-600 h-3 rounded-full shadow-sm"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
     </div>

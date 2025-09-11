@@ -9,7 +9,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { 
   ClipboardList, 
   Eye, 
-  Shield,
+  ShieldCheck,
   User,
   Database,
   Settings,
@@ -170,7 +170,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 const ActionBadge = ({ action }: { action: string }) => {
   const getActionConfig = () => {
     const actionTypes: { [key: string]: { color: string; icon: any } } = {
-      'LOGIN_ATTEMPT': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: Shield },
+      'LOGIN_ATTEMPT': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', icon: ShieldCheck },
       'UPDATE_USER': { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: User },
       'DELETE_TRANSACTION': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', icon: Database },
       'UPDATE_SETTINGS': { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', icon: Settings },
@@ -323,7 +323,7 @@ export default function AuditPage() {
             change="Últimas 24h"
             changeType="neutral"
             icon={ClipboardList}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Exitosas"
@@ -331,7 +331,7 @@ export default function AuditPage() {
             change={`${((successfulActions / totalLogs) * 100).toFixed(1)}% del total`}
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Fallidas"
@@ -339,7 +339,7 @@ export default function AuditPage() {
             change={failedActions > 0 ? "Revisar causas" : "Todo OK"}
             changeType={failedActions > 0 ? "negative" : "positive"}
             icon={AlertTriangle}
-            iconColor="text-red-600"
+            variant="error"
           />
           <KPICard
             title="Advertencias"
@@ -347,7 +347,7 @@ export default function AuditPage() {
             change="Acciones sensibles"
             changeType="neutral"
             icon={AlertTriangle}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
         </div>
 

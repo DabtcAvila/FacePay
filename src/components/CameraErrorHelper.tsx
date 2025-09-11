@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { 
   AlertCircle, 
   Camera, 
-  Shield, 
+  ShieldCheck, 
   RefreshCw,
   Eye,
   HelpCircle,
@@ -40,7 +40,7 @@ const ERROR_INFO: Record<CameraError, CameraErrorInfo> = {
   PERMISSION_DENIED: {
     title: 'Camera Permission Required',
     message: 'Camera access was blocked. Please allow camera permissions to continue.',
-    icon: Shield,
+    icon: ShieldCheck,
     color: 'text-red-600',
     bgColor: 'bg-red-50 border-red-200',
     suggestions: [

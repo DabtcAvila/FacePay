@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CreditCard, 
-  Shield, 
+  ShieldCheck, 
   ArrowLeft, 
   CheckCircle, 
   XCircle, 
@@ -458,7 +458,7 @@ export default function CheckoutPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center">
                             <div className="relative">
-                              <Shield className="w-6 h-6 text-blue-600 mr-3" />
+                              <ShieldCheck className="w-6 h-6 text-blue-600 mr-3" />
                               {!isBiometricSupported && (
                                 <XCircle className="w-3 h-3 text-red-500 absolute -top-1 -right-1" />
                               )}
@@ -585,7 +585,7 @@ export default function CheckoutPage() {
                             <div className="flex items-center">
                               {paymentMethod === 'biometric' ? (
                                 <>
-                                  <Shield className="w-3 h-3 text-blue-600 mr-1" />
+                                  <ShieldCheck className="w-3 h-3 text-blue-600 mr-1" />
                                   <span className="text-gray-900">FacePay Biometric</span>
                                 </>
                               ) : (
@@ -738,7 +738,7 @@ export default function CheckoutPage() {
               {/* Security Features */}
               <div className="mt-4 space-y-2 text-xs text-gray-500">
                 <div className="flex items-center">
-                  <Shield className="w-3 h-3 mr-2" />
+                  <ShieldCheck className="w-3 h-3 mr-2" />
                   <span>Biometric authentication</span>
                 </div>
                 <div className="flex items-center">

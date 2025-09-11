@@ -8,7 +8,7 @@ import {
   Settings, 
   User, 
   History, 
-  Shield, 
+  ShieldCheck, 
   Bell, 
   Search,
   Menu,
@@ -110,7 +110,7 @@ export default function DashboardLayout({
     { id: 'payments', name: 'Payments', icon: CreditCard, href: '/payments' },
     { id: 'history', name: 'History', icon: History, href: '/history' },
     { id: 'biometric', name: 'Biometric Demo', icon: Fingerprint, href: '/biometric' },
-    { id: 'security', name: 'Security', icon: Shield, href: '/security' },
+    { id: 'security', name: 'Security', icon: ShieldCheck, href: '/security' },
     { id: 'profile', name: 'Profile', icon: User, href: '/profile' },
     { id: 'settings', name: 'Settings', icon: Settings, href: '/settings' }
   ];
@@ -192,7 +192,7 @@ export default function DashboardLayout({
           <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
             <div className="flex items-center space-x-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               <span className="text-lg sm:text-xl font-bold text-gray-900">FacePay</span>
             </div>

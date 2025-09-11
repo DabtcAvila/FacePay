@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Eye, 
   Fingerprint, 
-  Shield, 
+  ShieldCheck, 
   CheckCircle, 
   AlertTriangle, 
   Smartphone, 
@@ -169,7 +169,7 @@ export default function NativeBiometric({
     } else if (capabilities?.deviceInfo?.isMobile) {
       return Smartphone;
     }
-    return Shield;
+    return ShieldCheck;
   };
 
   const renderCheckingState = () => (
@@ -235,7 +235,7 @@ export default function NativeBiometric({
             onClick={startBiometricAuthentication} 
             className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-lg px-8 py-3"
           >
-            <Shield className="w-5 h-5 mr-2" />
+            <ShieldCheck className="w-5 h-5 mr-2" />
             Start {biometricType}
           </Button>
         </div>
@@ -309,7 +309,7 @@ export default function NativeBiometric({
         
         <div className="bg-green-50 rounded-lg p-4 mt-4">
           <div className="flex items-center justify-center space-x-2 text-green-700 text-sm">
-            <Shield className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" />
             <span>Secured by {biometricType} • End-to-end encrypted</span>
           </div>
         </div>
@@ -399,7 +399,7 @@ export default function NativeBiometric({
     <div className="w-full max-w-md mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-2">
-          <Shield className="w-6 h-6 text-blue-600" />
+          <ShieldCheck className="w-6 h-6 text-blue-600" />
           <h2 className="text-lg font-semibold text-gray-900">
             Native Biometric Auth
           </h2>

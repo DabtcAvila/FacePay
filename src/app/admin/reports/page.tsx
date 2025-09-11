@@ -164,7 +164,7 @@ export default function ReportsPage() {
             title="Total Reportes"
             value={reports.length.toString()}
             icon={FileText}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Completados"
@@ -172,7 +172,7 @@ export default function ReportsPage() {
             change={`${((completedReports / reports.length) * 100).toFixed(0)}% del total`}
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
           <KPICard
             title="Programados"
@@ -180,7 +180,7 @@ export default function ReportsPage() {
             change="Próximas ejecuciones"
             changeType="neutral"
             icon={Calendar}
-            iconColor="text-yellow-600"
+            variant="warning"
           />
           <KPICard
             title="Fallidos"
@@ -188,7 +188,7 @@ export default function ReportsPage() {
             change={failedReports > 0 ? "Requieren atención" : "Todo OK"}
             changeType={failedReports > 0 ? "negative" : "positive"}
             icon={AlertCircle}
-            iconColor="text-red-600"
+            variant="error"
           />
         </div>
 

@@ -4,6 +4,7 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middlewar
 import { generateTokens } from '@/lib/jwt'
 import { verifyAuthenticationResponse, generateAuthenticationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 
 // Schema for the login request
@@ -72,8 +73,8 @@ export async function POST(request: NextRequest) {
       expectedOrigin: process.env.WEBAUTHN_ORIGIN || 'http://localhost:3000',
       expectedRPID: process.env.WEBAUTHN_RP_ID || 'localhost',
       authenticator: {
-        credentialID: webauthnCredential.credentialId,
-        credentialPublicKey: Buffer.from(webauthnCredential.publicKey, 'base64url'),
+        credentialID: isoBase64URL.toBuffer(webauthnCredential.credentialId),
+        credentialPublicKey: isoBase64URL.toBuffer(webauthnCredential.publicKey),
         counter: Number(webauthnCredential.counter),
       },
       requireUserVerification: true, // Enforce biometric verification

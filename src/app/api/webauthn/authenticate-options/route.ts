@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,8 @@ export async function POST(request: NextRequest) {
 
     // Only allow credentials owned by this user - force internal transport for platform authenticators
     const allowCredentials = user.webauthnCredentials.map(cred => ({
-      id: cred.credentialId, // Use string directly as stored in base64url format
+      id: isoBase64URL.toBuffer(cred.credentialId), // Convert base64url to buffer
+      type: 'public-key' as const,
       transports: ['internal'] as AuthenticatorTransportFuture[], // Force platform authenticator transport
     }))
 

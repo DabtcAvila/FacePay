@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
             change="+23.5% vs mes anterior"
             changeType="positive"
             icon={DollarSign}
-            iconColor="text-green-600"
+            variant="revenue"
           />
           <KPICard
             title="Usuarios Activos"
@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
             change="+12.3% vs mes anterior"
             changeType="positive"
             icon={Users}
-            iconColor="text-blue-600"
+            variant="users"
           />
           <KPICard
             title="Transacciones/Día"
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
             change="+8.7% vs ayer"
             changeType="positive"
             icon={CreditCard}
-            iconColor="text-purple-600"
+            variant="transactions"
           />
           <KPICard
             title="Tasa de Conversión"
@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
             change="+0.5% vs mes anterior"
             changeType="positive"
             icon={TrendingUp}
-            iconColor="text-orange-600"
+            variant="success"
           />
         </div>
 
@@ -245,7 +245,7 @@ export default function AnalyticsPage() {
             change="+1m 23s vs mes anterior"
             changeType="positive"
             icon={Clock}
-            iconColor="text-indigo-600"
+            variant="default"
           />
           <KPICard
             title="Páginas por Sesión"
@@ -253,7 +253,7 @@ export default function AnalyticsPage() {
             change="+0.3 vs mes anterior"
             changeType="positive"
             icon={Monitor}
-            iconColor="text-cyan-600"
+            variant="default"
           />
           <KPICard
             title="Tasa de Rebote"
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
             change="-2.1% vs mes anterior"
             changeType="positive"
             icon={TrendingUp}
-            iconColor="text-emerald-600"
+            variant="success"
           />
         </div>
 

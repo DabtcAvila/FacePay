@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { WebAuthnService } from '@/services/webauthn'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
-import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
+import { AuthenticatorTransportFuture, PublicKeyCredentialDescriptorFuture } from '@simplewebauthn/types'
+import { isoBase64URL } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
       origin: request.headers.get('origin')
     })
 
-    let allowCredentials: { id: string; transports: AuthenticatorTransportFuture[] }[] = []
+    let allowCredentials: PublicKeyCredentialDescriptorFuture[] = []
     let userForAuth = null
 
     if (email) {
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest) {
 
       // Map credentials with transport hints for platform authenticators
       allowCredentials = userForAuth.webauthnCredentials.map(cred => ({
-        id: cred.credentialId,
+        id: isoBase64URL.toBuffer(cred.credentialId),
+        type: 'public-key' as const,
         transports: (cred.transports as AuthenticatorTransportFuture[]) || ['internal'], // Use stored transports
       }))
 
@@ -80,7 +82,8 @@ export async function POST(request: NextRequest) {
 
       // Map credentials with transport hints for platform authenticators
       allowCredentials = userForAuth.webauthnCredentials.map(cred => ({
-        id: cred.credentialId,
+        id: isoBase64URL.toBuffer(cred.credentialId),
+        type: 'public-key' as const,
         transports: (cred.transports as AuthenticatorTransportFuture[]) || ['internal'], // Use stored transports
       }))
 

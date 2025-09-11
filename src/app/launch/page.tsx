@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { ArrowRight, Zap, Shield, Users, TrendingUp, CheckCircle, Star } from 'lucide-react'
+import { ArrowRight, Zap, ShieldCheck, Users, TrendingUp, CheckCircle, Star } from 'lucide-react'
 import Link from 'next/link'
 
 export default function LaunchPage() {
@@ -71,7 +71,7 @@ export default function LaunchPage() {
               <span>127 en lista de espera</span>
             </div>
             <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
+              <ShieldCheck className="w-4 h-4" />
               <span>100% Seguro</span>
             </div>
             <div className="flex items-center gap-2">

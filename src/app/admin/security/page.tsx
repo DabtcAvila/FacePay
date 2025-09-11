@@ -8,7 +8,7 @@ import AdminLineChart from '@/components/Admin/Charts/LineChart';
 import AdminBarChart from '@/components/Admin/Charts/BarChart';
 import { ColumnDef } from '@tanstack/react-table';
 import { 
-  Shield, 
+  ShieldCheck, 
   AlertTriangle, 
   Eye, 
   Ban,
@@ -364,8 +364,8 @@ export default function SecurityPage() {
             value={totalEvents.toString()}
             change="Últimas 24h"
             changeType="neutral"
-            icon={Shield}
-            iconColor="text-blue-600"
+            icon={ShieldCheck}
+            variant="users"
           />
           <KPICard
             title="Eventos Críticos"
@@ -373,7 +373,7 @@ export default function SecurityPage() {
             change={`${((criticalEvents / totalEvents) * 100).toFixed(1)}% del total`}
             changeType="negative"
             icon={AlertTriangle}
-            iconColor="text-red-600"
+            variant="error"
           />
           <KPICard
             title="Sin Resolver"
@@ -381,7 +381,7 @@ export default function SecurityPage() {
             change="Requieren atención"
             changeType="negative"
             icon={AlertCircle}
-            iconColor="text-orange-600"
+            variant="warning"
           />
           <KPICard
             title="Resueltos Hoy"
@@ -389,7 +389,7 @@ export default function SecurityPage() {
             change="Eventos procesados"
             changeType="positive"
             icon={CheckCircle}
-            iconColor="text-green-600"
+            variant="success"
           />
         </div>
 
