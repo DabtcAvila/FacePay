@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 const historyQuerySchema = z.object({
   page: z.string().optional().default('1'),
   limit: z.string().optional().default('20'),

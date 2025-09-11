@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 
+export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request)

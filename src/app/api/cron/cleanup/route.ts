@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { monitoring } from '@/lib/monitoring'
 import { Prisma } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Production cleanup cron job
  * Runs daily at 2 AM to clean up old data and maintain database health

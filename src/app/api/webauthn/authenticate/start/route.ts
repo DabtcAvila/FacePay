@@ -6,6 +6,7 @@ import { generateAuthenticationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
 const startAuthenticationSchema = z.object({
   email: z.string().email('Invalid email address').optional(),
   userId: z.string().optional(),

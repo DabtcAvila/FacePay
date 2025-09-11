@@ -4,6 +4,8 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middlewar
 import { paymentSecurity } from '@/middleware/security'
 import { validatePaymentIntent } from '@/middleware/validation'
 import { requireAuth } from '@/middleware/auth'
+
+export const dynamic = 'force-dynamic'
 import { 
   logPaymentFraud, 
   logSuspiciousActivity,

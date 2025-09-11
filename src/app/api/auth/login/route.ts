@@ -5,6 +5,8 @@ import { generateTokens } from '@/lib/jwt'
 import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middleware'
 import { authSecurity } from '@/middleware/security'
 import { validateLogin } from '@/middleware/validation'
+
+export const dynamic = 'force-dynamic'
 import { 
   logAuthSuccess, 
   logAuthFailure, 

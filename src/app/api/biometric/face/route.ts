@@ -4,6 +4,7 @@ import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/a
 import { faceVerificationService } from '@/services/faceVerification'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
 const enrollFaceSchema = z.object({
   imageData: z.string().min(1, 'Image data is required'),
   replaceExisting: z.boolean().optional().default(false),

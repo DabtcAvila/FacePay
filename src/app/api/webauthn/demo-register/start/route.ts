@@ -4,6 +4,8 @@ import { createErrorResponse, createSuccessResponse } from '@/lib/auth-middlewar
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()

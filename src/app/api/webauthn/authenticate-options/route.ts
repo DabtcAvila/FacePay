@@ -4,6 +4,7 @@ import { requireAuth, createErrorResponse, createSuccessResponse } from '@/lib/a
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
+export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     // Require authentication to get user's credentials

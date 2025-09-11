@@ -6,6 +6,7 @@ import { verifyRegistrationResponse } from '@simplewebauthn/server'
 import type { RegistrationResponseJSON } from '@simplewebauthn/types'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
 const completeRegistrationSchema = z.object({
   credential: z.object({
     id: z.string(),

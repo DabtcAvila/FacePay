@@ -5,6 +5,7 @@ import { WebAuthnService } from '@/services/webauthn'
 import { generateRegistrationOptions } from '@simplewebauthn/server'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 
+export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request)

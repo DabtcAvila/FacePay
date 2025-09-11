@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { monitoring } from '@/lib/monitoring'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Production health check cron job
  * Runs every 5 minutes to monitor system health and alert on issues

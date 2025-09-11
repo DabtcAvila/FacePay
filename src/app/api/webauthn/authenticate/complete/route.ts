@@ -6,6 +6,7 @@ import { WebAuthnService } from '@/services/webauthn'
 import { verifyAuthenticationResponse } from '@simplewebauthn/server'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
 const completeAuthenticationSchema = z.object({
   credential: z.object({
     id: z.string(),

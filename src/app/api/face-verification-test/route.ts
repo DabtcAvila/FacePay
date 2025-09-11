@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { faceVerificationService } from '@/services/faceVerification'
 
+export const dynamic = 'force-dynamic'
 // Simple test endpoint for the face verification service
 export async function POST(request: NextRequest) {
   try {
