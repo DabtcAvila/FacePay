@@ -40,3 +40,6 @@ async function getSecurityStatsHandler(request: NextRequest) {
 
 // Apply security middleware and export
 export const GET = strictSecurity(getSecurityStatsHandler)
+
+// Prevent static generation
+export const dynamic = 'force-dynamic'

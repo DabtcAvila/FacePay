@@ -182,3 +182,5 @@ export async function GET(request: NextRequest) {
     return createErrorResponse('Failed to retrieve checkout session', 500)
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

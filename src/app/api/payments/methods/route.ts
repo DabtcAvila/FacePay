@@ -151,3 +151,5 @@ export async function POST(request: NextRequest) {
     return createErrorResponse('Internal server error', 500)
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

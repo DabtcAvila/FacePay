@@ -185,3 +185,5 @@ export async function GET(request: NextRequest) {
     return createErrorResponse('Failed to generate biometric authentication options', 500)
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

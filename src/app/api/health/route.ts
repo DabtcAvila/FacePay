@@ -316,3 +316,5 @@ export async function HEAD() {
     }
   });
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

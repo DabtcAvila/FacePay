@@ -121,3 +121,5 @@ function getFriendlyCredentialName(deviceType: string | null, backedUp: boolean 
       return backedUp ? `${deviceType} (Cloud-synced)` : `${deviceType} (Device-only)`
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

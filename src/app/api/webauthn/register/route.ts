@@ -382,3 +382,5 @@ async function handleRegistrationVerification(user: any, credential: any) {
     return createErrorResponse('Failed to verify registration', 500)
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

@@ -287,3 +287,5 @@ function convertToCSV(data: any[]): string {
 
   return [csvHeaders, ...csvRows].join('\n')
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

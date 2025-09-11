@@ -170,3 +170,6 @@ async function deleteProfileHandler(request: NextRequest) {
 export const GET = strictSecurity(getProfileHandler)
 export const PUT = strictSecurity(updateProfileHandler)  
 export const DELETE = strictSecurity(deleteProfileHandler)
+
+// Prevent static generation
+export const dynamic = 'force-dynamic'

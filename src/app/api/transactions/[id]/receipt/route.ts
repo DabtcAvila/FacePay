@@ -339,3 +339,5 @@ function generateHTMLReceipt(receipt: any): string {
 </html>
   `
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'

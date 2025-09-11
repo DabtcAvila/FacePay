@@ -106,3 +106,5 @@ export async function POST(request: NextRequest) {
     return createErrorResponse('Failed to verify registration', 500)
   }
 }
+// Prevent static generation
+export const dynamic = 'force-dynamic'
