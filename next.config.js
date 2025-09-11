@@ -30,7 +30,6 @@ const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   swcMinify: true,
-  output: 'standalone',
   eslint: {
     ignoreDuringBuilds: false
   },
