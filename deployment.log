@@ -1,0 +1,4 @@
+Vercel CLI 47.1.1
+The "--name" option is deprecated (https://vercel.link/name-flag)
+Loading scopes…
+Error: The specified token is not valid. Use `vercel login` to generate a new token.
